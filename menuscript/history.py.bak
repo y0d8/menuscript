@@ -14,6 +14,13 @@ def load_history():
 def add_history_entry(target, args, label, logpath, xmlpath=None, tool="nmap", summary=None):
     """
     Add an entry to the history.
+    - target: target string (IP/CIDR/hostname)
+    - args: list of args used for the tool
+    - label: optional user label
+    - logpath: path to the scan log file
+    - xmlpath: (optional) path to xml output (for nmap)
+    - tool: tool name string, e.g. "nmap", "gobuster"
+    - summary: optional dict with structured summary (hosts, per_host, etc.)
     """
     ensure_dirs()
     h = load_history()
@@ -31,16 +38,9 @@ def add_history_entry(target, args, label, logpath, xmlpath=None, tool="nmap", s
     write_json(HISTORY_FILE, h[:200])
     return entry
 
-def get_tools():
-    """
-    Return a sorted list of unique tool names present in history.
-    """
-    h = load_history()
-    tools = sorted({(e.get("tool") or "").lower() for e in h if e.get("tool")})
-    return tools
-
 def _safe_filename_component(s):
     s = str(s or "")
+    # allow alnum, dot, dash, underscore; replace others with underscore
     return "".join(c if (c.isalnum() or c in ('.','-','_')) else '_' for c in s)
 
 def _make_export_name(entry, ext):
@@ -54,20 +54,33 @@ def _make_export_name(entry, ext):
     return EXPORT_DIR / (base + "." + ext)
 
 def export_entry_json(entry):
+    """
+    Exports the raw history entry to JSON.
+    Returns the Path object of the exported file.
+    """
     path = _make_export_name(entry, "json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(entry, f, indent=2)
     return path
 
 def export_entry_csv(entry):
+    """
+    Exports a flattened CSV representing per-host rows (if available).
+    If no per-host data, write a summary row.
+    Returns the Path object of the exported file.
+    """
     path = _make_export_name(entry, "csv")
     per_host = []
     summary = entry.get("summary") or {}
+    # try common shapes: summary.per_host or summary['per_host']
     if isinstance(summary, dict):
         per_host = summary.get("per_host") or []
+    # If per_host is empty, attempt to derive minimal info from summary
     if not per_host:
+        # fallback single row giving summary metrics
         per_host = [{"addr": "", "up": None, "open": summary.get("open_ports", 0)}]
 
+    # Write CSV file
     with open(path, "w", newline='', encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["timestamp","tool","target","label","host","up","open_ports","log","xml"])
