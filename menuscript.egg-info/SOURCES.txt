@@ -1,0 +1,13 @@
+README.md
+setup.py
+menuscript/__init__.py
+menuscript/history.py
+menuscript/main.py
+menuscript/scanner.py
+menuscript/ui.py
+menuscript/utils.py
+menuscript.egg-info/PKG-INFO
+menuscript.egg-info/SOURCES.txt
+menuscript.egg-info/dependency_links.txt
+menuscript.egg-info/entry_points.txt
+menuscript.egg-info/top_level.txt

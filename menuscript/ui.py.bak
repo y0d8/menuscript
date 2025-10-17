@@ -1,0 +1,49 @@
+cat > ui.py << 'EOF'
+#!/usr/bin/env python3
+from .scanner import run_nmap
+from .history import load_history, add_history_entry
+from .utils import nmap_installed, detect_local_subnet
+import sys
+
+CSI = '\033['
+RESET = CSI + '0m'
+BOLD = CSI + '1m'
+GREEN = CSI + '32m'
+RED = CSI + '31m'
+CYAN = CSI + '36m'
+MAG = CSI + '35m'
+
+BANNER = r'''
+╔═╗┌─┐┌┬┐┬ ┬  menuscript v0.4.0
+║ ║├─┘ │ │ │  y0d8 & S0ul H@ck3r$ — Recon Suite
+╚═╝┴   ┴ └─┘
+'''
+
+PRESETS = {
+    '1': ('Discovery Scan (ping only)', ['-sn']),
+    '2': ('Fast Scan (-F)', ['-v', '-PS', '-F']),
+    '3': ('Service & OS (full)', ['-sV', '-O', '-p1-65535']),
+}
+
+def print_banner():
+    print(MAG + BANNER + RESET)
+    print(BOLD + 'menuscript — y0d8 & S0ul H@ck3r$ Recon Suite' + RESET)
+    print(CYAN + 'Nmap Automation | Clean. Fast. Simple.' + RESET)
+    print()
+    print(RED + 'LEGAL:' + RESET + ' Use only on systems you own or have permission to test.')
+    print()
+
+def print_header():
+    print('=' * 60)
+    print(' menuscript — quick nmap launcher')
+    print('=' * 60)
+    print()
+
+def show_menu():
+    detected = detect_local_subnet()
+    print_header()
+    if detected:
+        print(f' 0) Scan my LAN (auto-detect)  [{detected}]')
+    else:
+        print('
+
