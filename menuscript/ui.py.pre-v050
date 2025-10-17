@@ -14,18 +14,21 @@ CYAN = CSI + '36m'
 MAG = CSI + '35m'
 
 BANNER = r'''
-╔═╗┌─┐┌┬┐┬ ┬  menuscript v0.4.2
-║ ║├─┘ │ │ │  y0d8 & S0ul H@ck3r$ — Recon Suite
-╚═╝┴   ┴ └─┘
+  ____   ____   _   _    _    ____  _   _  ____  _   _  ____  ____ 
+ / ___| / ___| | | | |  / \  / ___|| | | |/ ___|| | | |/ ___||  _ \
+ \___ \| |     | |_| | / _ \ \___ \| | | | |  _ | | | | |  _ | |_) |
+  ___) | |___  |  _  |/ ___ \ ___) | |_| | |_| || |_| | |_| ||  _ < 
+ |____/ \____| |_| |_/_/   \_\____/ \___/ \____| \___/ \____||_| \_\
+
+                         $0u! H@cK3R$
 '''
+
+FOOTER = 'y0d8 & CyberSoul SecurITy'
 
 def print_banner():
     os.system('clear' if os.name == 'posix' else 'cls')
     print(MAG + BANNER + RESET)
-    print(BOLD + 'menuscript — y0d8 & S0ul H@ck3r$ Recon Suite' + RESET)
-    print(CYAN + 'Nmap Automation | Clean. Fast. Simple.' + RESET)
-    print()
-    print(RED + 'LEGAL:' + RESET + ' Use only on systems you own or have explicit permission to test.')
+    print(BOLD + FOOTER + RESET)
     print()
 
 def print_header():
@@ -319,6 +322,8 @@ def show_menu():
 
 def run_menu_loop():
     print_banner()
+    print(FOOTER)
+    print()
     while True:
         show_menu()
         choice = prompt('Choice > ')
