@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# menuscript UI (v0.5.0) — DB-backed history, grouped view, export & rerun
+# menuscript UI (v0.6.0) — DB-backed history, grouped view, export & rerun
 # Notes for learning:
 # - History now comes from SQLite via menuscript.storage.db
 # - We group by tool, and show ALL entries (no pagination)
@@ -8,6 +8,9 @@
 import sys, os
 from typing import List, Dict, Any
 from .utils import nmap_installed, detect_local_subnet
+from .engine.background import list_jobs, get_job, start_worker, stop_worker
+from .engine.loader import discover_plugins
+from .engine.manager import run_scan_sync
 from .scanner import run_nmap
 from .storage.db import get_scans, get_scan
 # (history.py kept for export helpers if needed in future, not used for reads)
@@ -332,19 +335,82 @@ def history_menu():
 
 # ---- Main menu ----
 
+
+def handle_gobuster():
+    """
+    TUI handler to run Gobuster plugin via the manager.
+    Prompts for target (URL), extra args (user-provided), and an optional label.
+    Requires the user to supply -w <wordlist> in args for Gobuster to run.
+    """
+    print('\n--- Gobuster (Web Plugin) ---')
+    target = prompt('Target (URL) > ')
+    if not target:
+        print('No target provided; returning.')
+        return
+    print('\n' + '\033[31m\033[1m' + 'REMINDER: Gobuster will run next — make sure you provided -w <wordlist>. Example: /usr/share/wordlists/dirb/common.txt' + '\033[0m')
+    args_raw = prompt('Gobuster args (e.g. dir -u http://example.com -w /path/wordlist -t 10) > ')
+    if not args_raw:
+        print('No args provided. You must include \' -w <wordlist>\' for Gobuster to run.')
+        return
+    args = args_raw.split()
+    # Basic safety check: require -w (wordlist) in args
+    if not any(a == '-w' for a in args):
+        print('Gobuster requires a wordlist (-w). Please provide -w <path>. Aborting.')
+        return
+    label = prompt('Label for this scan (optional) > ')
+    print('\\nStarting Gobuster scan — this will run synchronously (wait until it completes).')
+    sid = None
+    try:
+        sid = run_scan_sync('gobuster', target, args, label, save_xml=False)
+    except Exception as e:
+        print(f'Error launching gobuster: {e}')
+        return
+    print(f'Scan scheduled/completed with id: {sid}')
+    print()
+
+def handle_web_plugins():
+    print('\n' + '\033[31m\033[1m' + 'NOTE: Gobuster requires -w <wordlist> to run. Example: /usr/share/wordlists/dirb/common.txt' + '\033[0m')
+    """
+    Web Plugins submenu (TUI). Keep this minimal: user chooses a plugin to run or Back.
+    """
+    while True:
+        print()
+        print('--- Web Plugins ---')
+        print('  1) Gobuster')
+        print('  b) Back')
+        print()
+        ch = prompt('Choice > ').strip().lower()
+        if ch in ('1','gobuster'):
+            handle_gobuster()
+        elif ch in ('b','back'):
+            return
+        else:
+            print('Unknown choice. Use 1 or b (back).')
+
+
 def show_menu():
-    print_header()
     detected = detect_local_subnet()
+    print_header()
     if detected:
         print(f' 0) Scan my LAN (auto-detect)  [{detected}]')
     else:
         print(' 0) Scan my LAN (auto-detect)  [no subnet detected]')
-    print(' 1) Discovery Scan (ping only)')
-    print(' 2) Fast Scan')
-    print(' 3) Full Service/OS Scan')
-    print(' 4) Custom Scan')
-    print(' 5) History')
-    print(' 6) Exit')
+    print()
+    print('Recon Plugins (Network)')
+    print('  1) Discovery Scan (ping only)')
+    print('  2) Fast Scan')
+    print('  3) Full Service/OS Scan')
+    print()
+    print('Web Plugins')
+    print('  7) Web Plugins (Gobuster, etc.)')
+    print()
+    print('  4) Custom Scan')
+    print('  5) History')
+    print('  6) Exit')
+    print()
+    print('System')
+    print('  8) Background Jobs')
+    print('  9) Network Plugins')
     print()
 
 def run_menu_loop():
@@ -360,8 +426,285 @@ def run_menu_loop():
             handle_custom()
         elif choice == '5':
             history_menu()
+        elif choice == '7':
+            # Route to Web Plugins submenu if available; otherwise show message
+            if 'handle_web_plugins' in globals():
+                try:
+                    handle_web_plugins()
+                except Exception as _e:
+                    print(f"Error opening Web Plugins submenu: {_e}")
+            else:
+                print('Web Plugins are not available. (handler missing)')
         elif choice == '6' or choice.lower() in ('q', 'quit', 'exit'):
             print('Goodbye!')
             sys.exit(0)
+        elif choice == '8':
+            try:
+                handle_background_jobs()
+            except Exception as _e:
+                print('Error opening Background Jobs:', _e)
         else:
             print('Invalid choice. Try again.\n')
+
+
+
+def _status_icon_txt(s: str) -> str:
+    m = {"queued":"● queued","running":"▶ running","done":"✔ done","failed":"✖ failed"}
+    return m.get((s or "").lower(), s or "?")
+
+def _print_jobs_grouped():
+    # Group order: running -> queued -> done -> failed
+    groups = [("running","RUNNING"), ("queued","QUEUED"), ("done","DONE"), ("failed","FAILED")]
+    print(" BACKGROUND JOBS")
+    print("──────────────────────────────────────────────────────────────────────────────")
+    jobs = list_jobs(limit=200)
+    if not jobs:
+        print(" (no jobs)")
+        return
+    for key, title in groups:
+        subset = [j for j in jobs if (j.get("status") or "").lower() == key]
+        if not subset:
+            continue
+        print(f" {title}")
+        print(" ID   TOOL        STATUS      TARGET                          CREATED")
+        print(" ───────────────────────────────────────────────────────────────────────────")
+        for j in subset:
+            st = (j.get("status") or "").lower()
+            icon = _status_icon_txt(st)
+            print(f"{str(j['id']).ljust(4)} {j['tool'][:10].ljust(10)}  {icon[:10].ljust(10)}  {j['target'][:30].ljust(30)}  {j.get('created_at','')}")
+        print()
+
+def _jobs_tail_prompt():
+    jid = prompt('Job id to tail > ')
+    if not jid or not jid.isdigit():
+        print('Invalid job id.')
+        return
+    j = get_job(int(jid))
+    if not j:
+        print('Job not found.')
+        return
+    scan_id = j.get('result_scan_id')
+    if not scan_id:
+        print('Job has no scan result yet.')
+        return
+    try:
+        from .storage.db import get_scan
+        rec = get_scan(scan_id)
+        if rec and rec.get('log'):
+            try:
+                with open(rec['log'], 'r', encoding='utf-8', errors='ignore') as fh:
+                    lines = fh.readlines()
+                print(''.join(lines[-200:]))
+            except Exception as e:
+                print('Could not read log file:', e)
+        else:
+            print('No log path recorded for scan.')
+    except Exception as e:
+        print('Cannot load scan record:', e)
+
+def handle_background_jobs():
+    while True:
+        print('\\n--- Background Jobs ---')
+        print('  1) View queued jobs')
+        print('  2) View running jobs')
+        print('  3) View completed jobs')
+        print('  4) Tail job log')
+        print('  v) View live output')
+        print('  5) Start worker')
+        print('  6) Stop worker')
+        print('  r) Refresh')
+        print('  b) Back')
+        print()
+        ch = prompt('Choice > ').strip().lower()
+        if ch in ('1','2','3','r'):
+            _print_jobs_grouped()
+        elif ch == '4':
+            _jobs_tail_prompt()
+        elif ch == 'v':
+            view_job_live_prompt()
+        elif ch == '5':
+            print('Run worker:')
+            print('  1) Foreground (monitor in this terminal)')
+            print('  2) Background (detach)')
+            sel = prompt('Choice > ').strip()
+            fg = (sel == '1')
+            start_worker(detach=(not fg))
+            print('Worker started ' + ('(foreground thread).' if fg else '(daemon background thread).'))
+        elif ch == '6':
+            stop_worker()
+            print('Worker stop signal sent.')
+        elif ch in ('b','back'):
+            return
+        else:
+            print('Unknown choice.')
+
+
+
+# ----------------------------
+# Live job output viewer (T3)
+# ----------------------------
+def view_job_live_prompt():
+    """Prompt for a job id and launch the live viewer."""
+    jid = prompt('Job id to view live > ')
+    if not jid or not jid.isdigit():
+        print('Invalid job id.')
+        return
+    view_job_live(int(jid))
+
+def view_job_live(job_id: int, refresh_interval: float = 1.0, max_lines: int = 300):
+    """
+    Framed live tail viewer (T3).
+    - refresh_interval: seconds between updates
+    - max_lines: how many tail lines to show
+    Controls:
+      q or b + ENTER -> quit viewer and return to job menu
+    Implementation notes:
+    - tries to locate log path via storage.get_scan(scan_id) if result_scan_id exists
+    - falls back to ~/.menuscript/artifacts/<job_id>.log when missing
+    """
+    import os, sys, time, json, select
+    # lookup job record
+    j = None
+    try:
+        j = get_job(job_id)
+    except Exception as _e:
+        print('Could not load job:', _e)
+        return
+    if not j:
+        print('Job not found.')
+        return
+    # attempt to find log path
+    log_path = None
+    scan_id = j.get('result_scan_id')
+    if scan_id:
+        try:
+            from .storage.db import get_scan
+            rec = get_scan(scan_id)
+            if rec and rec.get('log'):
+                log_path = rec.get('log')
+        except Exception:
+            # ignore, fallback later
+            pass
+    if not log_path:
+        # default fallback
+        log_dir = os.path.join(os.path.expanduser('~'), '.menuscript', 'artifacts')
+        if not os.path.isdir(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, f'{job_id}.log')
+    # viewer loop
+    print(f'Opening live view for job {job_id} (log: {log_path}) — press q then ENTER to quit')
+    last_size = 0
+    try:
+        while True:
+            # clear screen
+            os.system('clear' if os.name == 'posix' else 'cls')
+            # header frame
+            print('╭' + '─'*74 + '╮')
+            title = f' Live Output — Job {job_id} '
+            print('│' + title.center(74) + '│')
+            print('├' + '─'*74 + '┤')
+            # read last lines safely
+            lines = []
+            try:
+                if os.path.exists(log_path):
+                    with open(log_path, 'r', encoding="utf-8", errors="replace") as fh:
+                        all_lines = fh.readlines()
+                        if len(all_lines) > max_lines:
+                            lines = all_lines[-max_lines:]
+                        else:
+                            lines = all_lines
+                else:
+                    lines = ['(log file not found yet — waiting for output...)']
+            except Exception as e:
+                lines = [f'(error reading log: {e})']
+            # print content with side padding
+            for L in lines:
+                # ensure single-line prints (no embedded control sequences)
+                L = L.rstrip('\n')
+                # clamp to width 74
+                if len(L) > 74:
+                    L = L[-74:]
+                print('│' + L.ljust(74) + '│')
+            # footer
+            print('├' + '─'*74 + '┤')
+            print('│' + f' Press q + ENTER to quit | Refresh every {refresh_interval}s '.ljust(74) + '│')
+            print('╰' + '─'*74 + '╯')
+            # wait with non-blocking check for input
+            # select.select works on POSIX; on Windows this might behave differently.
+            sys.stdout.flush()
+            rlist, _, _ = select.select([sys.stdin], [], [], refresh_interval)
+            if rlist:
+                inp = sys.stdin.readline().strip().lower()
+                if inp in ('q','b'):
+                    break
+            # check job status and exit when done (optional)
+            try:
+                j = get_job(job_id)
+                if j and (j.get('status') in ('done','failed')):
+                    print('\nJob finished (status: {}). Press ENTER to return.'.format(j.get('status')))
+                    # wait for user to press enter
+                    _ = sys.stdin.readline()
+                    break
+            except Exception:
+                # ignore and continue
+                pass
+    except KeyboardInterrupt:
+        # ctrl-C behaves like quit
+        pass
+    finally:
+        # small tidy
+        print('Exiting live view.')
+
+
+
+def handle_network_plugins():
+    """
+    TUI submenu to browse and run/enqueue network plugins.
+    """
+    try:
+        plugins = discover_plugins()
+    except Exception as _e:
+        print("Could not load plugins:", _e)
+        return
+    net = [p for p in plugins.values() if getattr(p, "category", "") == "network"]
+    if not net:
+        print("No network plugins discovered.")
+        return
+    while True:
+        print("\\n--- Network Plugins ---")
+        for i, p in enumerate(net, start=1):
+            print(f"  {i}) {p.name} ({p.tool})")
+        print("  b) Back")
+        ch = prompt("Choice > ").strip().lower()
+        if ch in ("b","back"):
+            return
+        if ch.isdigit() and 1 <= int(ch) <= len(net):
+            plugin = net[int(ch)-1]
+            target = prompt("Target (host/domain/IP) > ")
+            if not target:
+                print("No target provided.")
+                continue
+            args_raw = prompt("Additional args (optional) > ")
+            args = args_raw.split() if args_raw else []
+            label = prompt("Label (optional) > ")
+            run_choice = prompt("Run now or enqueue? (r/e) [e] > ").strip().lower() or "e"
+            if run_choice.startswith("r"):
+                try:
+                    rc, logp = plugin.run(target, args, label)
+                    print(f"Run finished rc={rc} log={logp}")
+                    # optional: record history entry directly
+                    try:
+                        from .history import add_history_entry
+                        add_history_entry(target, args, label or "", logp, "", tool=plugin.tool)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    print("Run failed:", e)
+            else:
+                try:
+                    jid = enqueue_job(plugin.tool, target, args, label)
+                    print(f"Enqueued job {jid} for {plugin.tool}")
+                except Exception as e:
+                    print("Could not enqueue:", e)
+        else:
+            print("Invalid choice.")
