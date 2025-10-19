@@ -657,14 +657,51 @@ def view_job_live(job_id: int, refresh_interval: float = 1.0, max_lines: int = 3
 
 
 
+
+
+
+def _print_plugin_help_block(helpdata: dict):
+    """Pretty-print H2 style help for plugin HELP dict."""
+    if not helpdata:
+        print("No help available for this plugin.")
+        return
+    print()
+    print(helpdata.get("name", "Plugin") )
+    print("─" * max(10, len(helpdata.get("name", ""))))
+    print("Description:")
+    for line in helpdata.get("description","").splitlines():
+        print("  " + line)
+    print()
+    print("Usage:")
+    print("  " + helpdata.get("usage",""))
+    print()
+    if helpdata.get("examples"):
+        print("Examples:")
+        for ex in helpdata.get("examples",[]):
+            print("  " + ex)
+        print()
+    if helpdata.get("flags"):
+        print("Useful Flags:")
+        for flag, desc in helpdata.get("flags",[]):
+            print(f"  {flag.ljust(18)} {desc}")
+        print()
+    if helpdata.get("presets"):
+        print("Presets:")
+        for i, p in enumerate(helpdata.get("presets",[]), start=1):
+            print(f"  {i}) {p.get('name')} - {p.get('desc')}")
+        print()
+    print("Legal:")
+    print("  Use only on systems you own or have explicit permission to test.")
+    print()
+
 def handle_network_plugins():
     """
-    TUI submenu to browse and run/enqueue network plugins.
+    TUI submenu with H2 help + presets + run/enqueue flow.
     """
     try:
         plugins = discover_plugins()
-    except Exception as _e:
-        print("Could not load plugins:", _e)
+    except Exception as e:
+        print("Could not discover plugins:", e)
         return
     net = [p for p in plugins.values() if getattr(p, "category", "") == "network"]
     if not net:
@@ -674,25 +711,60 @@ def handle_network_plugins():
         print("\\n--- Network Plugins ---")
         for i, p in enumerate(net, start=1):
             print(f"  {i}) {p.name} ({p.tool})")
+        print("  h) Help (short)")
         print("  b) Back")
-        ch = prompt("Choice > ").strip().lower()
-        if ch in ("b","back"):
+        choice = prompt("Choice > ").strip().lower()
+        if not choice:
+            continue
+        if choice in ("b","back"):
             return
-        if ch.isdigit() and 1 <= int(ch) <= len(net):
-            plugin = net[int(ch)-1]
-            target = prompt("Target (host/domain/IP) > ")
-            if not target:
-                print("No target provided.")
+        if choice == "h":
+            print("Choose a plugin number to show detailed help.")
+            continue
+        if not choice.isdigit() or not (1 <= int(choice) <= len(net)):
+            print("Invalid choice.")
+            continue
+        sel = int(choice) - 1
+        plugin = net[sel]
+        # attempt to read HELP metadata
+        helpdata = getattr(plugin, "HELP", None)
+        # Plugin submenu: presets / help / custom
+        while True:
+            print(f"\\n--- {plugin.name} ({plugin.tool}) ---")
+            # show presets if available
+            presets = []
+            if helpdata and helpdata.get("presets"):
+                presets = helpdata.get("presets")
+                for idx, pdef in enumerate(presets, start=1):
+                    print(f"  {idx}) {pdef.get('name')}  - {pdef.get('desc')}")
+            print("  c) Custom args")
+            print("  h) Full Help")
+            print("  b) Back")
+            ch = prompt("Choice > ").strip().lower()
+            if not ch:
                 continue
-            args_raw = prompt("Additional args (optional) > ")
-            args = args_raw.split() if args_raw else []
-            label = prompt("Label (optional) > ")
-            run_choice = prompt("Run now or enqueue? (r/e) [e] > ").strip().lower() or "e"
-            if run_choice.startswith("r"):
+            if ch in ("b","back"):
+                break
+            if ch == "h":
+                _print_plugin_help_block(helpdata or {})
+                continue
+            if ch == "c":
+                args_raw = prompt("Custom args (e.g. -Tuning 9 -ssl) > ").strip()
+                args = args_raw.split() if args_raw else []
+            elif ch.isdigit() and presets and (1 <= int(ch) <= len(presets)):
+                args = presets[int(ch)-1].get("args",[])
+                print("Selected preset args:", " ".join(args))
+            else:
+                print("Invalid choice.")
+                continue
+
+            # confirm label and run/enqueue
+            label = prompt("Label (optional) > ").strip()
+            mode = prompt("Run now or enqueue? (r/e) [e] > ").strip().lower() or "e"
+            if mode.startswith("r"):
                 try:
-                    rc, logp = plugin.run(target, args, label)
-                    print(f"Run finished rc={rc} log={logp}")
-                    # optional: record history entry directly
+                    rc, logp = plugin.run(target=prompt("Target (enter host/domain/ip) > ").strip(), args=args, label=label)
+                    print(f"Run completed rc={rc} log={logp}")
                     try:
                         from .history import add_history_entry
                         add_history_entry(target, args, label or "", logp, "", tool=plugin.tool)
@@ -701,10 +773,14 @@ def handle_network_plugins():
                 except Exception as e:
                     print("Run failed:", e)
             else:
-                try:
-                    jid = enqueue_job(plugin.tool, target, args, label)
-                    print(f"Enqueued job {jid} for {plugin.tool}")
-                except Exception as e:
-                    print("Could not enqueue:", e)
-        else:
-            print("Invalid choice.")
+                target = prompt("Target (enter host/domain/ip) > ").strip()
+                if not target:
+                    print("No target provided. Aborting enqueue.")
+                else:
+                    try:
+                        jid = enqueue_job(plugin.tool, target, args, label)
+                        print(f"Enqueued job {jid} for {plugin.tool}")
+                    except Exception as e:
+                        print("Could not enqueue:", e)
+            # after run/enqueue return to plugin submenu
+    # end while

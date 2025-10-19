@@ -32,3 +32,24 @@ class TheHarvesterPlugin(Plugin):
         return rc, log_path
 
 plugin = TheHarvesterPlugin()
+
+
+# HELP metadata for TUI + CLI help (H2 style)
+HELP = {
+    "name": "theHarvester (OSINT)",
+    "description": "theHarvester is an OSINT tool to gather emails, subdomains, hosts, names and open ports from public sources.",
+    "usage": "menuscript jobs enqueue theharvester <domain> --args \"<flags>\"",
+    "examples": [
+        "menuscript jobs enqueue theharvester example.com --args \"-b google -l 100\""
+    ],
+    "flags": [
+        ["-b <source>", "Data source (google, bing, linkedin, etc.)"],
+        ["-l <limit>", "Limit results per source"],
+        ["-v", "Verbose output"]
+    ],
+    "presets": [
+        {"name":"Quick OSINT","args":["-b","google","-l","50"],"desc":"Common quick harvest"},
+        {"name":"Deep OSINT","args":["-b","all","-l","500"],"desc":"Search many sources, larger limits"},
+    ]
+}
+

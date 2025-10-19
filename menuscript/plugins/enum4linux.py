@@ -35,3 +35,24 @@ class Enum4linuxPlugin(Plugin):
         return rc, log_path
 
 plugin = Enum4linuxPlugin()
+
+
+# HELP metadata for TUI + CLI help (H2 style)
+HELP = {
+    "name": "enum4linux (SMB)",
+    "description": "enum4linux is a tool for enumerating information from Windows and Samba systems via SMB.",
+    "usage": "menuscript jobs enqueue enum4linux <target> --args \"<flags>\"",
+    "examples": [
+        "menuscript jobs enqueue enum4linux 10.10.10.5 --args \"-a\""
+    ],
+    "flags": [
+        ["-a", "Run all enumeration (default commonly used)"],
+        ["-u <user>", "Enumerate details for specific user"],
+        ["-o <outfile>", "Output to file"]
+    ],
+    "presets": [
+        {"name":"Quick SMB","args":["-a"],"desc":"Run typical SMB enumeration"},
+        {"name":"User Lookup","args":["-u","Administrator"],"desc":"Check specific user details"},
+    ]
+}
+

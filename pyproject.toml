@@ -9,3 +9,6 @@ description = "menuscript — y0d8 & S0ul H@ck3r$ Recon Suite"
 readme = "README.md"
 authors = [{name="y0d8 & S0ul H@ck3r$"}]
 requires-python = ">=3.8"
+
+[project.scripts]
+menuscript = "menuscript.main:main"

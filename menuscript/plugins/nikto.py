@@ -31,3 +31,27 @@ class NiktoPlugin(Plugin):
         return rc, log_path
 
 plugin = NiktoPlugin()
+
+
+# HELP metadata for TUI + CLI help (H2 style)
+HELP = {
+    "name": "Nikto HTTP Scanner",
+    "description": "Nikto is a web server scanner that performs comprehensive tests against web servers for multiple items including dangerous files, outdated software, and misconfigurations.",
+    "usage": "menuscript jobs enqueue nikto <target> --args \"<flags>\"",
+    "examples": [
+        "menuscript jobs enqueue nikto 10.10.10.10 --args \"-Tuning 9\"",
+        "menuscript run nikto http://example.com"
+    ],
+    "flags": [
+        ["-Tuning <codes>", "Select test categories (e.g. 1,2,3)"],
+        ["-ssl", "Force SSL mode"],
+        ["-port <port>", "Specify port"],
+        ["-timeout <secs>", "Timeout in seconds"]
+    ],
+    "presets": [
+        {"name":"Quick Scan","args":["-Tuning","1,2"],"desc":"Light, fast checks"},
+        {"name":"Full Scan","args":["-Tuning","9"],"desc":"Comprehensive tests (slower)"},
+        {"name":"Stealth","args":["-Tuning","1","-timeout","30"],"desc":"Lower noise; shorter timeouts"},
+    ]
+}
+
