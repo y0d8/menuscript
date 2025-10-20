@@ -17,7 +17,7 @@ try:
 except Exception:
     def enqueue_job(tool, target, args=None, label=None):
         raise RuntimeError("enqueue_job not available in this environment (background engine missing).")
-from .engine.background import list_jobs, get_job, start_worker, stop_worker
+from .engine.background import list_jobs, get_job, start_worker
 from .engine.loader import discover_plugins
 from .engine.manager import run_scan_sync
 from .scanner import run_nmap
@@ -436,6 +436,8 @@ def run_menu_loop():
             handle_custom()
         elif choice == '5':
             history_menu()
+        elif choice == '8':
+            background_jobs_menu()
         elif choice == '6' or choice.lower() in ('q', 'quit', 'exit'):
             print('Goodbye!')
             sys.exit(0)
@@ -673,6 +675,7 @@ def view_job_live(job_id: int, refresh_interval: float = 1.0, max_lines: int = 3
     finally:
         # small tidy
         print('Exiting live view.')
+    print(" 8) Background Jobs")
 
 
 
@@ -803,3 +806,112 @@ def handle_network_plugins():
                         print("Could not enqueue:", e)
             # after run/enqueue return to plugin submenu
     # end while
+
+# ---- Background Jobs TUI (auto-added) ----
+# Provides: list jobs, view details, tail log, start worker
+def _format_status(s):
+    try:
+        if s == 'done':
+            return GREEN + 'done' + RESET
+        if s == 'running':
+            return CYAN + 'running' + RESET
+        if s == 'queued':
+            return MAG + 'queued' + RESET
+        return RED + str(s) + RESET
+    except Exception:
+        return str(s)
+
+def _print_job_row(j):
+    jid = j.get('id')
+    tool = j.get('tool') or ''
+    target = j.get('target') or ''
+    status = _format_status(j.get('status'))
+    created = j.get('created_at') or ''
+    print(f"{str(jid).ljust(4)} {tool.ljust(10)} {target.ljust(30)} {status.ljust(10)} {created}")
+
+def background_jobs_menu():
+    while True:
+        print()
+        print('='*60)
+        print('--- Background Jobs ---')
+        print(' 1) List jobs')
+        print(' 2) View job details')
+        print(' 3) Tail job log')
+        print(' 4) Start worker (background)')
+        print(' 5) Start worker (foreground)')
+        print(' b) Back')
+        ch = prompt('Choice > ').strip().lower()
+        if ch in ('1','list'):
+            jobs = []
+            try:
+                jobs = list_jobs(limit=200)
+            except Exception as e:
+                print('Could not load jobs:', e)
+                jobs = []
+            if not jobs:
+                print('No jobs.')
+            else:
+                print()
+                print('ID   Tool       Target                         Status     Created')
+                print('-'*80)
+                for j in jobs:
+                    _print_job_row(j)
+                print('-'*80)
+        elif ch in ('2','view'):
+            jid = prompt('Job ID > ')
+            if not jid:
+                continue
+            try:
+                jidn = int(jid)
+            except Exception:
+                print('Invalid id.')
+                continue
+            rec = get_job(jidn)
+            if not rec:
+                print('Job not found.')
+                continue
+            # pretty print limited fields
+            for k in ('id','tool','target','args','label','status','created_at','started_at','finished_at','error','log'):
+                print(f"{k}: {rec.get(k)}")
+        elif ch in ('3','tail'):
+            jid = prompt('Job ID > ')
+            if not jid:
+                continue
+            try:
+                jidn = int(jid)
+            except Exception:
+                print('Invalid id.')
+                continue
+            rec = get_job(jidn)
+            if not rec:
+                print('Job not found.')
+                continue
+            logp = rec.get('log') or ''
+            if not logp or not os.path.exists(logp):
+                print('Log not found:', logp)
+                continue
+            try:
+                with open(logp, 'r', encoding='utf-8', errors='replace') as fh:
+                    lines = fh.readlines()[-200:]
+                    print(''.join(lines))
+            except Exception as e:
+                print('Could not read log:', e)
+        elif ch == '4':
+            try:
+                start_worker(detach=True)
+                print('Worker started (background). Check data/logs/worker.log')
+            except Exception as e:
+                print('Could not start worker:', e)
+        elif ch == '5':
+            try:
+                start_worker(detach=False, fg=True)
+            except KeyboardInterrupt:
+                print('\nWorker stopped (foreground).')
+            except Exception as e:
+                print('Could not start worker:', e)
+        elif ch in ('b','back'):
+            return
+        else:
+            print('Unknown choice.')
+# ---- end Background Jobs TUI ----
+
