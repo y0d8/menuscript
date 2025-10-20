@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 """
-menuscript.engine.background — safe, simple job queue + worker (file-backed)
-
-Design notes:
- - Small, robust JSON-backed job store (data/jobs/jobs.json)
- - Logs to data/logs/<job_id>.log
- - Plugin-first execution: attempt to call plugin.run(target, args, label)
- - Fallback to subprocess.run([tool, ...]) if plugin not available
- - Worker supports foreground (--fg) and background start
- - Long-running tool kill timeout: 300s (5 minutes)
- - Minimal, clean logging to worker.log and per-job logs
+menuscript.engine.background — plugin-aware job queue + worker (file-backed)
 """
 
 from __future__ import annotations
@@ -21,6 +12,7 @@ import tempfile
 import shutil
 import subprocess
 import threading
+import inspect
 from typing import List, Dict, Optional, Any
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -29,7 +21,7 @@ JOBS_DIR = os.path.join(DATA_DIR, "jobs")
 LOGS_DIR = os.path.join(DATA_DIR, "logs")
 JOBS_FILE = os.path.join(JOBS_DIR, "jobs.json")
 WORKER_LOG = os.path.join(LOGS_DIR, "worker.log")
-JOB_TIMEOUT_SECONDS = 300  # 5 minutes - H2 selected
+JOB_TIMEOUT_SECONDS = 300
 
 _lock = threading.Lock()
 
@@ -45,7 +37,6 @@ def _read_jobs() -> List[Dict[str,Any]]:
         with open(JOBS_FILE, "r", encoding="utf-8") as fh:
             return json.load(fh)
     except Exception:
-        # if corrupt, move aside and start fresh
         try:
             corrupt = JOBS_FILE + ".corrupt." + str(int(time.time()))
             shutil.move(JOBS_FILE, corrupt)
@@ -87,7 +78,6 @@ def _next_job_id(jobs: List[Dict[str,Any]]) -> int:
             continue
     return maxid + 1
 
-# Public API: enqueue, list, get
 def enqueue_job(tool: str, target: str, args: List[str], label: str="") -> int:
     with _lock:
         jobs = _read_jobs()
@@ -109,12 +99,11 @@ def enqueue_job(tool: str, target: str, args: List[str], label: str="") -> int:
         }
         jobs.append(job)
         _write_jobs(jobs)
-    _append_worker_log(f"enqueued {jid} {tool} {target}")
+    _append_worker_log(f"enqueued job {jid}: {tool} {target}")
     return jid
 
 def list_jobs(limit:int=100) -> List[Dict[str,Any]]:
     jobs = _read_jobs()
-    # newest first
     return sorted(jobs, key=lambda x: x.get("created_at",""), reverse=True)[:limit]
 
 def get_job(jid:int) -> Optional[Dict[str,Any]]:
@@ -136,144 +125,183 @@ def _update_job(jid:int, **fields):
         if changed:
             _write_jobs(jobs)
 
-# Plugin invocation helper
-def _try_run_plugin(tool: str, target: str, args: List[str], label: str, log_path: str) -> bool:
-    """
-    Attempt to call a plugin's run() signature:
-      plugin.run(target, args, label, logpath)
-    Return True if the plugin was found and executed (regardless of success).
-    """
+def _try_run_plugin(tool: str, target: str, args: List[str], label: str, log_path: str) -> tuple:
     try:
-        import importlib
-        plugins_pkg = importlib.import_module("menuscript.engine.loader")
-        discover = getattr(plugins_pkg, "discover_plugins", None)
-        if not discover:
-            return False
-        plugins = discover()
-        p = plugins.get(tool) or None
-        if not p:
-            # try to match by name substring
-            for v in plugins.values():
+        from .loader import discover_plugins
+        
+        plugins = discover_plugins()
+        plugin = None
+        
+        plugin = plugins.get(tool.lower())
+        
+        if not plugin:
+            for key, p in plugins.items():
                 try:
-                    if (getattr(v,"tool","") or "").lower() == tool.lower() or (getattr(v,"name","") or "").lower().find(tool.lower()) != -1:
-                        p = v
+                    plugin_tool = getattr(p, "tool", "").lower()
+                    plugin_name = getattr(p, "name", "").lower()
+                    if tool.lower() in (plugin_tool, plugin_name):
+                        plugin = p
                         break
                 except Exception:
                     continue
-        if not p:
-            return False
-        runfn = getattr(p, "run", None)
-        if callable(runfn):
-            # plugin may write its own logs; but we also capture exceptions
-            try:
-                runfn(target, args, label, log_path)
-                return True
-            except Exception as e:
-                with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                    fh.write(f"PLUGIN ERROR: {e}\n")
-                return True
-        return False
-    except Exception:
-        return False
+        
+        if not plugin:
+            return (False, 0)
+        
+        run_method = getattr(plugin, "run", None)
+        if not callable(run_method):
+            return (False, 0)
+        
+        sig = inspect.signature(run_method)
+        params = list(sig.parameters.keys())
+        
+        with open(log_path, "w", encoding="utf-8", errors="replace") as fh:
+            fh.write(f"=== Plugin: {getattr(plugin, 'name', tool)} ===\n")
+            fh.write(f"Target: {target}\n")
+            fh.write(f"Args: {args}\n")
+            fh.write(f"Label: {label}\n")
+            fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
+        
+        try:
+            if 'log_path' in params or len(params) >= 4:
+                rc = run_method(target, args or [], label or "", log_path)
+            else:
+                result = run_method(target, args or [], label or "")
+                
+                if isinstance(result, tuple) and len(result) >= 2:
+                    rc, old_logpath = result[0], result[1]
+                    if old_logpath and os.path.exists(old_logpath) and old_logpath != log_path:
+                        try:
+                            with open(old_logpath, "r", encoding="utf-8", errors="replace") as src:
+                                with open(log_path, "a", encoding="utf-8", errors="replace") as dst:
+                                    dst.write("\n=== Plugin Output ===\n")
+                                    dst.write(src.read())
+                        except Exception as e:
+                            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                                fh.write(f"\nWarning: Could not copy old log: {e}\n")
+                elif isinstance(result, int):
+                    rc = result
+                else:
+                    rc = 0
+            
+            if not isinstance(rc, int):
+                rc = 0 if rc is None else 1
+            
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"\n=== Completed: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
+                fh.write(f"Exit Code: {rc}\n")
+            
+            return (True, rc)
+            
+        except Exception as e:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"\n=== PLUGIN ERROR ===\n")
+                fh.write(f"{type(e).__name__}: {e}\n")
+            return (True, 1)
+    
+    except Exception as e:
+        _append_worker_log(f"plugin loading error: {e}")
+        return (False, 0)
 
 def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, timeout: int = JOB_TIMEOUT_SECONDS) -> int:
     cmd = [tool] + (args or [])
-    # Replace <target> placeholder if present
     cmd = [c.replace("<target>", target) for c in cmd]
+    
     with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-        fh.write(f"--- Running: {' '.join(cmd)} ---\n")
+        fh.write(f"=== Subprocess Execution ===\n")
+        fh.write(f"Command: {' '.join(cmd)}\n")
+        fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
         fh.flush()
+        
         try:
             proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+            fh.write(f"\n=== Completed: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
+            fh.write(f"Exit Code: {proc.returncode}\n")
             return proc.returncode
         except subprocess.TimeoutExpired:
-            fh.write(f"ERROR: command timed out after {timeout} seconds\n")
+            fh.write(f"\nERROR: Command timed out after {timeout} seconds\n")
             return 124
         except FileNotFoundError:
-            fh.write(f"ERROR: tool not found: {cmd[0]}\n")
+            fh.write(f"\nERROR: Tool not found: {cmd[0]}\n")
             return 127
         except Exception as e:
-            fh.write(f"ERROR: exception: {e}\n")
+            fh.write(f"\nERROR: {type(e).__name__}: {e}\n")
             return 1
 
-def run_job(jid:int) -> None:
-    """
-    Run a single job by id. Updates job status fields in-place.
-    Plugin-first: tries plugin.run(); if plugin not executed, runs subprocess.
-    """
+def run_job(jid: int) -> None:
     job = get_job(jid)
     if not job:
         _append_worker_log(f"run_job: job {jid} not found")
         return
+    
     log_path = job.get("log") or os.path.join(JOBS_DIR, f"{jid}.log")
-    # ensure the job log exists and warn in worker log
     _ensure_dirs()
-    if not os.path.exists(os.path.dirname(log_path)):
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
-    _update_job(jid, status="running", started_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-    _append_worker_log(f"job {jid} running")
-
+    
+    log_dir = os.path.dirname(log_path)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+    
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _update_job(jid, status="running", started_at=now)
+    _append_worker_log(f"job {jid} started: {job.get('tool')} {job.get('target')}")
+    
     try:
-        # Try plugin first
-        plugin_executed = _try_run_plugin(job.get("tool",""), job.get("target",""), job.get("args",[]), job.get("label",""), log_path)
-        rc = 0
+        tool = job.get("tool", "")
+        target = job.get("target", "")
+        args = job.get("args", [])
+        label = job.get("label", "")
+        
+        plugin_executed, rc = _try_run_plugin(tool, target, args, label, log_path)
+        
         if not plugin_executed:
-            # fallback: call the tool name (nmap/gobuster/nikto/etc.)
-            rc = _run_subprocess(job.get("tool",""), job.get("target",""), job.get("args",[]), log_path, timeout=JOB_TIMEOUT_SECONDS)
-        # mark finished
+            _append_worker_log(f"job {jid}: no plugin found for '{tool}', using subprocess")
+            rc = _run_subprocess(tool, target, args, log_path, timeout=JOB_TIMEOUT_SECONDS)
+        
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         status = "done" if rc == 0 else "error"
         _update_job(jid, status=status, finished_at=now)
-        _append_worker_log(f"job {jid} finished status={status} rc={rc}")
+        _append_worker_log(f"job {jid} finished: status={status} rc={rc}")
+        
     except Exception as e:
-        _update_job(jid, status="error", error=str(e), finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        _update_job(jid, status="error", error=str(e), finished_at=now)
         _append_worker_log(f"job {jid} crashed: {e}")
 
-# Worker loop
 def worker_loop(poll_interval: float = 2.0):
-    """
-    Simple worker loop:
-      - polls jobs JSON for next queued job
-      - runs it synchronously (run_job)
-      - sleeps when none found
-    Use ctrl-C to stop in foreground.
-    """
     _ensure_dirs()
     _append_worker_log("menuscript background worker: starting loop")
+    
     try:
         while True:
             jobs = _read_jobs()
             queued = [j for j in jobs if j.get("status") == "queued"]
+            
             if not queued:
                 time.sleep(poll_interval)
                 continue
-            # pick earliest queued (by created_at)
-            queued_sorted = sorted(queued, key=lambda x: x.get("created_at",""))
+            
+            queued_sorted = sorted(queued, key=lambda x: x.get("created_at", ""))
             job = queued_sorted[0]
             jid = job.get("id")
+            
             try:
                 run_job(jid)
             except Exception as e:
                 _append_worker_log(f"run_job exception for {jid}: {e}")
-            # loop again immediately
+            
     except KeyboardInterrupt:
         _append_worker_log("worker: KeyboardInterrupt, shutting down")
     except Exception as e:
         _append_worker_log(f"worker loop stopped with exception: {e}")
 
-# start_worker: convenience wrapper (detach support)
 def start_worker(detach: bool = True, fg: bool = False):
-    """
-    If detach True, spawn a background process that runs this module's worker_loop().
-    If fg True, run in current process (blocking).
-    """
     if fg:
         worker_loop()
         return
+    
     if detach:
         python = sys.executable or "python3"
-        cmd = [python, "-u", "-c", "import sys; from menuscript.engine.background import worker_loop; worker_loop()"]
-        # Launch detached
-        subprocess.Popen(cmd, stdout=open(WORKER_LOG,"a"), stderr=subprocess.STDOUT, close_fds=True)
+        cmd = [python, "-u", "-c", 
+               "import sys; from menuscript.engine.background import worker_loop; worker_loop()"]
+        subprocess.Popen(cmd, stdout=open(WORKER_LOG, "a"), stderr=subprocess.STDOUT, close_fds=True)
         _append_worker_log("Started background worker (detached)")

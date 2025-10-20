@@ -1,113 +1,94 @@
 #!/usr/bin/env python3
 """
-menuscript.plugins.gobuster
-
-Plugin for Gobuster directory/vhost discovery with new unified interface.
+Simple plugin loader for menuscript (L1).
 """
 from __future__ import annotations
-import subprocess
-import time
-from typing import List
-
-from .plugin_base import PluginBase
-
-HELP = {
-    "name": "Gobuster",
-    "description": "Gobuster: directory/file and DNS/vhost brute force tool. Use with permission and appropriate wordlists.",
-    "usage": "menuscript jobs enqueue gobuster <target> --args \"dir -u <url> -w <wordlist> -t <threads>\"",
-    "examples": [
-        "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\""
-    ],
-    "flags": [
-        ["dir", "Dir mode"],
-        ["dns", "DNS mode"],
-        ["-w <wordlist>", "Wordlist path"],
-        ["-t <threads>", "Threads"],
-    ],
-    "presets": [
-        {
-            "name": "Dir Quick",
-            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"],
-            "desc": "Common wordlist quick"
-        },
-        {
-            "name": "Dir Deep",
-            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-t", "20"],
-            "desc": "Large wordlist deep scan"
-        },
-    ]
-}
+import pkgutil
+import importlib
+from typing import Dict, Any
 
 
-class GobusterPlugin(PluginBase):
-    name = "Gobuster"
-    tool = "gobuster"
-    category = "web"
-    HELP = HELP
-
-    def run(self, target: str, args: List[str] = None, label: str = "", log_path: str = None) -> int:
-        """
-        Execute gobuster scan and write output to log_path.
-        
-        Args:
-            target: Target URL or domain
-            args: Gobuster arguments (e.g. ["dir", "-u", "http://example.com", "-w", "/path/to/wordlist"])
-            label: Optional label for this scan
-            log_path: Path to write output (required for background jobs)
-        
-        Returns:
-            int: Exit code (0=success, non-zero=error)
-        """
-        args = args or []
-        
-        # Build gobuster command
-        # Replace <target> placeholder if present in args
-        processed_args = [arg.replace("<target>", target) for arg in args]
-        cmd = ["gobuster"] + processed_args
-        
-        if not log_path:
-            # Fallback: run without logging (shouldn't happen in background jobs)
-            try:
-                proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
-                return proc.returncode
-            except Exception:
-                return 1
-        
-        # Run with logging
+def _safe_import_module(fullname: str):
+    """Import module and return it, or None on error."""
+    try:
+        return importlib.import_module(fullname)
+    except Exception as e:
         try:
-            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write(f"Command: {' '.join(cmd)}\n")
-                fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
-                fh.flush()
-                
-                proc = subprocess.run(
-                    cmd,
-                    stdout=fh,
-                    stderr=subprocess.STDOUT,
-                    timeout=300,
-                    check=False
-                )
-                
-                fh.write(f"\nCompleted: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n")
-                fh.write(f"Exit Code: {proc.returncode}\n")
-                
-                return proc.returncode
-                
-        except subprocess.TimeoutExpired:
-            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write("\nERROR: Gobuster timed out after 300 seconds\n")
-            return 124
-            
-        except FileNotFoundError:
-            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write("\nERROR: gobuster not found in PATH\n")
-            return 127
-            
-        except Exception as e:
-            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write(f"\nERROR: {type(e).__name__}: {e}\n")
-            return 1
+            print(f"[plugin loader] could not import {fullname}: {e}")
+        except Exception:
+            pass
+        return None
 
 
-# Export plugin instance
-plugin = GobusterPlugin()
+def discover_plugins() -> Dict[str, Any]:
+    """
+    Return mapping of plugin_key -> plugin_object
+    plugin_key is plugin.tool if set and truthy, otherwise module name.
+    """
+    plugins = {}
+    
+    try:
+        pkg = importlib.import_module("menuscript.plugins")
+    except Exception as e:
+        print("[plugin loader] cannot import menuscript.plugins:", e)
+        return plugins
+
+    for finder, name, ispkg in pkgutil.iter_modules(pkg.__path__):
+        if name in ("plugin_base", "plugin_template", "__init__"):
+            continue
+        
+        full = f"menuscript.plugins.{name}"
+        mod = _safe_import_module(full)
+        if not mod:
+            continue
+        
+        plugin = getattr(mod, "plugin", None)
+        if not plugin:
+            continue
+
+        try:
+            module_help = getattr(mod, "HELP", None)
+            if module_help and not getattr(plugin, "HELP", None):
+                plugin.HELP = module_help
+        except Exception:
+            pass
+
+        try:
+            if not getattr(plugin, "name", None):
+                if module_help and isinstance(module_help, dict):
+                    plugin.name = module_help.get("name") or name
+                else:
+                    plugin.name = name
+        except Exception:
+            pass
+        
+        try:
+            if not getattr(plugin, "tool", None):
+                if module_help and isinstance(module_help, dict):
+                    plugin.tool = module_help.get("tool") or name
+                else:
+                    plugin.tool = getattr(plugin, "name", name)
+        except Exception:
+            pass
+        
+        try:
+            if not getattr(plugin, "category", None):
+                if module_help and isinstance(module_help, dict):
+                    plugin.category = module_help.get("category") or "network"
+                else:
+                    plugin.category = "network"
+        except Exception:
+            pass
+
+        key = getattr(plugin, "tool", None) or getattr(plugin, "name", None) or name
+        try:
+            key = str(key).lower()
+        except Exception:
+            key = name
+
+        plugins[key] = plugin
+
+    return plugins
+
+
+load = discover_plugins

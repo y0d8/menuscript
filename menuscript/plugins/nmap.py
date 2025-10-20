@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 menuscript.plugins.nmap
-
-Nmap plugin supporting both old and new interfaces.
 """
 from typing import List, Optional
 import subprocess
@@ -38,28 +36,14 @@ class NmapPlugin(PluginBase):
     HELP = HELP
 
     def run(self, target: str, args: List[str] = None, label: str = "", log_path: str = None) -> int:
-        """
-        Execute nmap scan and write output to log_path.
-        
-        Args:
-            target: Target IP/domain/CIDR
-            args: Nmap arguments (e.g. ["-sV", "-p80,443"])
-            label: Optional label for this scan
-            log_path: Path to write output (required for background jobs)
-        
-        Returns:
-            int: Exit code (0=success, non-zero=error)
-        """
+        """Execute nmap scan and write output to log_path."""
         args = args or []
         
-        # Build nmap command
         cmd = ["nmap"] + args + [target]
         
-        # If log_path provided, use new-style execution
         if log_path:
             return self._run_with_logpath(cmd, log_path)
         
-        # Otherwise, fall back to old-style (for backward compatibility)
         return self._run_legacy(target, args, label)
 
     def _run_with_logpath(self, cmd: List[str], log_path: str) -> int:
@@ -99,16 +83,12 @@ class NmapPlugin(PluginBase):
             return 1
 
     def _run_legacy(self, target: str, args: List[str], label: str):
-        """
-        Old-style execution for backward compatibility.
-        Uses run_nmap() from scanner module if available.
-        """
+        """Old-style execution for backward compatibility."""
         try:
             from ..scanner import run_nmap
             logpath, rc, xmlpath, summary = run_nmap(target, args, label, save_xml=False)
             return rc
         except ImportError:
-            # If scanner module not available, just run subprocess
             cmd = ["nmap"] + (args or []) + [target]
             try:
                 proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
@@ -117,5 +97,4 @@ class NmapPlugin(PluginBase):
                 return 1
 
 
-# Export plugin instance
 plugin = NmapPlugin()
