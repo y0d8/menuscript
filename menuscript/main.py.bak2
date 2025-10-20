@@ -27,7 +27,6 @@ from .utils import HISTORY_FILE
 
 # Plugin loader + config helpers for the `config plugins` command
 from .engine.loader import discover_plugins
-from .engine.background import enqueue_job, list_jobs, get_job, start_worker
 from .config import (
     list_plugins_config,
     enable_plugin,
@@ -52,7 +51,7 @@ def _print_version() -> int:
     NOTE: Keep this string in sync with setup.py version during releases.
     """
     # If you prefer to import from a single version source later, you can.
-    version = "v0.8.0-dev"
+    version = "v0.6.0"
     print(f"menuscript {version}")
     print("by y0d8 & CyberSoul SecurITy ($0u! H@cK3R$)")
     return 0
@@ -394,7 +393,7 @@ def main() -> int:
     # Aliases for plugin management
     if argv[0].lower() == "plugins":
         # 'menuscript plugins' -> list
-        return _cmd_plugins(argv[1:])
+        return _cmd_config_plugins(["list"])
 
     if argv[0].lower() == "plugin":
         # 'menuscript plugin on/off/reset <name?>'
@@ -427,195 +426,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-def _cmd_plugins(argv):
-    """Plugins subcommand CLI handler.
-
-    Supported:
-      menuscript plugins                -> show list of discovered plugins
-      menuscript plugins help <tool>    -> show detailed HELP for a plugin
-      menuscript plugins list           -> alias for above
-      (other plugin config actions are delegated to _cmd_config)
-    This function prefers plugin.HELP on the plugin instance, falling back
-    to module-level HELP if needed.
-    """
-    # No args or 'list' -> show discovered plugins
-    if not argv or (len(argv) == 1 and argv[0].lower() in ("-h","--help","help","list")):
-        try:
-            from .engine.loader import discover_plugins
-            plugins = discover_plugins()
-        except Exception as e:
-            print("Could not load plugin list:", e)
-            return 1
-        print("Enabled plugins:")
-        print("  (none explicitly enabled — all discovered are active unless disabled)")
-        print()
-        print("Disabled plugins:")
-        print("  (none)")
-        print()
-        print("Discovered plugins:")
-        for k in sorted(plugins.keys()):
-            print("  - " + k)
-        return 0
-
-    sub = argv[0].lower()
-    if sub == "help":
-        if len(argv) < 2:
-            print("Usage: menuscript plugins help <tool>")
-            return 2
-        tool = argv[1].lower()
-        try:
-            from .engine.loader import discover_plugins
-            plugins = discover_plugins()
-        except Exception as e:
-            print("Could not load plugins:", e)
-            return 1
-
-        # direct lookup, else fallback by substring
-        p = plugins.get(tool)
-        if not p:
-            for v in plugins.values():
-                try:
-                    if (getattr(v,'tool','') or '').lower() == tool or (getattr(v,'name','') or '').lower().find(tool) != -1:
-                        p = v
-                        break
-                except Exception:
-                    continue
-        if not p:
-            print(f"Plugin not found: {tool}")
-            return 1
-
-        # prefer instance HELP, else module HELP
-        helpdata = getattr(p, "HELP", None)
-        if not helpdata:
-            try:
-                import importlib
-                mod = importlib.import_module(getattr(p, "__module__", "") or "")
-                helpdata = getattr(mod, "HELP", None)
-            except Exception:
-                helpdata = None
-
-        if not helpdata:
-            print(f"No help metadata for {tool}")
-            return 0
-
-        # pretty print structured help
-        print()
-        print(helpdata.get("name", tool))
-        print("─" * max(10, len(str(helpdata.get("name", tool)))))
-        print("Description:")
-        for line in str(helpdata.get("description","")).splitlines():
-            print("  " + line)
-        print()
-        if helpdata.get("usage"):
-            print("Usage:")
-            print("  " + helpdata.get("usage"))
-            print()
-        if helpdata.get("examples"):
-            print("Examples:")
-            for ex in helpdata.get("examples",[]):
-                print("  " + ex)
-            print()
-        if helpdata.get("flags"):
-            print("Useful Flags:")
-            for flag_desc in helpdata.get("flags",[]):
-                # support both tuple/list or list-of-lists
-                try:
-                    flag, desc = flag_desc
-                except Exception:
-                    flag, desc = str(flag_desc), ""
-                print(f"  {str(flag).ljust(18)} {desc}")
-            print()
-        if helpdata.get("presets"):
-            print("Presets:")
-            for i, pi in enumerate(helpdata.get("presets",[]), start=1):
-                name = pi.get("name") if isinstance(pi, dict) else str(pi)
-                desc = pi.get("desc", "") if isinstance(pi, dict) else ""
-                print(f"  {i}) {name} - {desc}")
-            print()
-        return 0
-
-    # unknown subcommand -> delegate or show hint
-    try:
-        return _cmd_config(argv)
-    except Exception:
-        print(f"Unknown plugins subcommand: {' '.join(argv)}. Try: menuscript plugins help <tool>")
-        return 2
-
-
-def _cmd_plugins(argv):
-    """Plugins subcommand CLI handler.
-
-    Supported:
-      menuscript plugins                -> show list of discovered plugins
-      menuscript plugins help <tool>    -> show detailed HELP for a plugin
-      menuscript plugins list           -> alias for above
-    """
-    from .engine.loader import discover_plugins
-
-    # No args or list -> print summary
-    if not argv or argv[0] in ("-h","--help","list"):
-        plugins = discover_plugins()
-        print("Enabled plugins:")
-        print("  (none explicitly enabled — all discovered are active unless disabled)")
-        print()
-        print("Disabled plugins:")
-        print("  (none)")
-        print()
-        print("Discovered plugins:")
-        for k in sorted(plugins.keys()):
-            print(f"  - {k}")
-        return 0
-
-    # Help for specific plugin
-    if argv[0] == "help":
-        if len(argv) < 2:
-            print("Usage: menuscript plugins help <tool>")
-            return 2
-        tool = argv[1].lower()
-        plugins = discover_plugins()
-        plugin = plugins.get(tool)
-
-        # fallback search by name
-        if not plugin:
-            for p in plugins.values():
-                if tool in getattr(p, "tool", "") or tool in getattr(p, "name", ""):
-                    plugin = p
-                    break
-
-        if not plugin:
-            print(f"Plugin not found: {tool}")
-            return 1
-
-        helpdata = getattr(plugin, "HELP", None)
-        if not helpdata:
-            print(f"No help metadata for {tool}")
-            return 0
-
-        # Pretty print HELP
-        print()
-        print(helpdata.get("name", tool))
-        print("─" * max(10, len(helpdata.get("name", tool))))
-        print("Description:")
-        for line in helpdata.get("description", "").splitlines():
-            print("  " + line)
-        print()
-        print("Usage:")
-        print(f"  {helpdata.get('usage', 'No usage available')}")
-        print()
-        if helpdata.get("examples"):
-            print("Examples:")
-            for ex in helpdata["examples"]:
-                print(f"  {ex}")
-            print()
-        if helpdata.get("flags"):
-            print("Flags:")
-            for flag, desc in helpdata["flags"]:
-                print(f"  {flag.ljust(18)} {desc}")
-            print()
-        return 0
-
-    print(f"Unknown plugins subcommand. Try: menuscript plugins help <tool>")
-    return 2
 

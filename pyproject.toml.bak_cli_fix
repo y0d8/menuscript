@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "menuscript"
+version = "0.8.0-dev"
+description = "menuscript — y0d8 & S0ul H@ck3r$ Recon Suite"
+readme = "README.md"
+authors = [{name="y0d8 & S0ul H@ck3r$"}]
+requires-python = ">=3.8"

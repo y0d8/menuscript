@@ -1,8 +1,16 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-*.log
-.menuscript/
-dist/
-build/
-*.zip
+*.py[cod]
+*.egg-info/
+*.pytest_cache/
+*.db
+data/
+# local backup dirs
+.backups_*/
+# venv
+venv/
+# editor files
+*.swp
+*.swo
+.idea/
+.vscode/

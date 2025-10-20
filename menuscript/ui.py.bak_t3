@@ -8,17 +8,7 @@
 import sys, os
 from typing import List, Dict, Any
 from .utils import nmap_installed, detect_local_subnet
-
-# Ensure enqueue_job is available for the TUI enqueue flow.
-# If the background engine isn't available in this environment, provide a friendly stub
-# so the UI can show a controlled error instead of a NameError.
-try:
-    from .engine.background import enqueue_job
-except Exception:
-    def enqueue_job(tool, target, args=None, label=None):
-        raise RuntimeError("enqueue_job not available in this environment (background engine missing).")
 from .engine.background import list_jobs, get_job, start_worker, stop_worker
-from .engine.loader import discover_plugins
 from .engine.manager import run_scan_sync
 from .scanner import run_nmap
 from .storage.db import get_scans, get_scan
@@ -419,15 +409,13 @@ def show_menu():
     print()
     print('System')
     print('  8) Background Jobs')
-    print('  9) Network Plugins')
     print()
-
 
 def run_menu_loop():
     print_banner()
     while True:
         show_menu()
-        choice = prompt('Choice > ').strip().lower()
+        choice = prompt('Choice > ')
         if choice == '0':
             handle_scan_my_lan()
         elif choice in ('1', '2', '3'):
@@ -436,34 +424,25 @@ def run_menu_loop():
             handle_custom()
         elif choice == '5':
             history_menu()
+        elif choice == '7':
+            # Route to Web Plugins submenu if available; otherwise show message
+            if 'handle_web_plugins' in globals():
+                try:
+                    handle_web_plugins()
+                except Exception as _e:
+                    print(f"Error opening Web Plugins submenu: {_e}")
+            else:
+                print('Web Plugins are not available. (handler missing)')
         elif choice == '6' or choice.lower() in ('q', 'quit', 'exit'):
             print('Goodbye!')
             sys.exit(0)
-        # web plugins (if present) — typically printed as 7 in the menu
-        elif choice == '7':
-            try:
-                from .ui import handle_web_plugins
-                handle_web_plugins()
-            except Exception:
-                # if not present, show message and continue
-                print('Web Plugins are not available.')
-        # background jobs (system) — printed as 8
         elif choice == '8':
             try:
-                # reuse CLI job menu if exposed; fallback to _cmd_jobs via main
-                from .main import _cmd_jobs
-                _cmd_jobs(['list'])
-            except Exception:
-                # if a background jobs TUI exists, call it; else notify
-                print('Background jobs command not available from TUI.')
-        # network plugins (printed as 9)
-        elif choice == '9':
-            try:
-                handle_network_plugins()
-            except NameError:
-                print('Network plugins are not available.')
+                handle_background_jobs()
+            except Exception as _e:
+                print('Error opening Background Jobs:', _e)
         else:
-            print('Invalid choice. Try again.\\n')
+            print('Invalid choice. Try again.\n')
 
 
 
@@ -528,7 +507,6 @@ def handle_background_jobs():
         print('  2) View running jobs')
         print('  3) View completed jobs')
         print('  4) Tail job log')
-        print('  v) View live output')
         print('  5) Start worker')
         print('  6) Stop worker')
         print('  r) Refresh')
@@ -539,8 +517,6 @@ def handle_background_jobs():
             _print_jobs_grouped()
         elif ch == '4':
             _jobs_tail_prompt()
-        elif ch == 'v':
-            view_job_live_prompt()
         elif ch == '5':
             print('Run worker:')
             print('  1) Foreground (monitor in this terminal)')
@@ -556,250 +532,3 @@ def handle_background_jobs():
             return
         else:
             print('Unknown choice.')
-
-
-
-# ----------------------------
-# Live job output viewer (T3)
-# ----------------------------
-def view_job_live_prompt():
-    """Prompt for a job id and launch the live viewer."""
-    jid = prompt('Job id to view live > ')
-    if not jid or not jid.isdigit():
-        print('Invalid job id.')
-        return
-    view_job_live(int(jid))
-
-def view_job_live(job_id: int, refresh_interval: float = 1.0, max_lines: int = 300):
-    """
-    Framed live tail viewer (T3).
-    - refresh_interval: seconds between updates
-    - max_lines: how many tail lines to show
-    Controls:
-      q or b + ENTER -> quit viewer and return to job menu
-    Implementation notes:
-    - tries to locate log path via storage.get_scan(scan_id) if result_scan_id exists
-    - falls back to ~/.menuscript/artifacts/<job_id>.log when missing
-    """
-    import os, sys, time, json, select
-    # lookup job record
-    j = None
-    try:
-        j = get_job(job_id)
-    except Exception as _e:
-        print('Could not load job:', _e)
-        return
-    if not j:
-        print('Job not found.')
-        return
-    # attempt to find log path
-    log_path = None
-    scan_id = j.get('result_scan_id')
-    if scan_id:
-        try:
-            from .storage.db import get_scan
-            rec = get_scan(scan_id)
-            if rec and rec.get('log'):
-                log_path = rec.get('log')
-        except Exception:
-            # ignore, fallback later
-            pass
-    if not log_path:
-        # default fallback
-        log_dir = os.path.join(os.path.expanduser('~'), '.menuscript', 'artifacts')
-        if not os.path.isdir(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
-        log_path = os.path.join(log_dir, f'{job_id}.log')
-    # viewer loop
-    print(f'Opening live view for job {job_id} (log: {log_path}) — press q then ENTER to quit')
-    last_size = 0
-    try:
-        while True:
-            # clear screen
-            os.system('clear' if os.name == 'posix' else 'cls')
-            # header frame
-            print('╭' + '─'*74 + '╮')
-            title = f' Live Output — Job {job_id} '
-            print('│' + title.center(74) + '│')
-            print('├' + '─'*74 + '┤')
-            # read last lines safely
-            lines = []
-            try:
-                if os.path.exists(log_path):
-                    with open(log_path, 'r', encoding="utf-8", errors="replace") as fh:
-                        all_lines = fh.readlines()
-                        if len(all_lines) > max_lines:
-                            lines = all_lines[-max_lines:]
-                        else:
-                            lines = all_lines
-                else:
-                    lines = ['(log file not found yet — waiting for output...)']
-            except Exception as e:
-                lines = [f'(error reading log: {e})']
-            # print content with side padding
-            for L in lines:
-                # ensure single-line prints (no embedded control sequences)
-                L = L.rstrip('\n')
-                # clamp to width 74
-                if len(L) > 74:
-                    L = L[-74:]
-                print('│' + L.ljust(74) + '│')
-            # footer
-            print('├' + '─'*74 + '┤')
-            print('│' + f' Press q + ENTER to quit | Refresh every {refresh_interval}s '.ljust(74) + '│')
-            print('╰' + '─'*74 + '╯')
-            # wait with non-blocking check for input
-            # select.select works on POSIX; on Windows this might behave differently.
-            sys.stdout.flush()
-            rlist, _, _ = select.select([sys.stdin], [], [], refresh_interval)
-            if rlist:
-                inp = sys.stdin.readline().strip().lower()
-                if inp in ('q','b'):
-                    break
-            # check job status and exit when done (optional)
-            try:
-                j = get_job(job_id)
-                if j and (j.get('status') in ('done','failed')):
-                    print('\nJob finished (status: {}). Press ENTER to return.'.format(j.get('status')))
-                    # wait for user to press enter
-                    _ = sys.stdin.readline()
-                    break
-            except Exception:
-                # ignore and continue
-                pass
-    except KeyboardInterrupt:
-        # ctrl-C behaves like quit
-        pass
-    finally:
-        # small tidy
-        print('Exiting live view.')
-
-
-
-
-
-
-def _print_plugin_help_block(helpdata: dict):
-    """Pretty-print H2 style help for plugin HELP dict."""
-    if not helpdata:
-        print("No help available for this plugin.")
-        return
-    print()
-    print(helpdata.get("name", "Plugin") )
-    print("─" * max(10, len(helpdata.get("name", ""))))
-    print("Description:")
-    for line in helpdata.get("description","").splitlines():
-        print("  " + line)
-    print()
-    print("Usage:")
-    print("  " + helpdata.get("usage",""))
-    print()
-    if helpdata.get("examples"):
-        print("Examples:")
-        for ex in helpdata.get("examples",[]):
-            print("  " + ex)
-        print()
-    if helpdata.get("flags"):
-        print("Useful Flags:")
-        for flag, desc in helpdata.get("flags",[]):
-            print(f"  {flag.ljust(18)} {desc}")
-        print()
-    if helpdata.get("presets"):
-        print("Presets:")
-        for i, p in enumerate(helpdata.get("presets",[]), start=1):
-            print(f"  {i}) {p.get('name')} - {p.get('desc')}")
-        print()
-    print("Legal:")
-    print("  Use only on systems you own or have explicit permission to test.")
-    print()
-
-def handle_network_plugins():
-    """
-    TUI submenu with H2 help + presets + run/enqueue flow.
-    """
-    try:
-        plugins = discover_plugins()
-    except Exception as e:
-        print("Could not discover plugins:", e)
-        return
-    net = [p for p in plugins.values() if getattr(p, "category", "") == "network"]
-    if not net:
-        print("No network plugins discovered.")
-        return
-    while True:
-        print("\\n--- Network Plugins ---")
-        for i, p in enumerate(net, start=1):
-            print(f"  {i}) {p.name} ({p.tool})")
-        print("  h) Help (short)")
-        print("  b) Back")
-        choice = prompt("Choice > ").strip().lower()
-        if not choice:
-            continue
-        if choice in ("b","back"):
-            return
-        if choice == "h":
-            print("Choose a plugin number to show detailed help.")
-            continue
-        if not choice.isdigit() or not (1 <= int(choice) <= len(net)):
-            print("Invalid choice.")
-            continue
-        sel = int(choice) - 1
-        plugin = net[sel]
-        # attempt to read HELP metadata
-        helpdata = getattr(plugin, "HELP", None)
-        # Plugin submenu: presets / help / custom
-        while True:
-            print(f"\\n--- {plugin.name} ({plugin.tool}) ---")
-            # show presets if available
-            presets = []
-            if helpdata and helpdata.get("presets"):
-                presets = helpdata.get("presets")
-                for idx, pdef in enumerate(presets, start=1):
-                    print(f"  {idx}) {pdef.get('name')}  - {pdef.get('desc')}")
-            print("  c) Custom args")
-            print("  h) Full Help")
-            print("  b) Back")
-            ch = prompt("Choice > ").strip().lower()
-            if not ch:
-                continue
-            if ch in ("b","back"):
-                break
-            if ch == "h":
-                _print_plugin_help_block(helpdata or {})
-                continue
-            if ch == "c":
-                args_raw = prompt("Custom args (e.g. -Tuning 9 -ssl) > ").strip()
-                args = args_raw.split() if args_raw else []
-            elif ch.isdigit() and presets and (1 <= int(ch) <= len(presets)):
-                args = presets[int(ch)-1].get("args",[])
-                print("Selected preset args:", " ".join(args))
-            else:
-                print("Invalid choice.")
-                continue
-
-            # confirm label and run/enqueue
-            label = prompt("Label (optional) > ").strip()
-            mode = prompt("Run now or enqueue? (r/e) [e] > ").strip().lower() or "e"
-            if mode.startswith("r"):
-                try:
-                    rc, logp = plugin.run(target=prompt("Target (enter host/domain/ip) > ").strip(), args=args, label=label)
-                    print(f"Run completed rc={rc} log={logp}")
-                    try:
-                        from .history import add_history_entry
-                        add_history_entry(target, args, label or "", logp, "", tool=plugin.tool)
-                    except Exception:
-                        pass
-                except Exception as e:
-                    print("Run failed:", e)
-            else:
-                target = prompt("Target (enter host/domain/ip) > ").strip()
-                if not target:
-                    print("No target provided. Aborting enqueue.")
-                else:
-                    try:
-                        jid = enqueue_job(plugin.tool, target, args, label)
-                        print(f"Enqueued job {jid} for {plugin.tool}")
-                    except Exception as e:
-                        print("Could not enqueue:", e)
-            # after run/enqueue return to plugin submenu
-    # end while

@@ -3,6 +3,8 @@ README.md
 pyproject.toml
 setup.py
 menuscript/__init__.py
+menuscript/config.py
+menuscript/devtools.py
 menuscript/history.py
 menuscript/main.py
 menuscript/scanner.py
@@ -11,4 +13,13 @@ menuscript/utils.py
 menuscript.egg-info/PKG-INFO
 menuscript.egg-info/SOURCES.txt
 menuscript.egg-info/dependency_links.txt
+menuscript.egg-info/entry_points.txt
 menuscript.egg-info/top_level.txt
+tests/test_config_cli.py
+tests/test_gobuster_plugin.py
+tests/test_jobs.py
+tests/test_nmap_plugin.py
+tests/test_plugin_enum4linux.py
+tests/test_plugin_nikto.py
+tests/test_plugin_template.py
+tests/test_plugin_theharv.py

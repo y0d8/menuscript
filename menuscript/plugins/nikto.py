@@ -55,3 +55,13 @@ HELP = {
     ]
 }
 
+
+
+# Ensure loader-friendly metadata: provide default tool id if missing
+try:
+    if plugin is not None and (getattr(plugin, "tool", None) is None):
+        plugin.tool = "nikto"
+    if plugin is not None and (getattr(plugin, "name", None) is None):
+        plugin.name = plugin.tool
+except Exception:
+    pass

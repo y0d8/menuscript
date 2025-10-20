@@ -131,3 +131,54 @@ class Plugin(ScannerPlugin):
                 "status": "failed",
                 "rc": -3
             }
+
+
+# auto-added plugin shim (fallback)
+from .plugin_base import Plugin
+try:
+    from ..scanner import run_nmap
+except Exception:
+    run_nmap = None
+
+class GobusterPlugin(Plugin):
+    name = "gobuster"
+    tool = "gobuster"
+    category = "network"
+
+    def run(self, target, args, label=None, save_xml=False):
+        if run_nmap is None:
+            raise RuntimeError("no runner helper available for gobuster")
+        logpath, rc, xmlpath, summary = run_nmap(target, args, label, save_xml=save_xml)
+        return rc, logpath
+
+try:
+    plugin = GobusterPlugin()
+except Exception:
+    plugin = None
+
+
+# HELP metadata (H2 style) appended by helper
+HELP = {
+    "name": "Gobuster",
+    "description": "Gobuster: directory/file and DNS/vhost brute force tool. Use with permission and appropriate wordlists.",
+    "usage": "menuscript jobs enqueue gobuster <target> --args \"dir -u <url> -w <wordlist> -t <threads>\"",
+    "examples": ["menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\""],
+    "flags": [
+        ["dir","Dir mode"],
+        ["dns","DNS mode"],
+        ["-w <wordlist>","Wordlist path"],
+        ["-t <threads>","Threads"],
+    ],
+    "presets": [
+        {
+            "name": "Dir Quick",
+            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"],
+            "desc": "Common wordlist quick"
+        },
+        {
+            "name": "Dir Deep",
+            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/raft-large-directories.txt", "-t", "20"],
+            "desc": "Large wordlist deep scan"
+        },
+    ]
+}
