@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 """
 menuscript.engine.background — plugin-aware job queue + worker (file-backed)
+
+Design notes:
+ - Small, robust JSON-backed job store (data/jobs/jobs.json)
+ - Logs to data/jobs/<job_id>.log
+ - Plugin-first execution: attempt to call plugin.run(target, args, label, log_path)
+ - Fallback to subprocess.run([tool, ...]) if plugin not available
+ - Worker supports foreground (--fg) and background start
+ - Long-running tool kill timeout: 300s (5 minutes)
+ - Minimal, clean logging to worker.log and per-job logs
+ - Auto-parse results into database when jobs complete
 """
 
 from __future__ import annotations
@@ -260,6 +270,21 @@ def run_job(jid: int) -> None:
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         status = "done" if rc == 0 else "error"
         _update_job(jid, status=status, finished_at=now)
+        
+        # Try to parse results into database
+        try:
+            from .result_handler import handle_job_result
+            # Re-fetch job to get updated data
+            job = get_job(jid)
+            parse_result = handle_job_result(job)
+            if parse_result:
+                if 'error' in parse_result:
+                    _append_worker_log(f"job {jid} parse error: {parse_result['error']}")
+                else:
+                    _append_worker_log(f"job {jid} parsed: {parse_result}")
+        except Exception as e:
+            _append_worker_log(f"job {jid} parse exception: {e}")
+        
         _append_worker_log(f"job {jid} finished: status={status} rc={rc}")
         
     except Exception as e:

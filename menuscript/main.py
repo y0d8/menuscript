@@ -331,3 +331,185 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# ==================== HOST COMMANDS ====================
+
+@cli.group()
+def hosts():
+    """Host management commands."""
+    pass
+
+
+@hosts.command("list")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+def hosts_list(workspace):
+    """List all hosts in workspace."""
+    from menuscript.storage.hosts import HostManager
+    
+    wm = WorkspaceManager()
+    
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected. Use: menuscript workspace use <name>", err=True)
+            return
+    
+    hm = HostManager()
+    hosts = hm.list_hosts(ws['id'])
+    
+    if not hosts:
+        click.echo(f"No hosts found in workspace '{ws['name']}'")
+        return
+    
+    click.echo("\n" + "=" * 100)
+    click.echo(f"HOSTS - Workspace: {ws['name']}")
+    click.echo("=" * 100)
+    click.echo(f"{'IP Address':<18} {'Hostname':<30} {'Status':<10} {'OS':<30}")
+    click.echo("=" * 100)
+    
+    for host in hosts:
+        click.echo(
+            f"{host['ip_address']:<18} "
+            f"{(host.get('hostname') or 'N/A')[:29]:<30} "
+            f"{host.get('status', 'unknown'):<10} "
+            f"{(host.get('os_name') or 'N/A')[:29]:<30}"
+        )
+    
+    click.echo("=" * 100)
+    click.echo(f"Total: {len(hosts)} hosts\n")
+
+
+@hosts.command("show")
+@click.argument("ip_address")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+def hosts_show(ip_address, workspace):
+    """Show detailed host information."""
+    from menuscript.storage.hosts import HostManager
+    
+    wm = WorkspaceManager()
+    
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+    
+    hm = HostManager()
+    host = hm.get_host_by_ip(ws['id'], ip_address)
+    
+    if not host:
+        click.echo(f"✗ Host {ip_address} not found in workspace '{ws['name']}'", err=True)
+        return
+    
+    services = hm.get_host_services(host['id'])
+    
+    click.echo("\n" + "=" * 80)
+    click.echo(f"HOST: {host['ip_address']}")
+    click.echo("=" * 80)
+    click.echo(f"Hostname:     {host.get('hostname') or 'N/A'}")
+    click.echo(f"Status:       {host.get('status', 'unknown')}")
+    click.echo(f"OS:           {host.get('os_name') or 'N/A'}")
+    click.echo(f"MAC:          {host.get('mac_address') or 'N/A'}")
+    click.echo(f"First seen:   {host.get('created_at', 'N/A')}")
+    click.echo(f"Last updated: {host.get('updated_at', 'N/A')}")
+    
+    click.echo("\n" + "-" * 80)
+    click.echo(f"SERVICES ({len(services)})")
+    click.echo("-" * 80)
+    
+    if services:
+        click.echo(f"{'Port':<10} {'Protocol':<10} {'State':<10} {'Service':<20} {'Version':<30}")
+        click.echo("-" * 80)
+        for svc in services:
+            click.echo(
+                f"{svc['port']:<10} "
+                f"{svc['protocol']:<10} "
+                f"{svc['state']:<10} "
+                f"{(svc.get('service_name') or 'unknown')[:19]:<20} "
+                f"{(svc.get('service_version') or 'N/A')[:29]:<30}"
+            )
+    else:
+        click.echo("No services found")
+    
+    click.echo("=" * 80 + "\n")
+
+
+# ==================== SERVICE COMMANDS ====================
+
+@cli.group()
+def services():
+    """Service management commands."""
+    pass
+
+
+@services.command("list")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--port", "-p", type=int, default=None, help="Filter by port")
+def services_list(workspace, port):
+    """List all services across all hosts."""
+    from menuscript.storage.hosts import HostManager
+    
+    wm = WorkspaceManager()
+    
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+    
+    hm = HostManager()
+    
+    # Get all hosts and their services
+    hosts = hm.list_hosts(ws['id'])
+    
+    all_services = []
+    for host in hosts:
+        services = hm.get_host_services(host['id'])
+        for svc in services:
+            if port is None or svc['port'] == port:
+                all_services.append({
+                    'host_ip': host['ip_address'],
+                    'host_name': host.get('hostname'),
+                    **svc
+                })
+    
+    if not all_services:
+        click.echo(f"No services found in workspace '{ws['name']}'")
+        return
+    
+    click.echo("\n" + "=" * 120)
+    click.echo(f"SERVICES - Workspace: {ws['name']}")
+    if port:
+        click.echo(f"Filtered by port: {port}")
+    click.echo("=" * 120)
+    click.echo(f"{'Host':<18} {'Port':<8} {'Proto':<8} {'State':<10} {'Service':<20} {'Version':<40}")
+    click.echo("=" * 120)
+    
+    for svc in sorted(all_services, key=lambda x: (x['host_ip'], x['port'])):
+        click.echo(
+            f"{svc['host_ip']:<18} "
+            f"{svc['port']:<8} "
+            f"{svc['protocol']:<8} "
+            f"{svc['state']:<10} "
+            f"{(svc.get('service_name') or 'unknown')[:19]:<20} "
+            f"{(svc.get('service_version') or 'N/A')[:39]:<40}"
+        )
+    
+    click.echo("=" * 120)
+    click.echo(f"Total: {len(all_services)} services\n")
