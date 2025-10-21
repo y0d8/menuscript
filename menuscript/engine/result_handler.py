@@ -48,6 +48,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_gobuster_job(workspace_id, log_path, job)
     elif tool == 'enum4linux':
         return parse_enum4linux_job(workspace_id, log_path, job)
+    elif tool == 'sqlmap':
+        return parse_sqlmap_job(workspace_id, log_path, job)
 
     return None
 
@@ -361,6 +363,109 @@ def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) 
             'accessible_shares': stats['accessible_shares'],
             'writable_shares': stats['writable_shares'],
             'workgroup': stats.get('workgroup')
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse sqlmap job results."""
+    try:
+        from menuscript.parsers.sqlmap_parser import parse_sqlmap_output, get_sqli_stats
+        from menuscript.storage.findings import FindingsManager
+        from menuscript.storage.hosts import HostManager
+        from urllib.parse import urlparse
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse sqlmap output
+        target = job.get('target', '')
+        parsed = parse_sqlmap_output(log_content, target)
+
+        # Get or create host from target URL
+        hm = HostManager()
+        host_id = None
+
+        if parsed['target_url']:
+            parsed_url = urlparse(parsed['target_url'])
+            hostname = parsed_url.hostname
+
+            if hostname:
+                # Try to find existing host
+                import re
+                is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname)
+
+                if is_ip:
+                    host = hm.get_host_by_ip(workspace_id, hostname)
+                    if host:
+                        host_id = host['id']
+                    else:
+                        host_id = hm.add_or_update_host(workspace_id, {
+                            'ip': hostname,
+                            'status': 'up'
+                        })
+                else:
+                    # Try to match by hostname
+                    hosts = hm.list_hosts(workspace_id)
+                    for h in hosts:
+                        if h.get('hostname') == hostname:
+                            host_id = h['id']
+                            break
+
+        # Store vulnerabilities as findings
+        fm = FindingsManager()
+        findings_added = 0
+
+        for vuln in parsed['vulnerabilities']:
+            # Determine severity
+            vuln_type = vuln.get('vuln_type', 'unknown')
+            if vuln_type == 'sqli' and vuln.get('injectable'):
+                severity = 'critical'
+                finding_type = 'sql_injection'
+                title = f"SQL Injection in parameter '{vuln['parameter']}'"
+            elif vuln_type == 'xss':
+                severity = vuln.get('severity', 'medium')
+                finding_type = 'xss'
+                title = f"Possible XSS in parameter '{vuln['parameter']}'"
+            elif vuln_type == 'file_inclusion':
+                severity = vuln.get('severity', 'high')
+                finding_type = 'file_inclusion'
+                title = f"Possible File Inclusion in parameter '{vuln['parameter']}'"
+            else:
+                severity = 'medium'
+                finding_type = 'web_vulnerability'
+                title = f"Vulnerability in parameter '{vuln['parameter']}'"
+
+            # Create description
+            description = vuln.get('description', '')
+            if vuln.get('technique'):
+                description += f"\nTechnique: {vuln['technique']}"
+            if vuln.get('dbms'):
+                description += f"\nDBMS: {vuln['dbms']}"
+
+            fm.add_finding(
+                workspace_id=workspace_id,
+                host_id=host_id,
+                title=title,
+                finding_type=finding_type,
+                severity=severity,
+                description=description,
+                tool='sqlmap',
+                path=vuln.get('url')
+            )
+            findings_added += 1
+
+        stats = get_sqli_stats(parsed)
+
+        return {
+            'tool': 'sqlmap',
+            'findings_added': findings_added,
+            'sqli_confirmed': stats['sqli_confirmed'],
+            'xss_possible': stats['xss_possible'],
+            'fi_possible': stats['fi_possible'],
+            'urls_tested': stats['urls_tested']
         }
     except Exception as e:
         return {'error': str(e)}
