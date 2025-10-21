@@ -14,17 +14,23 @@ HELP = {
     "description": "Nmap network scanner (wrapped for help/presets).",
     "usage": "menuscript jobs enqueue nmap <target> --args \"<nmap flags>\"",
     "examples": [
-        "menuscript jobs enqueue nmap 10.0.0.0/24 --args \"-sn\"",
+        "menuscript jobs enqueue nmap 10.0.0.0/24 --args \"-vv -sn\"",
+        "menuscript jobs enqueue nmap 10.0.0.82 --args \"-v -PS -F\"",
+        "menuscript jobs enqueue nmap 10.0.0.82 --args \"-vv -sV -O -p1-65535\"",
     ],
     "flags": [
-        ["-sn", "Ping scan"],
-        ["-sV", "Service detection"],
-        ["-O", "OS detection"]
+        ["-sn", "Ping scan (no port scan)"],
+        ["-sV", "Service/version detection"],
+        ["-O", "OS detection"],
+        ["-v/-vv", "Verbose/Very verbose output"],
+        ["-PS", "TCP SYN ping"],
+        ["-F", "Fast scan (top 100 ports)"],
+        ["-p1-65535", "Scan all TCP ports"]
     ],
     "presets": [
-        {"name": "Discovery", "args": ["-sn"], "desc": "Ping sweep"},
-        {"name": "Fast", "args": ["-v", "-PS", "-F"], "desc": "Fast probes"},
-        {"name": "Full", "args": ["-sV", "-O", "-p1-65535"], "desc": "Service+OS, full ports"}
+        {"name": "Discovery", "args": ["-vv", "-sn"], "desc": "Ping sweep (very verbose)"},
+        {"name": "Fast", "args": ["-v", "-PS", "-F"], "desc": "Fast port scan (top 100 ports)"},
+        {"name": "Full", "args": ["-vv", "-sV", "-O", "-p1-65535"], "desc": "Deep scan (all ports, version, OS)"}
     ]
 }
 
