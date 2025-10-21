@@ -419,15 +419,18 @@ def view_results_menu():
 def view_hosts(workspace_id: int):
     """Display hosts in workspace."""
     hm = HostManager()
-    hosts = hm.list_hosts(workspace_id)
+    all_hosts = hm.list_hosts(workspace_id)
+
+    # Filter to only show 'up' hosts
+    hosts = [h for h in all_hosts if h.get('status') == 'up']
 
     click.clear()
     click.echo("\n" + "=" * 70)
-    click.echo("HOSTS")
+    click.echo("HOSTS (live only)")
     click.echo("=" * 70 + "\n")
 
     if not hosts:
-        click.echo("No hosts found.")
+        click.echo("No live hosts found.")
     else:
         click.echo(f"{'ID':<5} {'IP Address':<18} {'Hostname':<25} {'Status':<10}")
         click.echo("-" * 70)
@@ -444,6 +447,7 @@ def view_hosts(workspace_id: int):
 
             click.echo(f"{hid:<5} {ip:<18} {hostname:<25} {status:<10} ({svc_count} services)")
 
+    click.echo(f"\nTotal: {len(hosts)} live hosts (out of {len(all_hosts)} total)")
     click.echo()
     click.pause("Press any key to return...")
 

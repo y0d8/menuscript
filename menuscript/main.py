@@ -419,12 +419,14 @@ def hosts():
 
 @hosts.command("list")
 @click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
-def hosts_list(workspace):
-    """List all hosts in workspace."""
+@click.option("--all", "-a", is_flag=True, help="Show all hosts (including down hosts)")
+@click.option("--status", "-s", default=None, help="Filter by status (up/down/unknown)")
+def hosts_list(workspace, all, status):
+    """List hosts in workspace (default: only live/up hosts)."""
     from menuscript.storage.hosts import HostManager
-    
+
     wm = WorkspaceManager()
-    
+
     if workspace:
         ws = wm.get(workspace)
         if not ws:
@@ -435,20 +437,37 @@ def hosts_list(workspace):
         if not ws:
             click.echo("✗ No workspace selected. Use: menuscript workspace use <name>", err=True)
             return
-    
+
     hm = HostManager()
-    hosts = hm.list_hosts(ws['id'])
-    
+    all_hosts = hm.list_hosts(ws['id'])
+
+    # Filter hosts
+    if status:
+        hosts = [h for h in all_hosts if h.get('status', 'unknown') == status]
+    elif not all:
+        # Default: only show 'up' hosts
+        hosts = [h for h in all_hosts if h.get('status', 'unknown') == 'up']
+    else:
+        hosts = all_hosts
+
     if not hosts:
-        click.echo(f"No hosts found in workspace '{ws['name']}'")
+        filter_msg = f" with status='{status}'" if status else " (live only)" if not all else ""
+        click.echo(f"No hosts found in workspace '{ws['name']}'{filter_msg}")
         return
-    
+
+    # Show filter info in header
+    filter_info = ""
+    if status:
+        filter_info = f" (status={status})"
+    elif not all:
+        filter_info = " (live hosts only)"
+
     click.echo("\n" + "=" * 100)
-    click.echo(f"HOSTS - Workspace: {ws['name']}")
+    click.echo(f"HOSTS - Workspace: {ws['name']}{filter_info}")
     click.echo("=" * 100)
     click.echo(f"{'IP Address':<18} {'Hostname':<30} {'Status':<10} {'OS':<30}")
     click.echo("=" * 100)
-    
+
     for host in hosts:
         click.echo(
             f"{host['ip_address']:<18} "
@@ -456,7 +475,7 @@ def hosts_list(workspace):
             f"{host.get('status', 'unknown'):<10} "
             f"{(host.get('os_name') or 'N/A')[:29]:<30}"
         )
-    
+
     click.echo("=" * 100)
     click.echo(f"Total: {len(hosts)} hosts\n")
 
