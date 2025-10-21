@@ -10,6 +10,7 @@ from pathlib import Path
 try:
     from menuscript.engine.background import enqueue_job, list_jobs, get_job, start_worker, worker_loop
     from menuscript.storage.workspaces import WorkspaceManager
+    from menuscript.ui.interactive import run_interactive_menu
 except ImportError as e:
     click.echo(f"Import error: {e}", err=True)
     sys.exit(1)
@@ -20,6 +21,12 @@ except ImportError as e:
 def cli():
     """menuscript - Recon Suite for Penetration Testing"""
     pass
+
+
+@cli.command()
+def interactive():
+    """Launch interactive tool selection menu."""
+    run_interactive_menu()
 
 
 @cli.group()
