@@ -135,9 +135,9 @@ def render_recent_hosts(workspace_id: int, width: int):
     else:
         for host in recent:
             hid = host.get('id', '?')
-            ip = (host.get('ip') or 'unknown')[:15]
+            ip = (host.get('ip_address') or 'unknown')[:15]
             hostname = (host.get('hostname') or '')[:25]
-            os_info = (host.get('os') or '')[:20]
+            os_info = (host.get('os_name') or '')[:20]
 
             # Get service count
             services = hm.get_host_services(hid)
