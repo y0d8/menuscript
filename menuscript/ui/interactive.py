@@ -439,7 +439,7 @@ def view_hosts(workspace_id: int):
             status = host.get('status', 'unknown')
 
             # Get service count
-            services = hm.list_services(workspace_id, host_id=hid)
+            services = hm.get_host_services(hid)
             svc_count = len(services)
 
             click.echo(f"{hid:<5} {ip:<18} {hostname:<25} {status:<10} ({svc_count} services)")
@@ -451,33 +451,41 @@ def view_hosts(workspace_id: int):
 def view_services(workspace_id: int):
     """Display services in workspace."""
     hm = HostManager()
-    services = hm.list_services(workspace_id)
+
+    # Get all hosts and their services
+    hosts = hm.list_hosts(workspace_id)
+    all_services = []
+
+    for host in hosts:
+        services = hm.get_host_services(host['id'])
+        for svc in services:
+            all_services.append({
+                'host_ip': host['ip_address'],
+                **svc
+            })
 
     click.clear()
     click.echo("\n" + "=" * 70)
     click.echo("SERVICES")
     click.echo("=" * 70 + "\n")
 
-    if not services:
+    if not all_services:
         click.echo("No services found.")
     else:
         click.echo(f"{'Host IP':<18} {'Port':<7} {'Protocol':<10} {'Service':<15} {'Version':<25}")
         click.echo("-" * 70)
 
-        for svc in services[:50]:  # Limit to 50
-            host_id = svc.get('host_id')
-            host = hm.get_host_by_id(workspace_id, host_id) if host_id else None
-            host_ip = host.get('ip_address', 'N/A') if host else 'N/A'
-
+        for svc in all_services[:50]:  # Limit to 50
+            host_ip = svc.get('host_ip', 'N/A')
             port = svc.get('port', '?')
             protocol = svc.get('protocol', 'tcp')
-            service = (svc.get('service') or 'unknown')[:15]
-            version = (svc.get('version') or '')[:25] or '-'
+            service = (svc.get('service_name') or 'unknown')[:15]
+            version = (svc.get('service_version') or '')[:25] or '-'
 
             click.echo(f"{host_ip:<18} {port:<7} {protocol:<10} {service:<15} {version:<25}")
 
-        if len(services) > 50:
-            click.echo(f"\n... and {len(services) - 50} more")
+        if len(all_services) > 50:
+            click.echo(f"\n... and {len(all_services) - 50} more")
 
     click.echo()
     click.pause("Press any key to return...")
