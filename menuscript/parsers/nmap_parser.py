@@ -34,16 +34,21 @@ def parse_nmap_text(output: str) -> Dict[str, Any]:
         line = line.strip()
         
         # Parse host line: "Nmap scan report for 10.0.0.5" or "Nmap scan report for example.com (10.0.0.5)"
+        # Also handles: "Nmap scan report for 10.0.0.5 [host down, received no-response]"
         if line.startswith("Nmap scan report for"):
             if current_host:
                 hosts.append(current_host)
-            
+
+            # Extract IP and hostname, removing any trailing status info like [host down...]
+            # Remove the [host down...] part first
+            clean_line = re.sub(r'\s*\[host.*?\].*$', '', line)
+
             # Extract IP and hostname
-            match = re.search(r'for (.+?)(?:\s+\((.+?)\))?$', line)
+            match = re.search(r'for (.+?)(?:\s+\((.+?)\))?$', clean_line)
             if match:
                 target = match.group(1)
                 paren_content = match.group(2)
-                
+
                 # Determine if target is IP or hostname
                 if re.match(r'^\d+\.\d+\.\d+\.\d+$', target):
                     ip = target
@@ -51,7 +56,7 @@ def parse_nmap_text(output: str) -> Dict[str, Any]:
                 else:
                     hostname = target
                     ip = paren_content if paren_content else None
-                
+
                 current_host = {
                     "ip": ip,
                     "hostname": hostname,
@@ -59,6 +64,10 @@ def parse_nmap_text(output: str) -> Dict[str, Any]:
                     "os": None,
                     "services": []
                 }
+
+            # Check if the line indicates host is down
+            if '[host down' in line and current_host:
+                current_host["status"] = "down"
         
         # Parse host status
         elif "Host is up" in line and current_host:
