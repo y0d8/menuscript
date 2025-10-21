@@ -517,7 +517,7 @@ def view_hosts(workspace_id: int):
 
             click.echo(f"{hid:<5} {ip:<18} {hostname:<25} {status:<10} ({svc_count} services)")
 
-    click.echo(f"\nTotal: {len(hosts)} live hosts (out of {len(all_hosts)} total)")
+    click.echo(f"\nTotal: {len(hosts)} live host{'s' if len(hosts) != 1 else ''}")
     click.echo()
     click.pause("Press any key to return...")
 
