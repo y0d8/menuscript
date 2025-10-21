@@ -212,8 +212,10 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
             # Show last N lines (fit to screen)
             log_lines = content.split('\n')
-            # Reserve space for header, stats, jobs, findings (approx 20-25 lines)
-            available = max(5, height - 25)
+            # Be more aggressive with space - show more log content
+            # Reserve only for header (5) + stats (4) + jobs (7) + recent (7) = ~23 lines
+            # But allow showing much more of the log for better visibility
+            available = max(20, height - 23)
 
             if len(log_lines) > available:
                 log_lines = log_lines[-available:]
