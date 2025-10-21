@@ -44,6 +44,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_nikto_job(workspace_id, log_path, job)
     elif tool == 'theharvester':
         return parse_theharvester_job(workspace_id, log_path, job)
+    elif tool == 'gobuster':
+        return parse_gobuster_job(workspace_id, log_path, job)
 
     # Add more parsers here as we build them
 
@@ -199,6 +201,74 @@ def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]
             'osint_added': osint_added,
             'hosts_added': hosts_added,
             'stats': stats
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse gobuster job results."""
+    try:
+        from menuscript.parsers.gobuster_parser import parse_gobuster_output, get_paths_stats
+        from menuscript.storage.web_paths import WebPathsManager
+        from menuscript.storage.hosts import HostManager
+        from urllib.parse import urlparse
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse gobuster output
+        target = job.get('target', '')
+        parsed = parse_gobuster_output(log_content, target)
+
+        # Get or create host from target URL
+        hm = HostManager()
+        host_id = None
+
+        if parsed['target_url']:
+            parsed_url = urlparse(parsed['target_url'])
+            hostname = parsed_url.hostname
+
+            if hostname:
+                # Try to find existing host by hostname
+                hosts = hm.list_hosts(workspace_id)
+                for host in hosts:
+                    if host.get('hostname') == hostname or host.get('ip_address') == hostname:
+                        host_id = host['id']
+                        break
+
+                # Create host if not found
+                if not host_id:
+                    # Try to determine if it's an IP or hostname
+                    import re
+                    is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname)
+
+                    if is_ip:
+                        host_id = hm.add_or_update_host(workspace_id, {
+                            'ip': hostname,
+                            'status': 'up'
+                        })
+                    else:
+                        # It's a hostname - we need an IP, so skip host creation for now
+                        # Just store paths without host_id (will need to fix schema)
+                        pass
+
+        # Store web paths
+        wpm = WebPathsManager()
+        paths_added = 0
+
+        if host_id and parsed['paths']:
+            paths_added = wpm.bulk_add_web_paths(host_id, parsed['paths'])
+
+        stats = get_paths_stats(parsed)
+
+        return {
+            'tool': 'gobuster',
+            'paths_added': paths_added,
+            'total_paths': stats['total'],
+            'by_status': stats['by_status'],
+            'target_url': parsed.get('target_url')
         }
     except Exception as e:
         return {'error': str(e)}

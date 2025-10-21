@@ -793,3 +793,155 @@ def osint_summary(workspace):
     click.echo("=" * 60)
     click.echo(f"{'TOTAL':<15} {total}")
     click.echo("=" * 60 + "\n")
+
+
+
+# ==================== WEB PATHS COMMANDS ====================
+
+@cli.group()
+def paths():
+    """Web paths/directories management commands."""
+    pass
+
+
+@paths.command("list")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--status", "-s", type=int, default=None, help="Filter by HTTP status code")
+@click.option("--host", "-h", default=None, help="Filter by host IP or hostname")
+def paths_list(workspace, status, host):
+    """List discovered web paths."""
+    from menuscript.storage.web_paths import WebPathsManager
+    from menuscript.storage.hosts import HostManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    wpm = WebPathsManager()
+
+    # Get host_id if filtering by host
+    host_id = None
+    if host:
+        hm = HostManager()
+        hosts = hm.list_hosts(ws['id'])
+        for h in hosts:
+            if h.get('hostname') == host or h.get('ip_address') == host:
+                host_id = h['id']
+                break
+        if not host_id:
+            click.echo(f"✗ Host {host} not found", err=True)
+            return
+
+    # List paths
+    if host_id:
+        paths = wpm.list_web_paths(host_id=host_id, status_code=status)
+    else:
+        paths = wpm.list_web_paths(workspace_id=ws['id'], status_code=status)
+
+    if not paths:
+        click.echo(f"No web paths found in workspace '{ws['name']}'")
+        return
+
+    click.echo("\n" + "=" * 140)
+    click.echo(f"WEB PATHS - Workspace: {ws['name']}")
+    if status:
+        click.echo(f"Filtered by status: {status}")
+    if host:
+        click.echo(f"Filtered by host: {host}")
+    click.echo("=" * 140)
+    click.echo(f"{'ID':<6} {'Status':<8} {'Size':<10} {'Host':<25} {'URL':<80}")
+    click.echo("=" * 140)
+
+    for path in paths:
+        status_code = path.get('status_code', 'N/A')
+        # Color code status
+        if status_code == 200:
+            status_str = click.style(str(status_code), fg='green')
+        elif 300 <= status_code < 400:
+            status_str = click.style(str(status_code), fg='yellow')
+        elif 400 <= status_code < 500:
+            status_str = click.style(str(status_code), fg='red')
+        else:
+            status_str = str(status_code)
+
+        host_info = path.get('hostname') or path.get('ip_address') or 'N/A'
+
+        click.echo(
+            f"{path['id']:<6} "
+            f"{status_str:<17} "  # Extra space for ANSI codes
+            f"{str(path.get('content_length') or 'N/A')[:9]:<10} "
+            f"{host_info[:24]:<25} "
+            f"{path.get('url', '')[:79]:<80}"
+        )
+
+    click.echo("=" * 140)
+    click.echo(f"Total: {len(paths)} paths\n")
+
+
+@paths.command("summary")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+def paths_summary(workspace):
+    """Show web paths summary by status code."""
+    from menuscript.storage.web_paths import WebPathsManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    wpm = WebPathsManager()
+    summary = wpm.get_paths_summary(ws['id'])
+
+    total = sum(summary.values())
+
+    if total == 0:
+        click.echo(f"No web paths found in workspace '{ws['name']}'")
+        return
+
+    click.echo("\n" + "=" * 60)
+    click.echo(f"WEB PATHS SUMMARY - Workspace: {ws['name']}")
+    click.echo("=" * 60)
+    click.echo(f"{'Status Code':<15} {'Count':<10} {'Percentage':<15}")
+    click.echo("=" * 60)
+
+    for status_code in sorted(summary.keys(), key=lambda x: int(x) if x.isdigit() else 999):
+        count = summary[status_code]
+        pct = (count / total * 100) if total > 0 else 0
+
+        # Color code
+        status_int = int(status_code) if status_code.isdigit() else 0
+        if status_int == 200:
+            status_display = click.style(status_code, fg='green')
+        elif 300 <= status_int < 400:
+            status_display = click.style(status_code, fg='yellow')
+        elif 400 <= status_int < 500:
+            status_display = click.style(status_code, fg='red')
+        else:
+            status_display = status_code
+
+        click.echo(
+            f"{status_display:<24} "  # Extra space for ANSI
+            f"{count:<10} "
+            f"{pct:.1f}%"
+        )
+
+    click.echo("=" * 60)
+    click.echo(f"{'TOTAL':<15} {total}")
+    click.echo("=" * 60 + "\n")
