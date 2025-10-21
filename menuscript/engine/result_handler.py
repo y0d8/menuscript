@@ -48,6 +48,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_gobuster_job(workspace_id, log_path, job)
     elif tool == 'enum4linux':
         return parse_enum4linux_job(workspace_id, log_path, job)
+    elif tool == 'msf_auxiliary':
+        return parse_msf_auxiliary_job(workspace_id, log_path, job)
     elif tool == 'sqlmap':
         return parse_sqlmap_job(workspace_id, log_path, job)
 
@@ -466,6 +468,67 @@ def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> D
             'xss_possible': stats['xss_possible'],
             'fi_possible': stats['fi_possible'],
             'urls_tested': stats['urls_tested']
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+def parse_msf_auxiliary_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Parse MSF auxiliary module job results."""
+    try:
+        from menuscript.parsers.msf_parser import parse_msf_log
+        from menuscript.storage.hosts import HostManager
+        from menuscript.storage.findings import FindingsManager
+
+        # Parse the log
+        parsed = parse_msf_log(log_path)
+
+        if 'error' in parsed:
+            return {'error': parsed['error']}
+
+        target = job.get('target', '')
+        hm = HostManager()
+        fm = FindingsManager()
+
+        services_added = 0
+        findings_added = 0
+
+        # Get or create host
+        host = hm.get_host_by_ip(workspace_id, target)
+        if not host:
+            host_id = hm.add_host(workspace_id, target)
+        else:
+            host_id = host['id']
+
+        # Add services if any
+        for svc in parsed.get('services', []):
+            hm.add_service(
+                host_id=host_id,
+                port=svc.get('port'),
+                protocol=svc.get('protocol', 'tcp'),
+                state=svc.get('state', 'open'),
+                service_name=svc.get('service_name'),
+                service_version=svc.get('service_version')
+            )
+            services_added += 1
+
+        # Add findings
+        for finding in parsed.get('findings', []):
+            fm.add_finding(
+                workspace_id=workspace_id,
+                host_id=host_id,
+                title=finding.get('title'),
+                severity=finding.get('severity', 'info'),
+                description=finding.get('description'),
+                port=finding.get('port'),
+                service=finding.get('service')
+            )
+            findings_added += 1
+
+        return {
+            'tool': 'msf_auxiliary',
+            'host': target,
+            'services_added': services_added,
+            'findings_added': findings_added
         }
     except Exception as e:
         return {'error': str(e)}
