@@ -42,6 +42,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_nmap_job(workspace_id, log_path, job)
     elif tool == 'nikto':
         return parse_nikto_job(workspace_id, log_path, job)
+    elif tool == 'theharvester':
+        return parse_theharvester_job(workspace_id, log_path, job)
 
     # Add more parsers here as we build them
 
@@ -126,6 +128,77 @@ def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Di
             'findings_added': findings_added,
             'target_host': parsed.get('target_host'),
             'target_ip': parsed.get('target_ip')
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse theHarvester job results."""
+    try:
+        from menuscript.parsers.theharvester_parser import parse_theharvester_output, get_osint_stats
+        from menuscript.storage.osint import OsintManager
+        from menuscript.storage.hosts import HostManager
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse theHarvester output
+        target = job.get('target', '')
+        parsed = parse_theharvester_output(log_content, target)
+
+        # Store OSINT data
+        om = OsintManager()
+        osint_added = 0
+
+        # Add emails
+        if parsed['emails']:
+            count = om.bulk_add_osint_data(workspace_id, 'email', parsed['emails'], 'theHarvester')
+            osint_added += count
+
+        # Add hosts/subdomains
+        if parsed['hosts']:
+            count = om.bulk_add_osint_data(workspace_id, 'host', parsed['hosts'], 'theHarvester')
+            osint_added += count
+
+        # Add IPs
+        if parsed['ips']:
+            count = om.bulk_add_osint_data(workspace_id, 'ip', parsed['ips'], 'theHarvester')
+            osint_added += count
+
+        # Add URLs
+        if parsed['urls']:
+            count = om.bulk_add_osint_data(workspace_id, 'url', parsed['urls'], 'theHarvester')
+            osint_added += count
+
+        # Add ASNs
+        if parsed['asns']:
+            count = om.bulk_add_osint_data(workspace_id, 'asn', parsed['asns'], 'theHarvester')
+            osint_added += count
+
+        # Also add discovered IPs and hosts to the hosts table if they look valid
+        hm = HostManager()
+        hosts_added = 0
+
+        for ip in parsed['ips']:
+            try:
+                # Try to add IP as a host
+                hm.add_or_update_host(workspace_id, {
+                    'ip': ip,
+                    'status': 'unknown'
+                })
+                hosts_added += 1
+            except Exception:
+                pass  # Skip if invalid
+
+        stats = get_osint_stats(parsed)
+
+        return {
+            'tool': 'theHarvester',
+            'osint_added': osint_added,
+            'hosts_added': hosts_added,
+            'stats': stats
         }
     except Exception as e:
         return {'error': str(e)}

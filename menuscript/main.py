@@ -685,3 +685,111 @@ def findings_summary(workspace):
     click.echo("=" * 60)
     click.echo(f"{'TOTAL':<15} {total}")
     click.echo("=" * 60 + "\n")
+
+
+# ==================== OSINT COMMANDS ====================
+
+@cli.group()
+def osint():
+    """OSINT data management commands."""
+    pass
+
+
+@osint.command("list")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--type", "-t", default=None, help="Filter by data type (email, host, ip, url, asn)")
+@click.option("--source", "-s", default=None, help="Filter by source tool")
+def osint_list(workspace, type, source):
+    """List all OSINT data in workspace."""
+    from menuscript.storage.osint import OsintManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    om = OsintManager()
+    osint_data = om.list_osint_data(ws['id'], data_type=type, source=source)
+
+    if not osint_data:
+        click.echo(f"No OSINT data found in workspace '{ws['name']}'")
+        return
+
+    click.echo("\n" + "=" * 120)
+    click.echo(f"OSINT DATA - Workspace: {ws['name']}")
+    if type:
+        click.echo(f"Filtered by type: {type}")
+    if source:
+        click.echo(f"Filtered by source: {source}")
+    click.echo("=" * 120)
+    click.echo(f"{'ID':<6} {'Type':<12} {'Source':<15} {'Value':<70} {'Discovered':<20}")
+    click.echo("=" * 120)
+
+    for item in osint_data:
+        click.echo(
+            f"{item['id']:<6} "
+            f"{(item.get('data_type') or 'N/A')[:11]:<12} "
+            f"{(item.get('source') or 'N/A')[:14]:<15} "
+            f"{item.get('value', '')[:69]:<70} "
+            f"{item.get('created_at', 'N/A')[:19]:<20}"
+        )
+
+    click.echo("=" * 120)
+    click.echo(f"Total: {len(osint_data)} entries\n")
+
+
+@osint.command("summary")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+def osint_summary(workspace):
+    """Show OSINT data summary by type."""
+    from menuscript.storage.osint import OsintManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    om = OsintManager()
+    summary = om.get_osint_summary(ws['id'])
+
+    total = sum(summary.values())
+
+    if total == 0:
+        click.echo(f"No OSINT data found in workspace '{ws['name']}'")
+        return
+
+    click.echo("\n" + "=" * 60)
+    click.echo(f"OSINT SUMMARY - Workspace: {ws['name']}")
+    click.echo("=" * 60)
+    click.echo(f"{'Type':<15} {'Count':<10} {'Percentage':<15}")
+    click.echo("=" * 60)
+
+    for data_type in sorted(summary.keys()):
+        count = summary[data_type]
+        pct = (count / total * 100) if total > 0 else 0
+
+        click.echo(
+            f"{data_type:<15} "
+            f"{count:<10} "
+            f"{pct:.1f}%"
+        )
+
+    click.echo("=" * 60)
+    click.echo(f"{'TOTAL':<15} {total}")
+    click.echo("=" * 60 + "\n")
