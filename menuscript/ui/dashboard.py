@@ -287,7 +287,11 @@ def render_msf_credentials(workspace_id: int, width: int):
             title = finding.get('title', 'No title')
             desc = finding.get('description', '')
             port = finding.get('port', '?')
-            service = finding.get('service', 'unknown')
+
+            # Extract service from title (e.g., "SSH Valid Credentials Found" -> "SSH")
+            service = 'unknown'
+            if title:
+                service = title.split()[0].lower() if title.split() else 'unknown'
 
             # Extract credentials from description
             # Format: "Valid ssh credentials: username:password"
