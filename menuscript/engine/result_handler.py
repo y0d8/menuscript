@@ -517,10 +517,11 @@ def parse_msf_auxiliary_job(workspace_id: int, log_path: str, job: Dict[str, Any
                 workspace_id=workspace_id,
                 host_id=host_id,
                 title=finding.get('title'),
+                finding_type='credential' if 'credential' in finding.get('title', '').lower() else 'security_issue',
                 severity=finding.get('severity', 'info'),
                 description=finding.get('description'),
-                port=finding.get('port'),
-                service=finding.get('service')
+                tool='msf_auxiliary',
+                port=finding.get('port')
             )
             findings_added += 1
 

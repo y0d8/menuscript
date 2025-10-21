@@ -6,6 +6,12 @@ import re
 from typing import Dict, Any, List
 
 
+def strip_ansi_codes(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
+
+
 def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
     """
     Parse MSF ssh_version module output.
@@ -19,8 +25,11 @@ def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
     services = []
     findings = []
 
+    # Strip ANSI color codes first
+    clean_output = strip_ansi_codes(output)
+
     # Extract SSH version
-    version_match = re.search(r'SSH server version:\s*(.+)', output)
+    version_match = re.search(r'SSH server version:\s*(.+)', clean_output)
     if version_match:
         ssh_version = version_match.group(1).strip()
 
@@ -39,12 +48,12 @@ def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
 
     # Extract OS information
     os_version = None
-    os_match = re.search(r'os\.version\s+(.+)', output)
+    os_match = re.search(r'os\.version\s+(.+)', clean_output)
     if os_match:
         os_version = os_match.group(1).strip()
 
     os_vendor = None
-    vendor_match = re.search(r'os\.vendor\s+(.+)', output)
+    vendor_match = re.search(r'os\.vendor\s+(.+)', clean_output)
     if vendor_match:
         os_vendor = vendor_match.group(1).strip()
 
@@ -59,7 +68,7 @@ def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
 
     # Extract deprecated encryption algorithms
     deprecated_algos = []
-    for line in output.split('\n'):
+    for line in clean_output.split('\n'):
         if 'Deprecated' in line and 'encryption.encryption' in line:
             # Extract algorithm name
             parts = line.split()
@@ -78,7 +87,7 @@ def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
 
     # Extract deprecated HMAC algorithms
     deprecated_hmac = []
-    for line in output.split('\n'):
+    for line in clean_output.split('\n'):
         if 'Deprecated' in line and 'encryption.hmac' in line:
             parts = line.split()
             if len(parts) >= 2:
@@ -96,7 +105,7 @@ def parse_msf_ssh_version(output: str, target: str) -> Dict[str, Any]:
 
     # Extract weak key exchange methods
     weak_kex = []
-    for line in output.split('\n'):
+    for line in clean_output.split('\n'):
         if 'Deprecated' in line and 'encryption.key_exchange' in line:
             parts = line.split()
             if len(parts) >= 2:
@@ -129,11 +138,14 @@ def parse_msf_login_success(output: str, target: str, module: str) -> Dict[str, 
     """
     findings = []
 
+    # Strip ANSI color codes first
+    clean_output = strip_ansi_codes(output)
+
     # Extract successful logins
     # Format: [+] 10.0.0.82:22 - Success: 'username:password' 'additional info'
     success_pattern = r'\[\+\]\s+[\d.]+:(\d+)\s+-\s+Success:\s+[\'"]([^:]+):([^\'\"]+)[\'"]'
 
-    for match in re.finditer(success_pattern, output):
+    for match in re.finditer(success_pattern, clean_output):
         port = int(match.group(1))
         username = match.group(2)
         password = match.group(3)
