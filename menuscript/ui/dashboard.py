@@ -192,13 +192,14 @@ def render_critical_findings(workspace_id: int, width: int):
 
 
 def render_top_ports(workspace_id: int, width: int):
-    """Render most commonly discovered open ports."""
+    """Render most commonly discovered open ports with host IPs."""
     hm = HostManager()
     all_hosts = hm.list_hosts(workspace_id)
 
-    # Count ports across all hosts
-    port_counts = {}
+    # Track ports and which hosts have them
+    port_data = {}  # key: "port/service" -> value: list of host IPs
     for host in all_hosts:
+        host_ip = host.get('ip_address', 'unknown')
         services = hm.get_host_services(host.get('id'))
         if services:
             for svc in services:
@@ -206,10 +207,12 @@ def render_top_ports(workspace_id: int, width: int):
                 service_name = svc.get('service_name', 'unknown')
                 if port:
                     key = f"{port}/{service_name}"
-                    port_counts[key] = port_counts.get(key, 0) + 1
+                    if key not in port_data:
+                        port_data[key] = []
+                    port_data[key].append(host_ip)
 
-    # Sort by count and take top 5
-    top_ports = sorted(port_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    # Sort by host count and take top 5
+    top_ports = sorted(port_data.items(), key=lambda x: len(x[1]), reverse=True)[:5]
 
     lines = []
     lines.append("")
@@ -219,8 +222,19 @@ def render_top_ports(workspace_id: int, width: int):
     if not top_ports:
         lines.append("No ports discovered yet")
     else:
-        for port_service, count in top_ports:
-            lines.append(f"  {port_service:<20} found on {count:>3} host(s)")
+        for port_service, host_ips in top_ports:
+            count = len(host_ips)
+
+            # Smart truncation: show first 4 IPs, then "+X more"
+            if count <= 4:
+                ip_list = ", ".join(host_ips)
+            else:
+                shown = host_ips[:4]
+                remaining = count - 4
+                ip_list = ", ".join(shown) + f" +{remaining} more"
+
+            port_label = f"{port_service} ({count} host{'s' if count != 1 else ''})"
+            lines.append(f"  {port_label:<22} {ip_list}")
 
     return lines
 
