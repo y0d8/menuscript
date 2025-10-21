@@ -7,6 +7,7 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Dynamic: license-file
+Dynamic: requires-python
 
 menuscript — y0d8 & S0ul H@ck3r$ Recon Suite (v0.4.0)
 

@@ -1,621 +1,333 @@
 #!/usr/bin/env python3
 """
-menuscript – unified CLI entrypoint
-- Official entrypoint is the `menuscript` console script (not `python -m ...`)
-- Clean, predictable routing:
-    menuscript                      -> interactive TUI
-    menuscript --help               -> CLI help
-    menuscript --version            -> show version + branding
-    menuscript migrate              -> DB migration (manual)
-    menuscript config plugins ...   -> manage plugin enable/disable/reset
-    menuscript plugins              -> alias of: config plugins list
-    menuscript plugin on/off/reset  -> aliases for enable/disable/reset
-    menuscript dev repair           -> developer smart repair tool
+menuscript.main - CLI entry point
 """
-
-from __future__ import annotations
+import click
+import os
 import sys
-import json
-import difflib
+from pathlib import Path
 
-# TUI launcher
-from .ui import run_menu_loop
-
-# DB migration helpers (keep minimal surface)
-from .storage.db import init_db, import_json_history_to_db
-from .utils import HISTORY_FILE
-
-# Plugin loader + config helpers for the `config plugins` command
-from .engine.loader import discover_plugins
-from .engine.background import enqueue_job, list_jobs, get_job, start_worker
-from .config import (
-    list_plugins_config,
-    enable_plugin,
-    disable_plugin,
-    reset_plugins,
-)
-
-# Colors (minimal, readable)
-CSI = "\033["
-RESET = CSI + "0m"
-BOLD = CSI + "1m"
-GREEN = CSI + "32m"
-RED = CSI + "31m"
-CYAN = CSI + "36m"
-
-# ---- Branding / Version -----------------------------------------------------
+try:
+    from menuscript.engine.background import enqueue_job, list_jobs, get_job, start_worker, worker_loop
+    from menuscript.storage.workspaces import WorkspaceManager
+except ImportError as e:
+    click.echo(f"Import error: {e}", err=True)
+    sys.exit(1)
 
 
-def _print_version() -> int:
-    """
-    Print version and branding for --version.
-    NOTE: Keep this string in sync with setup.py version during releases.
-    """
-    # If you prefer to import from a single version source later, you can.
-    version = "v0.8.0-dev"
-    print(f"menuscript {version}")
-    print("by y0d8 & CyberSoul SecurITy ($0u! H@cK3R$)")
-    return 0
+@click.group()
+@click.version_option(version='0.4.0')
+def cli():
+    """menuscript - Recon Suite for Penetration Testing"""
+    pass
 
 
-def _print_help() -> int:
-    """
-    Professional H2-style help: concise, with command summary.
-    """
-    print(
-        f"""{BOLD}Usage:{RESET}
-  menuscript                          Launch interactive menu (TUI)
-  menuscript --help                   Show this help
-  menuscript --version                Show version and branding
-
-{BOLD}Admin & Migration:{RESET}
-  menuscript migrate                  Import JSON history into SQLite (one-time)
-
-{BOLD}Plugin Management:{RESET}
-  menuscript config plugins list
-  menuscript config plugins enable <name>
-  menuscript config plugins disable <name>
-  menuscript config plugins reset
-
-{BOLD}Short Aliases:{RESET}
-  menuscript plugins                  (same as: config plugins list)
-  menuscript plugin on  <name>        (enable)
-  menuscript plugin off <name>        (disable)
-  menuscript plugin reset             (reset)
-
-{BOLD}Developer Tools:{RESET}
-  menuscript dev repair               Smart reinstall + cache cleanup + checks
-
-{BOLD}Tips:{RESET}
-  • Plugin names are case-insensitive.
-  • Edit config at ~/.menuscript/config.json (auto-repairs if corrupted).
-"""
-    )
-    return 0
+@cli.group()
+def workspace():
+    """Workspace management (like msf workspaces)."""
+    pass
 
 
-# ---- Small utilities --------------------------------------------------------
-
-
-def _suggest(word: str, options: list[str]) -> str | None:
-    """
-    Suggest a close command if user mistypes (e.g., 'repaor' -> 'repair').
-    """
-    matches = difflib.get_close_matches(word, options, n=1, cutoff=0.72)
-    return matches[0] if matches else None
-
-
-# ---- Commands: migrate / config plugins / dev -------------------------------
-
-
-def _cmd_migrate() -> int:
-    """
-    Manual DB migration entrypoint:
-    - Initializes DB
-    - Imports legacy JSON history (if present)
-    - Removes legacy JSON afterwards
-    """
-    init_db()
-    imported = import_json_history_to_db()
-    # remove legacy JSON (best-effort; safe to skip if already gone)
+@workspace.command("create")
+@click.argument("name")
+@click.option("--description", "-d", default="", help="Workspace description")
+def workspace_create(name, description):
+    """Create a new workspace."""
+    wm = WorkspaceManager()
     try:
-        import pathlib
-
-        pathlib.Path(HISTORY_FILE).unlink(missing_ok=True)
-    except Exception:
-        pass
-    print(GREEN + f"Migration complete. Imported entries: {imported}" + RESET)
-    return 0
+        ws_id = wm.create(name, description)
+        click.echo(f"✓ Created workspace '{name}' (id={ws_id})")
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
 
 
-def _print_plugins_list() -> None:
-    """
-    Shared pretty-printer for 'config plugins list' and 'plugins' alias.
-    """
-    discovered = sorted(discover_plugins().keys())
-    enabled, disabled = list_plugins_config()
+@workspace.command("list")
+def workspace_list():
+    """List all workspaces."""
+    wm = WorkspaceManager()
+    workspaces = wm.list()
+    current = wm.get_current()
+    
+    if not workspaces:
+        click.echo("No workspaces found. Create one with: menuscript workspace create <name>")
+        return
+    
+    click.echo("\n" + "=" * 80)
+    click.echo("WORKSPACES")
+    click.echo("=" * 80)
+    
+    for ws in workspaces:
+        marker = "* " if current and ws['id'] == current['id'] else "  "
+        stats = wm.stats(ws['id'])
+        click.echo(f"{marker}{ws['name']:<20} | Hosts: {stats['hosts']:>3} | Services: {stats['services']:>3} | Findings: {stats['findings']:>3}")
+        if ws.get('description'):
+            click.echo(f"  └─ {ws['description']}")
+    
+    click.echo("=" * 80)
+    if current:
+        click.echo(f"Current: {current['name']}")
+    click.echo()
 
-    print(BOLD + "Enabled plugins:" + RESET)
-    if enabled:
-        for n in enabled:
-            print("  - " + GREEN + n + RESET)
+
+@workspace.command("use")
+@click.argument("name")
+def workspace_use(name):
+    """Switch to a workspace."""
+    wm = WorkspaceManager()
+    if wm.set_current(name):
+        click.echo(f"✓ Switched to workspace '{name}'")
     else:
-        print("  (none explicitly enabled — all discovered are active unless disabled)")
+        click.echo(f"✗ Workspace '{name}' not found", err=True)
+        click.echo("Available workspaces:")
+        for ws in wm.list():
+            click.echo(f"  - {ws['name']}")
 
-    print(BOLD + "\nDisabled plugins:" + RESET)
-    if disabled:
-        for n in disabled:
-            print("  - " + RED + n + RESET)
+
+@workspace.command("current")
+def workspace_current():
+    """Show current workspace."""
+    wm = WorkspaceManager()
+    current = wm.get_current()
+    
+    if not current:
+        click.echo("No workspace selected")
+        return
+    
+    stats = wm.stats(current['id'])
+    
+    click.echo("\n" + "=" * 60)
+    click.echo(f"Current Workspace: {current['name']}")
+    click.echo("=" * 60)
+    click.echo(f"Description: {current.get('description', 'N/A')}")
+    click.echo(f"Created: {current.get('created_at', 'N/A')}")
+    click.echo()
+    click.echo("Statistics:")
+    click.echo(f"  Hosts:     {stats['hosts']}")
+    click.echo(f"  Services:  {stats['services']}")
+    click.echo(f"  Findings:  {stats['findings']}")
+    click.echo("=" * 60 + "\n")
+
+
+@workspace.command("delete")
+@click.argument("name")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+def workspace_delete(name, force):
+    """Delete a workspace and all its data."""
+    wm = WorkspaceManager()
+    ws = wm.get(name)
+    
+    if not ws:
+        click.echo(f"✗ Workspace '{name}' not found", err=True)
+        return
+    
+    if not force:
+        stats = wm.stats(ws['id'])
+        click.echo(f"\nWarning: This will delete workspace '{name}' and:")
+        click.echo(f"  - {stats['hosts']} hosts")
+        click.echo(f"  - {stats['services']} services")
+        click.echo(f"  - {stats['findings']} findings")
+        
+        if not click.confirm("\nAre you sure?"):
+            click.echo("Cancelled")
+            return
+    
+    if wm.delete(name):
+        click.echo(f"✓ Deleted workspace '{name}'")
     else:
-        print("  (none)")
-
-    print(BOLD + "\nDiscovered plugins:" + RESET)
-    for n in discovered:
-        print("  - " + n)
+        click.echo(f"✗ Error deleting workspace", err=True)
 
 
-def _cmd_config_plugins(argv: list[str]) -> int:
-    """
-    Implementation for:
-      menuscript config plugins [list|enable|disable|reset]
-    """
-    sub = (argv[0].lower() if argv else "list")
-    discovered_set = set(discover_plugins().keys())
+@cli.group()
+def jobs():
+    """Background job management."""
+    pass
 
-    # Accept friendly aliases
-    if sub in ("list", "ls"):
-        _print_plugins_list()
-        return 0
 
-    if sub in ("enable", "on", "+"):
-        if len(argv) < 2:
-            print("Usage: menuscript config plugins enable <name>")
-            return 2
-        name = argv[1].lower()
-        if name not in discovered_set:
-            print(RED + f"Plugin '{name}' not found among discovered." + RESET)
-            if suggestion := _suggest(name, list(discovered_set)):
-                print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-            return 1
-        enable_plugin(name)
-        print(GREEN + f"Enabled: {name}" + RESET)
-        return 0
+@jobs.command("enqueue")
+@click.argument("tool")
+@click.argument("target")
+@click.option("--args", "-a", default="", help="Tool arguments (space-separated)")
+@click.option("--label", "-l", default="", help="Job label")
+def jobs_enqueue(tool, target, args, label):
+    """Enqueue a background job."""
+    args_list = args.split() if args else []
+    
+    try:
+        job_id = enqueue_job(tool, target, args_list, label)
+        click.echo(f"✓ Enqueued job {job_id}: {tool} {target}")
+        click.echo(f"  Monitor: menuscript jobs get {job_id}")
+        click.echo(f"  Tail log: menuscript jobs tail {job_id}")
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
 
-    if sub in ("disable", "off", "-"):
-        if len(argv) < 2:
-            print("Usage: menuscript config plugins disable <name>")
-            return 2
-        name = argv[1].lower()
-        if name not in discovered_set:
-            print(RED + f"Plugin '{name}' not found among discovered." + RESET)
-            if suggestion := _suggest(name, list(discovered_set)):
-                print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-            return 1
-        disable_plugin(name)
-        print(RED + f"Disabled: {name}" + RESET)
-        return 0
 
-    if sub == "reset":
-        reset_plugins()
-        print(CYAN + "Plugins config reset (auto-discover all; none explicitly enabled/disabled)." + RESET)
-        return 0
-
-    if sub in ("help", "-h", "--help"):
-        print(
-            """Usage:
-  menuscript config plugins list
-  menuscript config plugins enable <name>
-  menuscript config plugins disable <name>
-  menuscript config plugins reset
-"""
+@jobs.command("list")
+@click.option("--limit", "-n", default=20, help="Number of jobs to show")
+@click.option("--status", "-s", default=None, help="Filter by status")
+def jobs_list(limit, status):
+    """List background jobs."""
+    jobs_data = list_jobs(limit=limit)
+    
+    if status:
+        jobs_data = [j for j in jobs_data if j.get('status') == status]
+    
+    if not jobs_data:
+        click.echo("No jobs found")
+        return
+    
+    click.echo("\n" + "=" * 100)
+    click.echo(f"{'ID':<5} {'Tool':<12} {'Target':<25} {'Status':<10} {'Label':<20} {'Created':<20}")
+    click.echo("=" * 100)
+    
+    for job in jobs_data:
+        click.echo(
+            f"{job['id']:<5} "
+            f"{job.get('tool', 'N/A'):<12} "
+            f"{job.get('target', 'N/A')[:24]:<25} "
+            f"{job.get('status', 'N/A'):<10} "
+            f"{job.get('label', '')[:19]:<20} "
+            f"{job.get('created_at', 'N/A'):<20}"
         )
-        return 0
-
-    # Unknown subcommand with suggestion
-    print(RED + f"Unknown subcommand: {sub}" + RESET)
-    if suggestion := _suggest(sub, ["list", "enable", "disable", "reset"]):
-        print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-    return 2
+    
+    click.echo("=" * 100 + "\n")
 
 
-def _cmd_jobs(argv):
-    """
-    jobs subcommand:
-      menuscript jobs enqueue <tool> <target> --args "<arg1 arg2 ...>" --label "optional"
-      menuscript jobs list
-      menuscript jobs status <id>
-      menuscript jobs tail <id>
-      menuscript jobs worker start   # start worker in this process (daemonized)
-    """
-    if not argv:
-        print("Usage: menuscript jobs [enqueue|list|status|tail|worker]")
-        return 2
-    sub = argv[0].lower()
-    if sub == "enqueue":
-        # simple parser: expect tool target then optional --args "<...>" --label "..."
-        if len(argv) < 3:
-            print('Usage: menuscript jobs enqueue <tool> <target> --args "<arg1 arg2>" --label "<optional>"')
-            return 2
-        tool = argv[1].lower()
-        target = argv[2]
-        # parse optional flags
-        args = []
-        label = ""
-        i = 3
-        while i < len(argv):
-            a = argv[i]
-            if a == "--args" and i+1 < len(argv):
-                try:
-                    # split the string into args (simple split)
-                    args = argv[i+1].split()
-                except Exception:
-                    args = []
-                i += 2
-                continue
-            if a == "--label" and i+1 < len(argv):
-                label = argv[i+1]
-                i += 2
-                continue
-            i += 1
-        job_id = enqueue_job(tool, target, args, label)
-        print(f"Enqueued job id: {job_id} (tool={tool} target={target})")
-        return 0
-    if sub == "list":
-        jobs = list_jobs(limit=200)
-        if not jobs:
-            print("No jobs.")
-            return 0
-        for j in jobs:
-            print(f"{j['id']}: {j['tool']} {j['target']} status={j['status']} created={j['created_at']} result_scan_id={j.get('result_scan_id')}")
-        return 0
-    if sub in ("status","show"):
-        if len(argv) < 2:
-            print("Usage: menuscript jobs status <id>")
-            return 2
-        try:
-            jid = int(argv[1])
-        except Exception:
-            print("Invalid job id.")
-            return 2
-        j = get_job(jid)
-        if not j:
-            print("Job not found.")
-            return 1
-        print(json.dumps(j, indent=2))
-        return 0
-    if sub == "tail":
-        # attempt to get scan id and then try to fetch log via storage.db.get_scan
-        if len(argv) < 2:
-            print("Usage: menuscript jobs tail <id>")
-            return 2
-        try:
-            jid = int(argv[1])
-        except Exception:
-            print("Invalid job id.")
-            return 2
-        j = get_job(jid)
-        if not j:
-            print("Job not found.")
-            return 1
-        scan_id = j.get("result_scan_id")
-        if not scan_id:
-            print("Job has no scan result yet.")
-            return 1
-        # try to import storage.get_scan
-        try:
-            from .storage.db import get_scan
-            rec = get_scan(scan_id)
-            if rec and rec.get("log"):
-                print(f"--- tail of log ({rec.get('log')}) ---")
-                try:
-                    with open(rec.get('log'),'r', encoding='utf-8', errors='ignore') as fh:
-                        print(''.join(fh.readlines()[-200:]))
-                except Exception as e:
-                    print("Could not read log file:", e)
-            else:
-                print("No log path recorded for scan.")
-        except Exception:
-            print("Cannot tail: storage.get_scan not available in this environment.")
-        return 0
-    if sub == "worker":
-        # e.g., menuscript jobs worker start
-        if len(argv) < 2:
-            print("Usage: menuscript jobs worker start")
-            return 2
-        if argv[1] == "start":
-            start_worker(detach=True)
-            print("Started background worker in this process (daemon). It will process queued jobs.")
-            return 0
-        print("Unknown worker subcommand.")
-        return 2
-    print("Unknown jobs subcommand. Try: enqueue|list|status|tail|worker")
-    return 2
-
-def _cmd_dev(argv: list[str]) -> int:
-    """
-    Implementation for:
-      menuscript dev repair
-    """
-    if not argv or argv[0] in ("-h", "--help", "help"):
-        print("Usage: menuscript dev repair\n\nRuns a smart reinstall + cache cleanup + version/path checks.")
-        return 0
-
-    sub = argv[0].lower()
-    if sub == "repair":
-        try:
-            from .devtools import dev_repair
-        except Exception as e:
-            print(RED + f"Developer tool not available: {e}" + RESET)
-            return 1
-        return dev_repair()
-
-    print(RED + f"Unknown dev subcommand: {sub}" + RESET)
-    if suggestion := _suggest(sub, ["repair"]):
-        print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-    return 2
+@jobs.command("get")
+@click.argument("job_id", type=int)
+def jobs_get(job_id):
+    """Get job details."""
+    job = get_job(job_id)
+    
+    if not job:
+        click.echo(f"✗ Job {job_id} not found", err=True)
+        return
+    
+    click.echo("\n" + "=" * 60)
+    click.echo(f"Job {job_id}")
+    click.echo("=" * 60)
+    click.echo(f"Tool:       {job.get('tool', 'N/A')}")
+    click.echo(f"Target:     {job.get('target', 'N/A')}")
+    click.echo(f"Args:       {' '.join(job.get('args', []))}")
+    click.echo(f"Label:      {job.get('label', 'N/A')}")
+    click.echo(f"Status:     {job.get('status', 'N/A')}")
+    click.echo(f"Created:    {job.get('created_at', 'N/A')}")
+    click.echo(f"Started:    {job.get('started_at', 'N/A')}")
+    click.echo(f"Finished:   {job.get('finished_at', 'N/A')}")
+    click.echo(f"Log:        {job.get('log', 'N/A')}")
+    
+    if job.get('error'):
+        click.echo(f"Error:      {job['error']}")
+    
+    click.echo("=" * 60 + "\n")
 
 
-# ---- CLI Router -------------------------------------------------------------
-
-
-def main() -> int:
-    """
-    CLI router. Only falls back to TUI when no command is provided.
-    """
-    argv = sys.argv[1:]
-
-    # Global flags first
-    if not argv:
-        # No args -> TUI
-        try:
-            run_menu_loop()
-        except KeyboardInterrupt:
-            print("\nInterrupted. Bye.")
-            return 130
-        return 0
-
-    if argv[0] in ("-h", "--help"):
-        return _print_help()
-
-    if argv[0] in ("-v", "--version"):
-        return _print_version()
-
-    # Admin command
-    if argv[0].lower() == "migrate":
-        return _cmd_migrate()
-
-    # Config command (namespaced)
-    if argv[0].lower() == "config":
-        if len(argv) >= 2 and argv[1].lower() == "plugins":
-            return _cmd_config_plugins(argv[2:])
-        print("Usage: menuscript config plugins [list|enable|disable|reset]")
-        return 2
-
-    # Aliases for plugin management
-    if argv[0].lower() == "plugins":
-        # 'menuscript plugins' -> list
-        return _cmd_plugins(argv[1:])
-
-    if argv[0].lower() == "plugin":
-        # 'menuscript plugin on/off/reset <name?>'
-        if len(argv) < 2:
-            print("Usage: menuscript plugin [on|off|reset] <name?>")
-            return 2
-        sub = argv[1].lower()
-        mapping = {"on": "enable", "off": "disable", "reset": "reset"}
-        if sub not in mapping:
-            print(RED + f"Unknown subcommand: {sub}" + RESET)
-            if suggestion := _suggest(sub, list(mapping.keys())):
-                print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-            return 2
-        return _cmd_config_plugins([mapping[sub]] + argv[2:])
-
-    # Developer tools
-    if argv[0].lower() == "dev":
-        return _cmd_dev(argv[1:])
-
-    # Jobs subcommand (background jobs)
-    if argv[0].lower() == "jobs":
-        return _cmd_jobs(argv[1:])
-
-    # Unknown top-level command — suggest something useful
-    print(RED + f"Unknown command: {argv[0]}" + RESET)
-    if suggestion := _suggest(argv[0].lower(), ["config", "plugins", "plugin", "dev", "migrate", "--help", "--version"]):
-        print(CYAN + f"Did you mean: {suggestion} ?" + RESET)
-    return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
-def _cmd_plugins(argv):
-    """Plugins subcommand CLI handler.
-
-    Supported:
-      menuscript plugins                -> show list of discovered plugins
-      menuscript plugins help <tool>    -> show detailed HELP for a plugin
-      menuscript plugins list           -> alias for above
-      (other plugin config actions are delegated to _cmd_config)
-    This function prefers plugin.HELP on the plugin instance, falling back
-    to module-level HELP if needed.
-    """
-    # No args or 'list' -> show discovered plugins
-    if not argv or (len(argv) == 1 and argv[0].lower() in ("-h","--help","help","list")):
-        try:
-            from .engine.loader import discover_plugins
-            plugins = discover_plugins()
-        except Exception as e:
-            print("Could not load plugin list:", e)
-            return 1
-        print("Enabled plugins:")
-        print("  (none explicitly enabled — all discovered are active unless disabled)")
-        print()
-        print("Disabled plugins:")
-        print("  (none)")
-        print()
-        print("Discovered plugins:")
-        for k in sorted(plugins.keys()):
-            print("  - " + k)
-        return 0
-
-    sub = argv[0].lower()
-    if sub == "help":
-        if len(argv) < 2:
-            print("Usage: menuscript plugins help <tool>")
-            return 2
-        tool = argv[1].lower()
-        try:
-            from .engine.loader import discover_plugins
-            plugins = discover_plugins()
-        except Exception as e:
-            print("Could not load plugins:", e)
-            return 1
-
-        # direct lookup, else fallback by substring
-        p = plugins.get(tool)
-        if not p:
-            for v in plugins.values():
-                try:
-                    if (getattr(v,'tool','') or '').lower() == tool or (getattr(v,'name','') or '').lower().find(tool) != -1:
-                        p = v
-                        break
-                except Exception:
-                    continue
-        if not p:
-            print(f"Plugin not found: {tool}")
-            return 1
-
-        # prefer instance HELP, else module HELP
-        helpdata = getattr(p, "HELP", None)
-        if not helpdata:
-            try:
-                import importlib
-                mod = importlib.import_module(getattr(p, "__module__", "") or "")
-                helpdata = getattr(mod, "HELP", None)
-            except Exception:
-                helpdata = None
-
-        if not helpdata:
-            print(f"No help metadata for {tool}")
-            return 0
-
-        # pretty print structured help
-        print()
-        print(helpdata.get("name", tool))
-        print("─" * max(10, len(str(helpdata.get("name", tool)))))
-        print("Description:")
-        for line in str(helpdata.get("description","")).splitlines():
-            print("  " + line)
-        print()
-        if helpdata.get("usage"):
-            print("Usage:")
-            print("  " + helpdata.get("usage"))
-            print()
-        if helpdata.get("examples"):
-            print("Examples:")
-            for ex in helpdata.get("examples",[]):
-                print("  " + ex)
-            print()
-        if helpdata.get("flags"):
-            print("Useful Flags:")
-            for flag_desc in helpdata.get("flags",[]):
-                # support both tuple/list or list-of-lists
-                try:
-                    flag, desc = flag_desc
-                except Exception:
-                    flag, desc = str(flag_desc), ""
-                print(f"  {str(flag).ljust(18)} {desc}")
-            print()
-        if helpdata.get("presets"):
-            print("Presets:")
-            for i, pi in enumerate(helpdata.get("presets",[]), start=1):
-                name = pi.get("name") if isinstance(pi, dict) else str(pi)
-                desc = pi.get("desc", "") if isinstance(pi, dict) else ""
-                print(f"  {i}) {name} - {desc}")
-            print()
-        return 0
-
-    # unknown subcommand -> delegate or show hint
+@jobs.command("tail")
+@click.argument("job_id", type=int)
+@click.option("--follow", "-f", is_flag=True, help="Follow log output")
+def jobs_tail(job_id, follow):
+    """Tail job log file."""
+    import subprocess
+    
+    job = get_job(job_id)
+    
+    if not job:
+        click.echo(f"✗ Job {job_id} not found", err=True)
+        return
+    
+    log_path = job.get('log')
+    
+    if not log_path or not os.path.exists(log_path):
+        click.echo(f"✗ Log file not found: {log_path}", err=True)
+        return
+    
     try:
-        return _cmd_config(argv)
-    except Exception:
-        print(f"Unknown plugins subcommand: {' '.join(argv)}. Try: menuscript plugins help <tool>")
-        return 2
+        if follow:
+            subprocess.run(["tail", "-f", log_path])
+        else:
+            subprocess.run(["tail", "-30", log_path])
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
 
 
-def _cmd_plugins(argv):
-    """Plugins subcommand CLI handler.
+@cli.group()
+def worker():
+    """Background worker management."""
+    pass
 
-    Supported:
-      menuscript plugins                -> show list of discovered plugins
-      menuscript plugins help <tool>    -> show detailed HELP for a plugin
-      menuscript plugins list           -> alias for above
-    """
-    from .engine.loader import discover_plugins
 
-    # No args or list -> print summary
-    if not argv or argv[0] in ("-h","--help","list"):
+@worker.command("start")
+@click.option("--fg", is_flag=True, help="Run in foreground")
+def worker_start(fg):
+    """Start the background worker."""
+    if fg:
+        click.echo("Starting worker in foreground (Ctrl+C to stop)...")
+        try:
+            worker_loop()
+        except KeyboardInterrupt:
+            click.echo("\nWorker stopped")
+    else:
+        start_worker(detach=True)
+        click.echo("✓ Background worker started")
+        click.echo("  Logs: tail -f data/logs/worker.log")
+
+
+@worker.command("status")
+def worker_status():
+    """Check worker status."""
+    import subprocess
+    
+    try:
+        result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
+        
+        worker_procs = []
+        for line in result.stdout.split('\n'):
+            if 'menuscript' in line and 'worker' in line and 'grep' not in line:
+                worker_procs.append(line)
+        
+        if worker_procs:
+            click.echo("✓ Worker is running:")
+            for proc in worker_procs:
+                click.echo(f"  {proc}")
+        else:
+            click.echo("✗ Worker is not running")
+            click.echo("  Start with: menuscript worker start")
+    except Exception as e:
+        click.echo(f"✗ Error checking status: {e}", err=True)
+
+
+@cli.command("plugins")
+def list_plugins():
+    """List available plugins."""
+    try:
+        from menuscript.engine.loader import discover_plugins
+        
         plugins = discover_plugins()
-        print("Enabled plugins:")
-        print("  (none explicitly enabled — all discovered are active unless disabled)")
-        print()
-        print("Disabled plugins:")
-        print("  (none)")
-        print()
-        print("Discovered plugins:")
-        for k in sorted(plugins.keys()):
-            print(f"  - {k}")
-        return 0
+        
+        if not plugins:
+            click.echo("No plugins found")
+            return
+        
+        click.echo("\n" + "=" * 80)
+        click.echo("AVAILABLE PLUGINS")
+        click.echo("=" * 80)
+        
+        for key, plugin in sorted(plugins.items()):
+            name = getattr(plugin, 'name', 'Unknown')
+            category = getattr(plugin, 'category', 'misc')
+            click.echo(f"{key:<15} | {name:<30} | {category}")
+        
+        click.echo("=" * 80)
+        click.echo(f"Total: {len(plugins)} plugins\n")
+    except Exception as e:
+        click.echo(f"✗ Error loading plugins: {e}", err=True)
 
-    # Help for specific plugin
-    if argv[0] == "help":
-        if len(argv) < 2:
-            print("Usage: menuscript plugins help <tool>")
-            return 2
-        tool = argv[1].lower()
-        plugins = discover_plugins()
-        plugin = plugins.get(tool)
 
-        # fallback search by name
-        if not plugin:
-            for p in plugins.values():
-                if tool in getattr(p, "tool", "") or tool in getattr(p, "name", ""):
-                    plugin = p
-                    break
+def main():
+    """Main entry point."""
+    cli()
 
-        if not plugin:
-            print(f"Plugin not found: {tool}")
-            return 1
 
-        helpdata = getattr(plugin, "HELP", None)
-        if not helpdata:
-            print(f"No help metadata for {tool}")
-            return 0
-
-        # Pretty print HELP
-        print()
-        print(helpdata.get("name", tool))
-        print("─" * max(10, len(helpdata.get("name", tool))))
-        print("Description:")
-        for line in helpdata.get("description", "").splitlines():
-            print("  " + line)
-        print()
-        print("Usage:")
-        print(f"  {helpdata.get('usage', 'No usage available')}")
-        print()
-        if helpdata.get("examples"):
-            print("Examples:")
-            for ex in helpdata["examples"]:
-                print(f"  {ex}")
-            print()
-        if helpdata.get("flags"):
-            print("Flags:")
-            for flag, desc in helpdata["flags"]:
-                print(f"  {flag.ljust(18)} {desc}")
-            print()
-        return 0
-
-    print(f"Unknown plugins subcommand. Try: menuscript plugins help <tool>")
-    return 2
-
+if __name__ == '__main__':
+    main()
