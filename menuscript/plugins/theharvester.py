@@ -1,65 +1,116 @@
-from typing import List, Optional, Tuple
-import shutil, os, time, subprocess
-from .plugin_base import Plugin
+#!/usr/bin/env python3
+"""
+menuscript.plugins.theharvester
 
-class TheHarvesterPlugin(Plugin):
-    name = "theHarvester (OSINT)"
-    tool = "theharvester"
-    category = "network"
+theHarvester OSINT plugin with unified interface.
+"""
+import subprocess
+import time
+from typing import List, Optional
 
-    def _find_exe(self) -> Optional[str]:
-        return shutil.which("theHarvester")
+from .plugin_base import PluginBase
 
-    def run(self, target: str, args: List[str], label: Optional[str]=None, save_xml: bool = False) -> Tuple[int, str]:
-        exe = self._find_exe()
-        if not exe:
-            raise RuntimeError("theHarvester binary not found on PATH")
-
-        cmd = [exe, "-d", target] + (args or [])
-
-        log_dir = os.path.expanduser("~/.menuscript/artifacts")
-        os.makedirs(log_dir, exist_ok=True)
-        fname = f"theharv_{label or 'scan'}_{int(time.time())}.log"
-        log_path = os.path.join(log_dir, fname)
-
-        with open(log_path, "wb") as out:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            for chunk in iter(lambda: proc.stdout.read(4096), b""):
-                out.write(chunk)
-                out.flush()
-            rc = proc.wait()
-
-        return rc, log_path
-
-plugin = TheHarvesterPlugin()
-
-
-# HELP metadata for TUI + CLI help (H2 style)
 HELP = {
     "name": "theHarvester (OSINT)",
-    "description": "theHarvester is an OSINT tool to gather emails, subdomains, hosts, names and open ports from public sources.",
-    "usage": "menuscript jobs enqueue theharvester <domain> --args \"<flags>\"",
+    "description": "theHarvester - gather emails, subdomains, hosts, employee names from public sources",
+    "usage": "menuscript jobs enqueue theharvester <domain> --args \"-b google\"",
     "examples": [
-        "menuscript jobs enqueue theharvester example.com --args \"-b google -l 100\""
+        "menuscript jobs enqueue theharvester example.com --args \"-b google\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b all\"",
     ],
     "flags": [
-        ["-b <source>", "Data source (google, bing, linkedin, etc.)"],
-        ["-l <limit>", "Limit results per source"],
-        ["-v", "Verbose output"]
+        ["-b <source>", "Data source (google, bing, linkedin, all, etc.)"],
+        ["-l <limit>", "Limit results (default 500)"],
+        ["-s <start>", "Start at result number X"],
     ],
     "presets": [
-        {"name":"Quick OSINT","args":["-b","google","-l","50"],"desc":"Common quick harvest"},
-        {"name":"Deep OSINT","args":["-b","all","-l","500"],"desc":"Search many sources, larger limits"},
+        {
+            "name": "Google Search",
+            "args": ["-b", "google", "-l", "500"],
+            "desc": "Search Google for emails/subdomains"
+        },
+        {
+            "name": "All Sources",
+            "args": ["-b", "all", "-l", "500"],
+            "desc": "Search all available sources"
+        },
+        {
+            "name": "Quick Scan",
+            "args": ["-b", "google,bing", "-l", "100"],
+            "desc": "Quick scan (Google + Bing)"
+        },
     ]
 }
 
 
+class TheHarvesterPlugin(PluginBase):
+    name = "theHarvester (OSINT)"
+    tool = "theharvester"
+    category = "osint"
+    HELP = HELP
 
-# Ensure loader-friendly metadata: provide default tool id if missing
-try:
-    if plugin is not None and (getattr(plugin, "tool", None) is None):
-        plugin.tool = "theharvester"
-    if plugin is not None and (getattr(plugin, "name", None) is None):
-        plugin.name = plugin.tool
-except Exception:
-    pass
+    def run(self, target: str, args: List[str] = None, label: str = "", log_path: str = None) -> int:
+        """
+        Execute theHarvester scan and write output to log_path.
+        
+        Args:
+            target: Target domain (e.g. "example.com")
+            args: theHarvester arguments (e.g. ["-b", "google"])
+            label: Optional label for this scan
+            log_path: Path to write output (required for background jobs)
+        
+        Returns:
+            int: Exit code (0=success, non-zero=error)
+        """
+        args = args or []
+        
+        # Build theHarvester command
+        # theHarvester uses -d for domain
+        cmd = ["theHarvester", "-d", target] + args
+        
+        if not log_path:
+            # Fallback for direct calls
+            try:
+                proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
+                return proc.returncode
+            except Exception:
+                return 1
+        
+        # Run with logging
+        try:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"Command: {' '.join(cmd)}\n")
+                fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
+                fh.flush()
+                
+                proc = subprocess.run(
+                    cmd,
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                    timeout=300,
+                    check=False
+                )
+                
+                fh.write(f"\nCompleted: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n")
+                fh.write(f"Exit Code: {proc.returncode}\n")
+                
+                return proc.returncode
+                
+        except subprocess.TimeoutExpired:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write("\nERROR: theHarvester timed out after 300 seconds\n")
+            return 124
+            
+        except FileNotFoundError:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write("\nERROR: theHarvester not found in PATH\n")
+            return 127
+            
+        except Exception as e:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"\nERROR: {type(e).__name__}: {e}\n")
+            return 1
+
+
+# Export plugin instance
+plugin = TheHarvesterPlugin()

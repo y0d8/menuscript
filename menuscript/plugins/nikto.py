@@ -1,67 +1,122 @@
-from typing import List, Optional, Tuple
-import shutil, os, time, subprocess
-from .plugin_base import Plugin
+#!/usr/bin/env python3
+"""
+menuscript.plugins.nikto
 
-class NiktoPlugin(Plugin):
-    name = "Nikto HTTP Scanner"
-    tool = "nikto"
-    category = "network"
+Nikto web server scanner plugin with unified interface.
+"""
+import subprocess
+import time
+from typing import List, Optional
 
-    def _find_exe(self) -> Optional[str]:
-        return shutil.which("nikto")
+from .plugin_base import PluginBase
 
-    def run(self, target: str, args: List[str], label: Optional[str] = None, save_xml: bool = False) -> Tuple[int, str]:
-        exe = self._find_exe()
-        if not exe:
-            raise RuntimeError("nikto binary not found on PATH")
-
-        cmd = [exe, "-h", target] + (args or [])
-
-        log_dir = os.path.expanduser("~/.menuscript/artifacts")
-        os.makedirs(log_dir, exist_ok=True)
-        fname = f"nikto_{label or 'scan'}_{int(time.time())}.log"
-        log_path = os.path.join(log_dir, fname)
-
-        with open(log_path, "wb") as out:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            for chunk in iter(lambda: proc.stdout.read(4096), b""):
-                out.write(chunk)
-                out.flush()
-            rc = proc.wait()
-        return rc, log_path
-
-plugin = NiktoPlugin()
-
-
-# HELP metadata for TUI + CLI help (H2 style)
 HELP = {
-    "name": "Nikto HTTP Scanner",
-    "description": "Nikto is a web server scanner that performs comprehensive tests against web servers for multiple items including dangerous files, outdated software, and misconfigurations.",
-    "usage": "menuscript jobs enqueue nikto <target> --args \"<flags>\"",
+    "name": "Nikto",
+    "description": "Nikto web server scanner - comprehensive web vulnerability assessment",
+    "usage": "menuscript jobs enqueue nikto <target> --args \"-h <host>\"",
     "examples": [
-        "menuscript jobs enqueue nikto 10.10.10.10 --args \"-Tuning 9\"",
-        "menuscript run nikto http://example.com"
+        "menuscript jobs enqueue nikto http://example.com --args \"-h http://example.com\"",
+        "menuscript jobs enqueue nikto https://example.com --args \"-h https://example.com -ssl\"",
     ],
     "flags": [
-        ["-Tuning <codes>", "Select test categories (e.g. 1,2,3)"],
+        ["-h <host>", "Target host"],
         ["-ssl", "Force SSL mode"],
         ["-port <port>", "Specify port"],
-        ["-timeout <secs>", "Timeout in seconds"]
+        ["-Tuning <1-9>", "Scan tuning (1=Interesting, 9=SQL injection)"],
     ],
     "presets": [
-        {"name":"Quick Scan","args":["-Tuning","1,2"],"desc":"Light, fast checks"},
-        {"name":"Full Scan","args":["-Tuning","9"],"desc":"Comprehensive tests (slower)"},
-        {"name":"Stealth","args":["-Tuning","1","-timeout","30"],"desc":"Lower noise; shorter timeouts"},
+        {
+            "name": "Quick Scan",
+            "args": ["-h", "<target>"],
+            "desc": "Basic vulnerability scan"
+        },
+        {
+            "name": "SSL Scan",
+            "args": ["-h", "<target>", "-ssl"],
+            "desc": "HTTPS vulnerability scan"
+        },
+        {
+            "name": "Full Scan",
+            "args": ["-h", "<target>", "-Tuning", "123456789"],
+            "desc": "Comprehensive scan (all tests)"
+        },
     ]
 }
 
 
+class NiktoPlugin(PluginBase):
+    name = "Nikto"
+    tool = "nikto"
+    category = "web"
+    HELP = HELP
 
-# Ensure loader-friendly metadata: provide default tool id if missing
-try:
-    if plugin is not None and (getattr(plugin, "tool", None) is None):
-        plugin.tool = "nikto"
-    if plugin is not None and (getattr(plugin, "name", None) is None):
-        plugin.name = plugin.tool
-except Exception:
-    pass
+    def run(self, target: str, args: List[str] = None, label: str = "", log_path: str = None) -> int:
+        """
+        Execute nikto scan and write output to log_path.
+        
+        Args:
+            target: Target URL or host
+            args: Nikto arguments (e.g. ["-h", "http://example.com"])
+            label: Optional label for this scan
+            log_path: Path to write output (required for background jobs)
+        
+        Returns:
+            int: Exit code (0=success, non-zero=error)
+        """
+        args = args or []
+        
+        # Build nikto command
+        # If -h not in args, add target as -h argument
+        cmd = ["nikto"] + args
+        if "-h" not in args:
+            cmd.extend(["-h", target])
+        
+        # Replace <target> placeholder if present
+        cmd = [arg.replace("<target>", target) for arg in cmd]
+        
+        if not log_path:
+            # Fallback for direct calls (shouldn't happen in background jobs)
+            try:
+                proc = subprocess.run(cmd, capture_output=True, timeout=600, check=False)
+                return proc.returncode
+            except Exception:
+                return 1
+        
+        # Run with logging
+        try:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"Command: {' '.join(cmd)}\n")
+                fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
+                fh.flush()
+                
+                proc = subprocess.run(
+                    cmd,
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                    timeout=600,  # Nikto can take longer
+                    check=False
+                )
+                
+                fh.write(f"\nCompleted: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n")
+                fh.write(f"Exit Code: {proc.returncode}\n")
+                
+                return proc.returncode
+                
+        except subprocess.TimeoutExpired:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write("\nERROR: Nikto timed out after 600 seconds\n")
+            return 124
+            
+        except FileNotFoundError:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write("\nERROR: nikto not found in PATH\n")
+            return 127
+            
+        except Exception as e:
+            with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
+                fh.write(f"\nERROR: {type(e).__name__}: {e}\n")
+            return 1
+
+
+# Export plugin instance
+plugin = NiktoPlugin()
