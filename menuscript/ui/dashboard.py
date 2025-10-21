@@ -262,6 +262,46 @@ def render_recent_findings(workspace_id: int, width: int):
     return lines
 
 
+def render_msf_credentials(workspace_id: int, width: int):
+    """Render MSF credential findings (valid logins discovered)."""
+    fm = FindingsManager()
+    findings = fm.list_findings(workspace_id)
+
+    # Filter to credential findings (critical severity with "Valid Credentials" in title)
+    cred_findings = [
+        f for f in findings
+        if f.get('severity') == 'critical' and 'Valid Credentials' in f.get('title', '')
+    ]
+    recent_creds = sorted(cred_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
+
+    lines = []
+    lines.append("")
+    lines.append(click.style("MSF VALID CREDENTIALS", bold=True, fg='red'))
+    lines.append("-" * width)
+
+    if not recent_creds:
+        lines.append("No credentials found yet")
+    else:
+        for finding in recent_creds:
+            fid = finding.get('id', '?')
+            title = finding.get('title', 'No title')
+            desc = finding.get('description', '')
+            port = finding.get('port', '?')
+            service = finding.get('service', 'unknown')
+
+            # Extract credentials from description
+            # Format: "Valid ssh credentials: username:password"
+            creds = "N/A"
+            if ':' in desc and 'credentials:' in desc:
+                creds_part = desc.split('credentials:')[-1].strip()
+                creds = creds_part[:40]  # Truncate if too long
+
+            cred_line = f"  [{fid:>3}] {service.upper():<8} {port:<6} {click.style(creds, fg='red', bold=True)}"
+            lines.append(cred_line)
+
+    return lines
+
+
 def render_live_log(job_id: Optional[int], width: int, height: int):
     """Render live log output from a running job."""
     if not job_id:
@@ -329,6 +369,9 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     # Critical/High findings
     output.extend(render_critical_findings(workspace_id, width))
 
+    # MSF Valid Credentials
+    output.extend(render_msf_credentials(workspace_id, width))
+
     # Top open ports
     output.extend(render_top_ports(workspace_id, width))
 
@@ -372,11 +415,47 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
     click.echo(click.style("Press Ctrl+C to exit\n", fg='yellow'))
     time.sleep(1)
 
+    last_followed_job_id = None
+    job_completed = False
+
     try:
         while True:
-            render_dashboard(workspace_id, workspace_name, follow_job_id, refresh_interval)
-            time.sleep(refresh_interval)
+            # Track which job we're following
+            current_follow_id = follow_job_id
+
+            # Auto-follow most recent running job if not explicitly set
+            if not current_follow_id:
+                jobs = list_jobs(limit=20)
+                running_jobs = [j for j in jobs if j.get('status') == 'running']
+                if running_jobs:
+                    current_follow_id = running_jobs[0].get('id')
+                    last_followed_job_id = current_follow_id
+                elif last_followed_job_id:
+                    # Keep showing the last job we were following
+                    current_follow_id = last_followed_job_id
+                    # Check if it just completed
+                    if not job_completed:
+                        completed_job = get_job(last_followed_job_id)
+                        if completed_job and completed_job.get('status') in ('completed', 'failed'):
+                            job_completed = True
+
+            render_dashboard(workspace_id, workspace_name, current_follow_id, refresh_interval)
+
+            # If job just completed, stop auto-refresh and prompt
+            if job_completed:
+                click.echo()
+                click.echo(click.style("Job completed! Output preserved above.", fg='green', bold=True))
+                click.echo("Press ENTER to clear and continue monitoring, or Ctrl+C to exit...")
+                try:
+                    input()
+                    job_completed = False
+                    last_followed_job_id = None
+                    clear_screen()
+                except KeyboardInterrupt:
+                    raise
+            else:
+                time.sleep(refresh_interval)
+
     except KeyboardInterrupt:
-        clear_screen()
         click.echo("\n" + click.style("Dashboard stopped.", fg='green'))
         click.echo()

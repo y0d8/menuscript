@@ -618,7 +618,7 @@ def view_web_paths(workspace_id: int):
     total_paths = 0
 
     for host in hosts:
-        paths = wpm.list_paths(host['id'])
+        paths = wpm.list_web_paths(host['id'])
 
         if paths:
             click.echo(click.style(f"Host: {host.get('ip_address', 'N/A')}", bold=True, fg='cyan'))
