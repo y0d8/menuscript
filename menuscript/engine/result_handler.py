@@ -46,8 +46,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_theharvester_job(workspace_id, log_path, job)
     elif tool == 'gobuster':
         return parse_gobuster_job(workspace_id, log_path, job)
-
-    # Add more parsers here as we build them
+    elif tool == 'enum4linux':
+        return parse_enum4linux_job(workspace_id, log_path, job)
 
     return None
 
@@ -269,6 +269,98 @@ def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) ->
             'total_paths': stats['total'],
             'by_status': stats['by_status'],
             'target_url': parsed.get('target_url')
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse enum4linux job results."""
+    try:
+        from menuscript.parsers.enum4linux_parser import parse_enum4linux_output, get_smb_stats, categorize_share
+        from menuscript.storage.findings import FindingsManager
+        from menuscript.storage.hosts import HostManager
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse enum4linux output
+        target = job.get('target', '')
+        parsed = parse_enum4linux_output(log_content, target)
+
+        # Get or create host from target
+        hm = HostManager()
+        host_id = None
+
+        if parsed['target']:
+            # Try to find existing host
+            import re
+            is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', parsed['target'])
+
+            if is_ip:
+                host = hm.get_host_by_ip(workspace_id, parsed['target'])
+                if host:
+                    host_id = host['id']
+                else:
+                    # Create host
+                    host_id = hm.add_or_update_host(workspace_id, {
+                        'ip': parsed['target'],
+                        'status': 'up'
+                    })
+
+        # Store SMB shares as findings
+        fm = FindingsManager()
+        findings_added = 0
+
+        for share in parsed['shares']:
+            # Determine severity based on access
+            category = categorize_share(share)
+            if category == 'open':
+                severity = 'high'  # Writable share
+            elif category == 'readable':
+                severity = 'medium'  # Readable share
+            elif category == 'restricted':
+                severity = 'low'  # Accessible but limited
+            else:
+                severity = 'info'  # Denied/not accessible
+
+            # Create finding title
+            share_name = share['name']
+            share_type = share.get('type', 'Unknown')
+            mapping = share.get('mapping', 'N/A')
+
+            if mapping == 'OK':
+                listing = share.get('listing', 'N/A')
+                writing = share.get('writing', 'N/A')
+                access_desc = f"Mapping={mapping}, Listing={listing}, Writing={writing}"
+            else:
+                access_desc = f"Access denied (Mapping={mapping})"
+
+            title = f"SMB Share: {share_name} ({share_type})"
+            description = f"Share: {share_name}\nType: {share_type}\nComment: {share.get('comment', 'N/A')}\nAccess: {access_desc}"
+
+            fm.add_finding(
+                workspace_id=workspace_id,
+                host_id=host_id,
+                title=title,
+                finding_type='smb_share',
+                severity=severity,
+                description=description,
+                tool='enum4linux',
+                port=445  # SMB default port
+            )
+            findings_added += 1
+
+        stats = get_smb_stats(parsed)
+
+        return {
+            'tool': 'enum4linux',
+            'findings_added': findings_added,
+            'shares_found': stats['total_shares'],
+            'accessible_shares': stats['accessible_shares'],
+            'writable_shares': stats['writable_shares'],
+            'workgroup': stats.get('workgroup')
         }
     except Exception as e:
         return {'error': str(e)}
