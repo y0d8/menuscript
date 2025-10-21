@@ -11,6 +11,7 @@ try:
     from menuscript.engine.background import enqueue_job, list_jobs, get_job, start_worker, worker_loop
     from menuscript.storage.workspaces import WorkspaceManager
     from menuscript.ui.interactive import run_interactive_menu
+    from menuscript.ui.dashboard import run_dashboard
 except ImportError as e:
     click.echo(f"Import error: {e}", err=True)
     sys.exit(1)
@@ -27,6 +28,14 @@ def cli():
 def interactive():
     """Launch interactive tool selection menu."""
     run_interactive_menu()
+
+
+@cli.command()
+@click.option("--follow", "-f", type=int, default=None, help="Follow live output of job ID")
+@click.option("--refresh", "-r", type=int, default=2, help="Refresh interval in seconds (default: 2)")
+def dashboard(follow, refresh):
+    """Launch live dashboard with real-time job status and findings."""
+    run_dashboard(follow_job_id=follow, refresh_interval=refresh)
 
 
 @cli.group()
