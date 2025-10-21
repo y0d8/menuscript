@@ -255,14 +255,24 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     # Recent findings
     output.extend(render_recent_findings(workspace_id, width))
 
-    # Live log (if following a job)
+    # Live log - auto-follow most recent running job if not explicitly following
+    if not follow_job_id:
+        # Auto-select most recent running job
+        jobs = list_jobs(limit=20)
+        running_jobs = [j for j in jobs if j.get('status') == 'running']
+        if running_jobs:
+            follow_job_id = running_jobs[0].get('id')
+
     if follow_job_id:
         output.extend(render_live_log(follow_job_id, width, height))
 
     # Instructions
     output.append("")
     output.append("-" * width)
-    output.append("Press Ctrl+C to exit | Refresh: 2s".center(width))
+    if follow_job_id:
+        output.append(f"Following Job #{follow_job_id} | Press Ctrl+C to exit | Refresh: 2s".center(width))
+    else:
+        output.append("Press Ctrl+C to exit | Refresh: 2s".center(width))
 
     # Print all lines
     for line in output:
