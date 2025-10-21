@@ -116,39 +116,111 @@ def render_active_jobs(width: int):
     return lines
 
 
-def render_recent_completions(width: int):
-    """Render recently completed jobs."""
-    jobs = list_jobs(limit=50)
+def render_recent_hosts(workspace_id: int, width: int):
+    """Render recently discovered live hosts."""
+    hm = HostManager()
+    all_hosts = hm.list_hosts(workspace_id)
 
-    # Filter to done/failed jobs
-    completed = [j for j in jobs if j.get('status') in ('done', 'failed')][:5]
+    # Filter to live hosts and sort by ID descending (most recent first)
+    live_hosts = [h for h in all_hosts if h.get('status') == 'up']
+    recent = sorted(live_hosts, key=lambda x: x.get('id', 0), reverse=True)[:5]
 
     lines = []
     lines.append("")
-    lines.append(click.style("RECENT COMPLETIONS", bold=True, fg='blue'))
+    lines.append(click.style("RECENT HOSTS DISCOVERED", bold=True, fg='green'))
     lines.append("-" * width)
 
-    if not completed:
-        lines.append("No completed jobs")
+    if not recent:
+        lines.append("No live hosts discovered yet")
     else:
-        for job in completed:
-            jid = job.get('id', '?')
-            tool = job.get('tool', 'unknown')[:10]
-            target = job.get('target', '')[:30]
-            status = job.get('status', 'unknown')
+        for host in recent:
+            hid = host.get('id', '?')
+            ip = (host.get('ip') or 'unknown')[:15]
+            hostname = (host.get('hostname') or '')[:25]
+            os_info = (host.get('os') or '')[:20]
 
-            # Color code status
-            if status == 'done':
-                status_str = click.style('✓ done', fg='green')
-            elif status == 'failed':
-                status_str = click.style('✗ fail', fg='red')
+            # Get service count
+            services = hm.get_host_services(hid)
+            svc_count = len(services) if services else 0
+
+            # Build description
+            if hostname:
+                desc = hostname
+            elif os_info:
+                desc = os_info
             else:
-                status_str = status
+                desc = "new host"
 
-            finished = job.get('finished_at', '')[:19] if job.get('finished_at') else 'N/A'
+            host_line = f"  [{hid:>3}] {ip:<15} {desc:<25} ({svc_count} svcs)"
+            lines.append(host_line)
 
-            job_line = f"  [{jid:>3}] {tool:<10} {target:<30} {status_str}"
-            lines.append(job_line)
+    return lines
+
+
+def render_critical_findings(workspace_id: int, width: int):
+    """Render critical and high severity findings."""
+    fm = FindingsManager()
+    findings = fm.list_findings(workspace_id)
+
+    # Filter to critical/high severity
+    critical = [f for f in findings if f.get('severity') in ('critical', 'high')]
+    recent = sorted(critical, key=lambda x: x.get('id', 0), reverse=True)[:5]
+
+    lines = []
+    lines.append("")
+    lines.append(click.style("CRITICAL/HIGH FINDINGS", bold=True, fg='red'))
+    lines.append("-" * width)
+
+    if not recent:
+        lines.append("No critical/high findings")
+    else:
+        for finding in recent:
+            fid = finding.get('id', '?')
+            severity = finding.get('severity', 'info')
+            title = (finding.get('title') or 'No title')[:50]
+
+            # Color code severity
+            if severity == 'critical':
+                sev_str = click.style('CRIT', fg='red', bold=True)
+            else:
+                sev_str = click.style('HIGH', fg='red')
+
+            finding_line = f"  [{fid:>3}] {sev_str} {title}"
+            lines.append(finding_line)
+
+    return lines
+
+
+def render_top_ports(workspace_id: int, width: int):
+    """Render most commonly discovered open ports."""
+    hm = HostManager()
+    all_hosts = hm.list_hosts(workspace_id)
+
+    # Count ports across all hosts
+    port_counts = {}
+    for host in all_hosts:
+        services = hm.get_host_services(host.get('id'))
+        if services:
+            for svc in services:
+                port = svc.get('port')
+                service_name = svc.get('service_name', 'unknown')
+                if port:
+                    key = f"{port}/{service_name}"
+                    port_counts[key] = port_counts.get(key, 0) + 1
+
+    # Sort by count and take top 5
+    top_ports = sorted(port_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    lines = []
+    lines.append("")
+    lines.append(click.style("TOP OPEN PORTS", bold=True, fg='cyan'))
+    lines.append("-" * width)
+
+    if not top_ports:
+        lines.append("No ports discovered yet")
+    else:
+        for port_service, count in top_ports:
+            lines.append(f"  {port_service:<20} found on {count:>3} host(s)")
 
     return lines
 
@@ -251,11 +323,14 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     # Active jobs
     output.extend(render_active_jobs(width))
 
-    # Recent completions
-    output.extend(render_recent_completions(width))
+    # Recent hosts discovered
+    output.extend(render_recent_hosts(workspace_id, width))
 
-    # Recent findings
-    output.extend(render_recent_findings(workspace_id, width))
+    # Critical/High findings
+    output.extend(render_critical_findings(workspace_id, width))
+
+    # Top open ports
+    output.extend(render_top_ports(workspace_id, width))
 
     # Live log - auto-follow most recent running job if not explicitly following
     if not follow_job_id:

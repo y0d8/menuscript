@@ -71,6 +71,10 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo(click.style("VIEW DATA", bold=True, fg='blue'))
     click.echo("-" * 70)
 
+    dashboard_option = idx
+    click.echo(f"  {idx:2}. Live Dashboard")
+    idx += 1
+
     job_option = idx
     click.echo(f"  {idx:2}. View Jobs")
     idx += 1
@@ -89,6 +93,9 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
         if choice == 0:
             return None
+
+        if choice == dashboard_option:
+            return {'action': 'view_dashboard'}
 
         if choice == job_option:
             return {'action': 'view_jobs'}
@@ -660,6 +667,10 @@ def run_interactive_menu():
 
         if action == 'retry':
             continue
+
+        elif action == 'view_dashboard':
+            from menuscript.ui.dashboard import run_dashboard
+            run_dashboard()
 
         elif action == 'view_jobs':
             view_jobs_menu()
