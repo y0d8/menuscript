@@ -32,7 +32,7 @@ def interactive():
 
 @cli.command()
 @click.option("--follow", "-f", type=int, default=None, help="Follow live output of job ID")
-@click.option("--refresh", "-r", type=int, default=2, help="Refresh interval in seconds (default: 2)")
+@click.option("--refresh", "-r", type=int, default=5, help="Refresh interval in seconds (default: 5)")
 def dashboard(follow, refresh):
     """Launch live dashboard with real-time job status and findings."""
     run_dashboard(follow_job_id=follow, refresh_interval=refresh)

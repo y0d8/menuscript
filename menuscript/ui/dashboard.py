@@ -233,7 +233,7 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
     return lines
 
 
-def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Optional[int] = None):
+def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Optional[int] = None, refresh_interval: int = 5):
     """Render complete dashboard."""
     width, height = get_terminal_size()
 
@@ -272,16 +272,16 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     output.append("")
     output.append("-" * width)
     if follow_job_id:
-        output.append(f"Following Job #{follow_job_id} | Press Ctrl+C to exit | Refresh: 2s".center(width))
+        output.append(f"Following Job #{follow_job_id} | Press Ctrl+C to exit | Refresh: {refresh_interval}s".center(width))
     else:
-        output.append("Press Ctrl+C to exit | Refresh: 2s".center(width))
+        output.append(f"Press Ctrl+C to exit | Refresh: {refresh_interval}s".center(width))
 
     # Print all lines
     for line in output:
         click.echo(line)
 
 
-def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 2):
+def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5):
     """Run the live dashboard with auto-refresh."""
     wm = WorkspaceManager()
     current_ws = wm.get_current()
@@ -299,7 +299,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 2
 
     try:
         while True:
-            render_dashboard(workspace_id, workspace_name, follow_job_id)
+            render_dashboard(workspace_id, workspace_name, follow_job_id, refresh_interval)
             time.sleep(refresh_interval)
     except KeyboardInterrupt:
         clear_screen()
