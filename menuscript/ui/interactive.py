@@ -173,6 +173,7 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
 
     # Get preset or custom args
     args = []
+    selected_preset_name = None
 
     if presets:
         click.echo("\nSelect preset or enter custom args:")
@@ -186,6 +187,7 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
             if 1 <= choice <= len(presets):
                 selected_preset = presets[choice - 1]
                 args = selected_preset['args']
+                selected_preset_name = selected_preset['name']
                 click.echo(f"Using preset: {selected_preset['name']}")
             else:
                 # Custom args
@@ -199,6 +201,67 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         custom = click.prompt("Enter arguments (space-separated, or press Enter for defaults)", default="", type=str)
         if custom:
             args = custom.split()
+
+    # Special handling for MSF login modules - prompt for credentials
+    if tool_name == 'msf_auxiliary' and args:
+        module_path = args[0] if args else ""
+        is_login_module = any(x in module_path.lower() for x in ['_login', 'brute'])
+
+        if is_login_module:
+            click.echo()
+            click.echo(click.style("=== Credential Configuration ===", bold=True, fg='yellow'))
+            click.echo("Configure authentication options for this login module:\n")
+
+            # Ask about credential options
+            cred_mode = click.prompt(
+                "Credential mode",
+                type=click.Choice(['single', 'wordlist', 'userpass_file', 'skip'], case_sensitive=False),
+                default='skip',
+                show_choices=True
+            )
+
+            if cred_mode == 'single':
+                # Single username/password
+                username = click.prompt("USERNAME", default="", type=str)
+                if username:
+                    args.append(f"USERNAME={username}")
+
+                password = click.prompt("PASSWORD", default="", type=str)
+                if password:
+                    args.append(f"PASSWORD={password}")
+
+            elif cred_mode == 'wordlist':
+                # Separate user and password files
+                user_file = click.prompt("USER_FILE (path to username list)", default="", type=str)
+                if user_file:
+                    args.append(f"USER_FILE={user_file}")
+
+                pass_file = click.prompt("PASS_FILE (path to password list)", default="", type=str)
+                if pass_file:
+                    args.append(f"PASS_FILE={pass_file}")
+
+            elif cred_mode == 'userpass_file':
+                # Combined username:password file
+                userpass_file = click.prompt("USERPASS_FILE (path to user:pass list)", default="", type=str)
+                if userpass_file:
+                    args.append(f"USERPASS_FILE={userpass_file}")
+
+            # Additional options
+            if cred_mode != 'skip':
+                click.echo()
+                if click.confirm("Try username as password (USER_AS_PASS)?", default=False):
+                    args.append("USER_AS_PASS=true")
+
+                if click.confirm("Try blank passwords?", default=False):
+                    args.append("BLANK_PASSWORDS=true")
+
+                if click.confirm("Stop on first success?", default=True):
+                    args.append("STOP_ON_SUCCESS=true")
+
+                # Ask about threads
+                threads = click.prompt("Number of threads (THREADS)", default=1, type=int)
+                if threads > 1:
+                    args.append(f"THREADS={threads}")
 
     # Optional label
     label = click.prompt("Job label (optional)", default="", type=str)
