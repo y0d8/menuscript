@@ -228,6 +228,66 @@ def jobs_get(job_id):
     click.echo("=" * 60 + "\n")
 
 
+@jobs.command("show")
+@click.argument("job_id", type=int)
+def jobs_show(job_id):
+    """Show job details and log output (alias for get + tail)."""
+    import os
+
+    job = get_job(job_id)
+
+    if not job:
+        click.echo(f"✗ Job {job_id} not found", err=True)
+        return
+
+    # Show job details
+    click.echo("\n" + "=" * 70)
+    click.echo(f"JOB #{job_id}")
+    click.echo("=" * 70)
+    click.echo(f"Tool:       {job.get('tool', 'N/A')}")
+    click.echo(f"Target:     {job.get('target', 'N/A')}")
+    click.echo(f"Args:       {' '.join(job.get('args', []))}")
+    if job.get('label'):
+        click.echo(f"Label:      {job['label']}")
+    click.echo(f"Status:     {job.get('status', 'N/A')}")
+    click.echo(f"Created:    {job.get('created_at', 'N/A')}")
+    if job.get('started_at'):
+        click.echo(f"Started:    {job['started_at']}")
+    if job.get('finished_at'):
+        click.echo(f"Finished:   {job['finished_at']}")
+
+    if job.get('error'):
+        click.echo(f"Error:      {job['error']}")
+
+    click.echo()
+
+    # Show log output
+    log_path = job.get('log')
+    if log_path and os.path.exists(log_path):
+        click.echo(click.style("LOG OUTPUT:", bold=True, fg='cyan'))
+        click.echo("-" * 70)
+
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+
+            # Show last 100 lines
+            lines = content.split('\n')
+            if len(lines) > 100:
+                click.echo(f"... (showing last 100 of {len(lines)} lines)\n")
+                lines = lines[-100:]
+
+            for line in lines:
+                click.echo(line)
+
+        except Exception as e:
+            click.echo(click.style(f"Error reading log: {e}", fg='red'))
+    else:
+        click.echo(click.style("No log file available", fg='yellow'))
+
+    click.echo("\n" + "=" * 70 + "\n")
+
+
 @jobs.command("tail")
 @click.argument("job_id", type=int)
 @click.option("--follow", "-f", is_flag=True, help="Follow log output")
