@@ -70,14 +70,19 @@ class WorkspaceManager:
         return True
     
     def stats(self, workspace_id: int) -> Dict[str, int]:
-        """Get workspace statistics."""
-        hosts = self.db.execute_one("SELECT COUNT(*) as count FROM hosts WHERE workspace_id = ?", (workspace_id,))
+        """Get workspace statistics (live hosts only)."""
+        # Only count live hosts (status='up')
+        hosts = self.db.execute_one(
+            "SELECT COUNT(*) as count FROM hosts WHERE workspace_id = ? AND status = 'up'",
+            (workspace_id,)
+        )
+        # Only count services on live hosts
         services = self.db.execute_one(
-            "SELECT COUNT(*) as count FROM services WHERE host_id IN (SELECT id FROM hosts WHERE workspace_id = ?)",
+            "SELECT COUNT(*) as count FROM services WHERE host_id IN (SELECT id FROM hosts WHERE workspace_id = ? AND status = 'up')",
             (workspace_id,)
         )
         findings = self.db.execute_one("SELECT COUNT(*) as count FROM findings WHERE workspace_id = ?", (workspace_id,))
-        
+
         return {
             "hosts": hosts['count'] if hosts else 0,
             "services": services['count'] if services else 0,
