@@ -435,7 +435,7 @@ def view_hosts(workspace_id: int):
         for host in hosts:
             hid = host.get('id', '?')
             ip = host.get('ip_address', 'N/A')
-            hostname = host.get('hostname', '')[:25] or '-'
+            hostname = (host.get('hostname') or '')[:25] or '-'
             status = host.get('status', 'unknown')
 
             # Get service count
@@ -471,8 +471,8 @@ def view_services(workspace_id: int):
 
             port = svc.get('port', '?')
             protocol = svc.get('protocol', 'tcp')
-            service = svc.get('service', 'unknown')[:15]
-            version = svc.get('version', '')[:25] or '-'
+            service = (svc.get('service') or 'unknown')[:15]
+            version = (svc.get('version') or '')[:25] or '-'
 
             click.echo(f"{host_ip:<18} {port:<7} {protocol:<10} {service:<15} {version:<25}")
 
@@ -523,8 +523,8 @@ def view_findings(workspace_id: int):
         for finding in findings[:30]:  # Limit to 30
             fid = finding.get('id', '?')
             sev = finding.get('severity', 'info')
-            ftype = finding.get('finding_type', 'unknown')[:20]
-            title = finding.get('title', 'No title')[:40]
+            ftype = (finding.get('finding_type') or 'unknown')[:20]
+            title = (finding.get('title') or 'No title')[:40]
 
             # Color code severity
             color = {
