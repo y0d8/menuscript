@@ -116,9 +116,15 @@ class MsfAuxiliaryPlugin(PluginBase):
                 f"set RHOSTS {target}",
             ]
 
-            # Add any extra options (e.g., "RPORT=445", "THREADS=10")
+            # Add any extra options (e.g., "RPORT=445", "USERNAME=postgres PASSWORD=password")
             for opt in extra_opts:
-                msf_commands.append(f"set {opt}")
+                # Handle KEY=VALUE format - split and use "set KEY VALUE"
+                if '=' in opt:
+                    key, value = opt.split('=', 1)
+                    msf_commands.append(f"set {key} {value}")
+                else:
+                    # Plain option, just append as-is
+                    msf_commands.append(opt)
 
             # Add run and exit
             msf_commands.append("run")
@@ -183,7 +189,12 @@ class MsfAuxiliaryPlugin(PluginBase):
         ]
 
         for opt in extra_opts:
-            msf_commands.append(f"set {opt}")
+            # Handle KEY=VALUE format
+            if '=' in opt:
+                key, value = opt.split('=', 1)
+                msf_commands.append(f"set {key} {value}")
+            else:
+                msf_commands.append(opt)
 
         msf_commands.append("run")
         msf_commands.append("exit")
