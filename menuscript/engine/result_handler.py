@@ -39,16 +39,16 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     
     # Route to appropriate parser
     if tool == 'nmap':
-        return parse_nmap_job(workspace_id, log_path)
-    
+        return parse_nmap_job(workspace_id, log_path, job)
+    elif tool == 'nikto':
+        return parse_nikto_job(workspace_id, log_path, job)
+
     # Add more parsers here as we build them
-    # elif tool == 'nikto':
-    #     return parse_nikto_job(workspace_id, log_path)
-    
+
     return None
 
 
-def parse_nmap_job(workspace_id: int, log_path: str) -> Dict[str, Any]:
+def parse_nmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse nmap job results."""
     try:
         from menuscript.parsers.nmap_parser import parse_nmap_log
@@ -68,6 +68,64 @@ def parse_nmap_job(workspace_id: int, log_path: str) -> Dict[str, Any]:
             'tool': 'nmap',
             'hosts_added': result['hosts_added'],
             'services_added': result['services_added']
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse nikto job results."""
+    try:
+        from menuscript.parsers.nikto_parser import parse_nikto_output, format_finding_title
+        from menuscript.storage.findings import FindingsManager
+        from menuscript.storage.hosts import HostManager
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse nikto output
+        target = job.get('target', '')
+        parsed = parse_nikto_output(log_content, target)
+
+        # Get or create host
+        hm = HostManager()
+        host_id = None
+
+        if parsed['target_ip']:
+            # Add or update host
+            host_id = hm.add_or_update_host(workspace_id, {
+                'ip': parsed['target_ip'],
+                'hostname': parsed.get('target_host'),
+                'status': 'up'
+            })
+
+        # Store findings
+        fm = FindingsManager()
+        findings_added = 0
+
+        for finding in parsed['findings']:
+            title = format_finding_title(finding)
+
+            fm.add_finding(
+                workspace_id=workspace_id,
+                host_id=host_id,
+                title=title,
+                finding_type='web_vulnerability',
+                severity=finding['severity'],
+                description=finding['description'],
+                refs=finding.get('reference'),
+                port=parsed.get('target_port'),
+                path=finding.get('path'),
+                tool='nikto'
+            )
+            findings_added += 1
+
+        return {
+            'tool': 'nikto',
+            'findings_added': findings_added,
+            'target_host': parsed.get('target_host'),
+            'target_ip': parsed.get('target_ip')
         }
     except Exception as e:
         return {'error': str(e)}

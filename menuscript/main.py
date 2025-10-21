@@ -513,3 +513,175 @@ def services_list(workspace, port):
     
     click.echo("=" * 120)
     click.echo(f"Total: {len(all_services)} services\n")
+
+
+# ==================== FINDINGS COMMANDS ====================
+
+@cli.group()
+def findings():
+    """Findings/vulnerabilities management commands."""
+    pass
+
+
+@findings.command("list")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--severity", "-s", default=None, help="Filter by severity (critical, high, medium, low, info)")
+@click.option("--tool", "-t", default=None, help="Filter by tool")
+@click.option("--host", "-h", default=None, help="Filter by host IP")
+def findings_list(workspace, severity, tool, host):
+    """List all findings in workspace."""
+    from menuscript.storage.findings import FindingsManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    fm = FindingsManager()
+
+    # Get host_id if filtering by host
+    host_id = None
+    if host:
+        from menuscript.storage.hosts import HostManager
+        hm = HostManager()
+        host_obj = hm.get_host_by_ip(ws['id'], host)
+        if not host_obj:
+            click.echo(f"✗ Host {host} not found", err=True)
+            return
+        host_id = host_obj['id']
+
+    findings = fm.list_findings(ws['id'], host_id=host_id, severity=severity, tool=tool)
+
+    if not findings:
+        click.echo(f"No findings found in workspace '{ws['name']}'")
+        return
+
+    # Get severity color mapping
+    severity_colors = {
+        'critical': 'red',
+        'high': 'red',
+        'medium': 'yellow',
+        'low': 'blue',
+        'info': 'white'
+    }
+
+    click.echo("\n" + "=" * 140)
+    click.echo(f"FINDINGS - Workspace: {ws['name']}")
+    if severity:
+        click.echo(f"Filtered by severity: {severity}")
+    if tool:
+        click.echo(f"Filtered by tool: {tool}")
+    click.echo("=" * 140)
+    click.echo(f"{'ID':<6} {'Severity':<10} {'Host':<18} {'Port':<6} {'Tool':<10} {'Title':<80}")
+    click.echo("=" * 140)
+
+    for finding in findings:
+        sev_color = severity_colors.get(finding.get('severity', 'info'), 'white')
+        click.echo(
+            f"{finding['id']:<6} "
+            f"{click.style(finding.get('severity', 'info').upper()[:9], fg=sev_color):<19} "
+            f"{(finding.get('ip_address') or 'N/A')[:17]:<18} "
+            f"{str(finding.get('port') or 'N/A')[:5]:<6} "
+            f"{(finding.get('tool') or 'N/A')[:9]:<10} "
+            f"{finding.get('title', '')[:79]:<80}"
+        )
+
+    click.echo("=" * 140)
+    click.echo(f"Total: {len(findings)} findings\n")
+
+
+@findings.command("show")
+@click.argument("finding_id", type=int)
+def findings_show(finding_id):
+    """Show detailed finding information."""
+    from menuscript.storage.findings import FindingsManager
+
+    fm = FindingsManager()
+    finding = fm.get_finding(finding_id)
+
+    if not finding:
+        click.echo(f"✗ Finding {finding_id} not found", err=True)
+        return
+
+    click.echo("\n" + "=" * 80)
+    click.echo(f"FINDING #{finding['id']}")
+    click.echo("=" * 80)
+    click.echo(f"Severity:     {finding.get('severity', 'unknown').upper()}")
+    click.echo(f"Type:         {finding.get('finding_type', 'N/A')}")
+    click.echo(f"Tool:         {finding.get('tool', 'N/A')}")
+    click.echo(f"Title:        {finding.get('title', 'N/A')}")
+    click.echo(f"\nDescription:")
+    click.echo(f"  {finding.get('description', 'N/A')}")
+
+    if finding.get('path'):
+        click.echo(f"\nPath:         {finding['path']}")
+
+    if finding.get('port'):
+        click.echo(f"Port:         {finding['port']}")
+
+    if finding.get('refs'):
+        click.echo(f"\nReference:    {finding['refs']}")
+
+    click.echo(f"\nDiscovered:   {finding.get('created_at', 'N/A')}")
+    click.echo("=" * 80 + "\n")
+
+
+@findings.command("summary")
+@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+def findings_summary(workspace):
+    """Show findings summary by severity."""
+    from menuscript.storage.findings import FindingsManager
+
+    wm = WorkspaceManager()
+
+    if workspace:
+        ws = wm.get(workspace)
+        if not ws:
+            click.echo(f"✗ Workspace '{workspace}' not found", err=True)
+            return
+    else:
+        ws = wm.get_current()
+        if not ws:
+            click.echo("✗ No workspace selected", err=True)
+            return
+
+    fm = FindingsManager()
+    summary = fm.get_findings_summary(ws['id'])
+
+    total = sum(summary.values())
+
+    click.echo("\n" + "=" * 60)
+    click.echo(f"FINDINGS SUMMARY - Workspace: {ws['name']}")
+    click.echo("=" * 60)
+    click.echo(f"{'Severity':<15} {'Count':<10} {'Percentage':<15}")
+    click.echo("=" * 60)
+
+    for severity in ['critical', 'high', 'medium', 'low', 'info']:
+        count = summary.get(severity, 0)
+        pct = (count / total * 100) if total > 0 else 0
+
+        color = {
+            'critical': 'red',
+            'high': 'red',
+            'medium': 'yellow',
+            'low': 'blue',
+            'info': 'white'
+        }.get(severity, 'white')
+
+        click.echo(
+            f"{click.style(severity.upper(), fg=color):<24} "
+            f"{count:<10} "
+            f"{pct:.1f}%"
+        )
+
+    click.echo("=" * 60)
+    click.echo(f"{'TOTAL':<15} {total}")
+    click.echo("=" * 60 + "\n")

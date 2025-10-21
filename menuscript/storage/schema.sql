@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS findings (
     description TEXT,
     evidence TEXT,
     refs TEXT,
+    port INTEGER,
+    path TEXT,
     tool TEXT,
     scan_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
