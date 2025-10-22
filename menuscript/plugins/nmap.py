@@ -44,12 +44,16 @@ class NmapPlugin(PluginBase):
     def run(self, target: str, args: List[str] = None, label: str = "", log_path: str = None) -> int:
         """Execute nmap scan and write output to log_path."""
         args = args or []
-        
-        cmd = ["nmap"] + args + [target]
-        
+
+        # Split target on whitespace to handle multiple IPs/hosts
+        # e.g., "10.0.0.1 10.0.0.2 10.0.0.3" -> ["10.0.0.1", "10.0.0.2", "10.0.0.3"]
+        target_list = target.split()
+
+        cmd = ["nmap"] + args + target_list
+
         if log_path:
             return self._run_with_logpath(cmd, log_path)
-        
+
         return self._run_legacy(target, args, label)
 
     def _run_with_logpath(self, cmd: List[str], log_path: str) -> int:
@@ -95,7 +99,9 @@ class NmapPlugin(PluginBase):
             logpath, rc, xmlpath, summary = run_nmap(target, args, label, save_xml=False)
             return rc
         except ImportError:
-            cmd = ["nmap"] + (args or []) + [target]
+            # Split target on whitespace to handle multiple IPs/hosts
+            target_list = target.split()
+            cmd = ["nmap"] + (args or []) + target_list
             try:
                 proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
                 return proc.returncode
