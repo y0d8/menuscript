@@ -117,31 +117,37 @@ def render_active_jobs(width: int):
 
 
 def render_recent_hosts(workspace_id: int, width: int):
-    """Render recently discovered live hosts."""
+    """Render hosts with most open ports/services."""
     hm = HostManager()
     all_hosts = hm.list_hosts(workspace_id)
 
-    # Filter to live hosts and sort by ID descending (most recent first)
+    # Filter to live hosts and get service counts
     live_hosts = [h for h in all_hosts if h.get('status') == 'up']
-    recent = sorted(live_hosts, key=lambda x: x.get('id', 0), reverse=True)[:5]
+
+    # Build list with service counts for sorting
+    hosts_with_counts = []
+    for host in live_hosts:
+        services = hm.get_host_services(host.get('id'))
+        svc_count = len(services) if services else 0
+        hosts_with_counts.append((host, svc_count))
+
+    # Sort by service count descending (most services first), then by ID
+    hosts_with_counts.sort(key=lambda x: (x[1], x[0].get('id', 0)), reverse=True)
+    top_hosts = hosts_with_counts[:5]
 
     lines = []
     lines.append("")
-    lines.append(click.style("RECENT HOSTS DISCOVERED", bold=True, fg='green'))
+    lines.append(click.style("TOP HOSTS BY SERVICES", bold=True, fg='green'))
     lines.append("-" * width)
 
-    if not recent:
+    if not top_hosts:
         lines.append("No live hosts discovered yet")
     else:
-        for host in recent:
+        for host, svc_count in top_hosts:
             hid = host.get('id', '?')
             ip = (host.get('ip_address') or 'unknown')[:15]
             hostname = (host.get('hostname') or '')[:25]
             os_info = (host.get('os_name') or '')[:20]
-
-            # Get service count
-            services = hm.get_host_services(hid)
-            svc_count = len(services) if services else 0
 
             # Build description
             if hostname:
