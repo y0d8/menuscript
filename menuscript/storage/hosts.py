@@ -154,6 +154,66 @@ class HostManager:
             "SELECT * FROM services WHERE host_id = ? ORDER BY port",
             (host_id,)
         )
+
+    def get_all_services(
+        self,
+        workspace_id: int,
+        service_name: str = None,
+        port_min: int = None,
+        port_max: int = None,
+        protocol: str = None,
+        sort_by: str = 'port'
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all services across all hosts in workspace with optional filters.
+
+        Args:
+            workspace_id: Workspace ID
+            service_name: Filter by service name (partial match)
+            port_min: Filter by minimum port number
+            port_max: Filter by maximum port number
+            protocol: Filter by protocol (tcp/udp)
+            sort_by: Sort by 'port', 'service', or 'protocol' (default: 'port')
+
+        Returns:
+            List of service dicts with host information
+        """
+        query = """
+            SELECT
+                s.*,
+                h.ip_address,
+                h.hostname
+            FROM services s
+            JOIN hosts h ON s.host_id = h.id
+            WHERE h.workspace_id = ?
+        """
+        params = [workspace_id]
+
+        if service_name:
+            query += " AND s.service_name LIKE ?"
+            params.append(f"%{service_name}%")
+
+        if port_min is not None:
+            query += " AND s.port >= ?"
+            params.append(port_min)
+
+        if port_max is not None:
+            query += " AND s.port <= ?"
+            params.append(port_max)
+
+        if protocol:
+            query += " AND s.protocol = ?"
+            params.append(protocol)
+
+        # Add sorting
+        if sort_by == 'service':
+            query += " ORDER BY s.service_name, s.port"
+        elif sort_by == 'protocol':
+            query += " ORDER BY s.protocol, s.port"
+        else:  # default to port
+            query += " ORDER BY s.port"
+
+        return self.db.execute(query, tuple(params))
     
     def get_host_by_ip(self, workspace_id: int, ip: str) -> Optional[Dict[str, Any]]:
         """Get host by IP address."""

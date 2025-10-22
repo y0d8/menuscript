@@ -541,6 +541,32 @@ def view_hosts(workspace_id: int):
 
 
 def view_services(workspace_id: int):
+    """Display services - choose between grouped by host or all services view."""
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("SERVICES VIEW")
+        click.echo("=" * 70 + "\n")
+        click.echo("  [1] View by Host (hierarchical)")
+        click.echo("  [2] View All Services (with filters)")
+        click.echo("  [0] Back to Results Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select view", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                view_services_by_host(workspace_id)
+            elif choice == 2:
+                view_all_services_filtered(workspace_id)
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def view_services_by_host(workspace_id: int):
     """Display services grouped by host."""
     hm = HostManager()
     import re
@@ -584,7 +610,7 @@ def view_services(workspace_id: int):
 
             click.echo(f"{idx:<3} {ip:<18} {hostname:<25} {svc_count} service(s)")
 
-        click.echo("\n  0. Back to Results Menu")
+        click.echo("\n  0. Back to Services View")
 
         try:
             choice = click.prompt("\nSelect host to view services", type=int, default=0)
@@ -601,6 +627,183 @@ def view_services(workspace_id: int):
 
         except (KeyboardInterrupt, click.Abort):
             return
+
+
+def view_all_services_filtered(workspace_id: int):
+    """Display all services with filtering and sorting options."""
+    hm = HostManager()
+    import re
+
+    # Active filters
+    filters = {
+        'service_name': None,
+        'port_min': None,
+        'port_max': None,
+        'protocol': None,
+        'sort_by': 'port'
+    }
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("ALL SERVICES")
+        click.echo("=" * 80 + "\n")
+
+        # Show active filters
+        active_filters = []
+        if filters['service_name']:
+            active_filters.append(f"service: {filters['service_name']}")
+        if filters['port_min'] is not None or filters['port_max'] is not None:
+            if filters['port_min'] and filters['port_max']:
+                active_filters.append(f"ports: {filters['port_min']}-{filters['port_max']}")
+            elif filters['port_min']:
+                active_filters.append(f"ports: >={filters['port_min']}")
+            elif filters['port_max']:
+                active_filters.append(f"ports: <={filters['port_max']}")
+        if filters['protocol']:
+            active_filters.append(f"protocol: {filters['protocol']}")
+
+        if active_filters:
+            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+        click.echo(click.style(f"Sort by: {filters['sort_by']}", bold=True))
+        click.echo()
+
+        # Get services with filters
+        services = hm.get_all_services(
+            workspace_id,
+            service_name=filters['service_name'],
+            port_min=filters['port_min'],
+            port_max=filters['port_max'],
+            protocol=filters['protocol'],
+            sort_by=filters['sort_by']
+        )
+
+        if not services:
+            click.echo("No services found with current filters.")
+        else:
+            click.echo(f"{'Port':<7} {'Proto':<7} {'Service':<15} {'Host':<18} {'Version':<30}")
+            click.echo("-" * 80)
+
+            for svc in services[:50]:  # Limit to 50
+                port = svc.get('port', '?')
+                protocol = (svc.get('protocol') or 'tcp')[:6]
+                service = (svc.get('service_name') or 'unknown')[:14]
+                host_ip = (svc.get('ip_address') or 'N/A')[:17]
+
+                # Clean version string
+                raw_version = svc.get('service_version') or ''
+                if raw_version:
+                    version = re.sub(r'^(syn-ack|reset|tcp-response)\s+ttl\s+\d+\s*', '', raw_version)
+                    version = version[:29] or '-'
+                else:
+                    version = '-'
+
+                click.echo(f"{port:<7} {protocol:<7} {service:<15} {host_ip:<18} {version:<30}")
+
+            if len(services) > 50:
+                click.echo(f"\n... and {len(services) - 50} more (use filters to narrow results)")
+            else:
+                click.echo(f"\nTotal: {len(services)} service(s)")
+
+        # Menu options
+        click.echo("\n" + "-" * 80)
+        click.echo("Options:")
+        click.echo("  [1] Filter by Service Name")
+        click.echo("  [2] Filter by Port Range")
+        click.echo("  [3] Filter by Protocol")
+        click.echo("  [4] Sort by (port/service/protocol)")
+        click.echo("  [5] Clear All Filters")
+        click.echo("  [0] Back to Services View")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                filters['service_name'] = _filter_service_name()
+            elif choice == 2:
+                port_range = _filter_port_range()
+                if port_range:
+                    filters['port_min'], filters['port_max'] = port_range
+            elif choice == 3:
+                filters['protocol'] = _filter_protocol()
+            elif choice == 4:
+                filters['sort_by'] = _select_sort_order()
+            elif choice == 5:
+                filters = {k: None if k != 'sort_by' else 'port' for k, v in filters.items()}
+                click.echo(click.style("✓ All filters cleared", fg='green'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _filter_service_name():
+    """Prompt for service name filter."""
+    try:
+        name = click.prompt("Service name (or press Enter to clear)", default="", show_default=False)
+        return name if name else None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_port_range():
+    """Prompt for port range filter."""
+    try:
+        port_min = click.prompt("Minimum port (or press Enter to skip)", type=int, default="", show_default=False)
+    except click.Abort:
+        port_min = None
+    except:
+        port_min = None
+
+    try:
+        port_max = click.prompt("Maximum port (or press Enter to skip)", type=int, default="", show_default=False)
+    except click.Abort:
+        port_max = None
+    except:
+        port_max = None
+
+    if port_min is not None or port_max is not None:
+        return (port_min, port_max)
+    return None
+
+
+def _filter_protocol():
+    """Prompt for protocol filter."""
+    click.echo("\nSelect protocol:")
+    click.echo("  [1] TCP")
+    click.echo("  [2] UDP")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Protocol", type=int, default=0)
+        if choice == 1:
+            return 'tcp'
+        elif choice == 2:
+            return 'udp'
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _select_sort_order():
+    """Prompt for sort order."""
+    click.echo("\nSort by:")
+    click.echo("  [1] Port")
+    click.echo("  [2] Service Name")
+    click.echo("  [3] Protocol")
+
+    try:
+        choice = click.prompt("Sort", type=int, default=1)
+        if choice == 2:
+            return 'service'
+        elif choice == 3:
+            return 'protocol'
+        return 'port'
+    except (KeyboardInterrupt, click.Abort):
+        return 'port'
 
 
 def view_host_services(host: dict, hm: HostManager):
