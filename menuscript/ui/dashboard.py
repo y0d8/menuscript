@@ -553,7 +553,7 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
 
 
 def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5):
-    """Run the live dashboard with auto-refresh."""
+    """Run the live dashboard with auto-refresh and interactive menu."""
     wm = WorkspaceManager()
     current_ws = wm.get_current()
 
@@ -565,7 +565,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
     workspace_name = current_ws['name']
 
     click.echo(click.style(f"\nStarting live dashboard for workspace '{workspace_name}'...", fg='green'))
-    click.echo(click.style("Press Ctrl+C to exit\n", fg='yellow'))
+    click.echo(click.style("Press 'm' for menu, 'q' to quit, or Ctrl+C to exit\n", fg='yellow'))
     time.sleep(1)
 
     last_followed_job_id = None
@@ -589,10 +589,14 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                     # Check if it just completed
                     if not job_completed:
                         completed_job = get_job(last_followed_job_id)
-                        if completed_job and completed_job.get('status') in ('completed', 'failed'):
+                        if completed_job and completed_job.get('status') in ('done', 'error'):
                             job_completed = True
 
             render_dashboard(workspace_id, workspace_name, current_follow_id, refresh_interval)
+
+            # Show interactive hints at bottom
+            click.echo()
+            click.echo(click.style("Quick Actions: ", bold=True) + "[m] Menu  [h] Hosts  [s] Services  [f] Findings  [j] Jobs  [q] Quit")
 
             # If job just completed, stop auto-refresh and prompt
             if job_completed:
@@ -607,8 +611,92 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                 except KeyboardInterrupt:
                     raise
             else:
-                time.sleep(refresh_interval)
+                # Check for keyboard input with timeout
+                user_input = _wait_for_input(refresh_interval)
+                if user_input:
+                    if user_input.lower() == 'q':
+                        break
+                    elif user_input.lower() == 'm':
+                        _show_dashboard_menu(workspace_id)
+                        clear_screen()
+                    elif user_input.lower() == 'h':
+                        from menuscript.ui.interactive import view_hosts
+                        view_hosts(workspace_id)
+                        clear_screen()
+                    elif user_input.lower() == 's':
+                        from menuscript.ui.interactive import view_services
+                        view_services(workspace_id)
+                        clear_screen()
+                    elif user_input.lower() == 'f':
+                        from menuscript.ui.interactive import view_findings
+                        view_findings(workspace_id)
+                        clear_screen()
+                    elif user_input.lower() == 'j':
+                        from menuscript.ui.interactive import view_jobs_menu
+                        view_jobs_menu()
+                        clear_screen()
 
     except KeyboardInterrupt:
         click.echo("\n" + click.style("Dashboard stopped.", fg='green'))
         click.echo()
+
+
+def _wait_for_input(timeout: int) -> Optional[str]:
+    """Wait for keyboard input with timeout. Returns input or None."""
+    import sys
+    import select
+
+    try:
+        # Check if input is available (Unix-like systems)
+        if hasattr(select, 'select'):
+            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+            if rlist:
+                return sys.stdin.readline().strip()
+        else:
+            # Fallback for systems without select (just sleep)
+            time.sleep(timeout)
+        return None
+    except Exception:
+        time.sleep(timeout)
+        return None
+
+
+def _show_dashboard_menu(workspace_id: int):
+    """Show interactive dashboard menu."""
+    click.clear()
+    click.echo("\n" + "=" * 70)
+    click.echo("DASHBOARD MENU")
+    click.echo("=" * 70 + "\n")
+    click.echo("  [1] View Hosts")
+    click.echo("  [2] View Services")
+    click.echo("  [3] View Findings")
+    click.echo("  [4] View Jobs")
+    click.echo("  [5] View Web Paths")
+    click.echo("  [6] View OSINT Data")
+    click.echo("  [0] Resume Monitoring")
+    click.echo()
+
+    try:
+        choice = click.prompt("Select option", type=int, default=0)
+
+        if choice == 1:
+            from menuscript.ui.interactive import view_hosts
+            view_hosts(workspace_id)
+        elif choice == 2:
+            from menuscript.ui.interactive import view_services
+            view_services(workspace_id)
+        elif choice == 3:
+            from menuscript.ui.interactive import view_findings
+            view_findings(workspace_id)
+        elif choice == 4:
+            from menuscript.ui.interactive import view_jobs_menu
+            view_jobs_menu()
+        elif choice == 5:
+            from menuscript.ui.interactive import view_web_paths
+            view_web_paths(workspace_id)
+        elif choice == 6:
+            from menuscript.ui.interactive import view_osint
+            view_osint(workspace_id)
+
+    except (KeyboardInterrupt, click.Abort):
+        pass
