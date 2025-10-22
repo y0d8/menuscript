@@ -327,7 +327,7 @@ def render_msf_credentials(workspace_id: int, width: int):
 
 
 def render_live_log(job_id: Optional[int], width: int, height: int):
-    """Render live log output from a running job."""
+    """Render live log output from a running job, or summary if completed."""
     if not job_id:
         return []
 
@@ -335,36 +335,95 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
     if not job:
         return []
 
+    status = job.get('status', 'unknown')
+    tool = job.get('tool', 'unknown')
+
     lines = []
     lines.append("")
-    lines.append(click.style(f"LIVE LOG - Job #{job_id} ({job.get('tool', 'unknown')})", bold=True, fg='magenta'))
-    lines.append("-" * width)
 
-    log_path = job.get('log')
-    if log_path and os.path.exists(log_path):
+    # If job is completed, show summary instead of raw log
+    if status in ('completed', 'failed'):
+        lines.append(click.style(f"JOB #{job_id} SUMMARY - {tool}", bold=True, fg='green' if status == 'completed' else 'red'))
+        lines.append("-" * width)
+
+        if status == 'failed':
+            lines.append(click.style("✗ Job failed", fg='red', bold=True))
+        else:
+            lines.append(click.style("✓ Scan completed successfully", fg='green', bold=True))
+
+        lines.append("")
+
+        # Try to get parsed results summary
         try:
-            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
+            from menuscript.engine.result_handler import handle_job_result
+            result = handle_job_result(job)
 
-            # Show last N lines (fit to screen)
-            log_lines = content.split('\n')
-            # Be more aggressive with space - show more log content
-            # Reserve only for header (5) + stats (4) + jobs (7) + recent (7) = ~23 lines
-            # But allow showing much more of the log for better visibility
-            available = max(20, height - 23)
+            if result and 'error' not in result:
+                lines.append(click.style("Results:", bold=True))
 
-            if len(log_lines) > available:
-                log_lines = log_lines[-available:]
+                # Show tool-specific summary
+                if tool == 'nmap':
+                    hosts_added = result.get('hosts_added', 0)
+                    services_added = result.get('services_added', 0)
+                    lines.append(f"  • {hosts_added} host(s) discovered")
+                    lines.append(f"  • {services_added} service(s) found")
 
-            for line in log_lines:
-                # Truncate long lines
-                if len(line) > width:
-                    line = line[:width-3] + '...'
-                lines.append(line)
+                elif tool == 'msf_auxiliary':
+                    host = result.get('host', 'N/A')
+                    services_added = result.get('services_added', 0)
+                    findings_added = result.get('findings_added', 0)
+                    lines.append(f"  • Target: {host}")
+                    if services_added > 0:
+                        lines.append(f"  • {services_added} service(s) identified")
+                    if findings_added > 0:
+                        lines.append(click.style(f"  • {findings_added} finding(s) added", fg='red', bold=True))
+
+                elif tool == 'gobuster':
+                    paths_found = result.get('paths_found', 0)
+                    lines.append(f"  • {paths_found} web path(s) discovered")
+
+                else:
+                    # Generic result display
+                    for key, value in result.items():
+                        if key not in ('tool', 'error'):
+                            lines.append(f"  • {key}: {value}")
+
+            elif result and 'error' in result:
+                lines.append(click.style(f"✗ Parse error: {result['error']}", fg='yellow'))
+
         except Exception as e:
-            lines.append(f"Error reading log: {e}")
+            lines.append(click.style(f"Could not parse results: {e}", fg='yellow'))
+
+        lines.append("")
+        lines.append(f"View full log: menuscript jobs show {job_id}")
+
     else:
-        lines.append("No log available")
+        # Job is still running - show live log
+        lines.append(click.style(f"LIVE LOG - Job #{job_id} ({tool})", bold=True, fg='magenta'))
+        lines.append("-" * width)
+
+        log_path = job.get('log')
+        if log_path and os.path.exists(log_path):
+            try:
+                with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+
+                # Show last N lines (fit to screen)
+                log_lines = content.split('\n')
+                available = max(20, height - 23)
+
+                if len(log_lines) > available:
+                    log_lines = log_lines[-available:]
+
+                for line in log_lines:
+                    # Truncate long lines
+                    if len(line) > width:
+                        line = line[:width-3] + '...'
+                    lines.append(line)
+            except Exception as e:
+                lines.append(f"Error reading log: {e}")
+        else:
+            lines.append("No log available")
 
     return lines
 
