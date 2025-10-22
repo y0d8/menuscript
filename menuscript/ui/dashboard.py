@@ -342,11 +342,11 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
     lines.append("")
 
     # If job is completed, show summary instead of raw log
-    if status in ('completed', 'failed'):
-        lines.append(click.style(f"JOB #{job_id} SUMMARY - {tool}", bold=True, fg='green' if status == 'completed' else 'red'))
+    if status in ('done', 'error'):
+        lines.append(click.style(f"JOB #{job_id} SUMMARY - {tool}", bold=True, fg='green' if status == 'done' else 'red'))
         lines.append("-" * width)
 
-        if status == 'failed':
+        if status == 'error':
             lines.append(click.style("✗ Job failed", fg='red', bold=True))
         else:
             lines.append(click.style("✓ Scan completed successfully", fg='green', bold=True))
@@ -363,10 +363,63 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
                 # Show tool-specific summary
                 if tool == 'nmap':
-                    hosts_added = result.get('hosts_added', 0)
-                    services_added = result.get('services_added', 0)
-                    lines.append(f"  • {hosts_added} host(s) discovered")
-                    lines.append(f"  • {services_added} service(s) found")
+                    is_discovery = result.get('is_discovery', False)
+                    is_full_scan = result.get('is_full_scan', False)
+                    host_details = result.get('host_details', [])
+
+                    if is_discovery:
+                        # Discovery scan - just show count
+                        hosts_added = result.get('hosts_added', 0)
+                        lines.append(f"  • {hosts_added} live host(s) found")
+                    elif is_full_scan:
+                        # Full scan - show detailed info
+                        if host_details:
+                            lines.append("  Hosts discovered:")
+                            for host in host_details:
+                                ip = host.get('ip', 'unknown')
+                                hostname = host.get('hostname', '')
+                                os_info = host.get('os', '')
+                                service_count = host.get('service_count', 0)
+                                top_ports = host.get('top_ports', [])
+
+                                # Header: IP (hostname)
+                                if hostname:
+                                    lines.append(f"    • {ip} ({hostname})")
+                                else:
+                                    lines.append(f"    • {ip}")
+
+                                # OS info
+                                if os_info:
+                                    lines.append(f"      OS: {os_info}")
+
+                                # Service count
+                                lines.append(f"      Services: {service_count} open port(s)")
+
+                                # Top ports
+                                if top_ports:
+                                    lines.append(f"      Top ports: {', '.join(top_ports)}")
+
+                                lines.append("")  # Blank line between hosts
+                        else:
+                            hosts_added = result.get('hosts_added', 0)
+                            lines.append(f"  • {hosts_added} live host(s) found (no services)")
+                    else:
+                        # Regular port scan - show each host with service count
+                        if host_details:
+                            lines.append("  Hosts discovered:")
+                            for host in host_details:
+                                ip = host.get('ip', 'unknown')
+                                hostname = host.get('hostname', '')
+                                service_count = host.get('service_count', 0)
+
+                                # Format: IP (hostname) - N services
+                                if hostname:
+                                    lines.append(f"    • {ip} ({hostname}) - {service_count} service(s)")
+                                else:
+                                    lines.append(f"    • {ip} - {service_count} service(s)")
+                        else:
+                            hosts_added = result.get('hosts_added', 0)
+                            lines.append(f"  • {hosts_added} live host(s) found (no services)")
 
                 elif tool == 'msf_auxiliary':
                     host = result.get('host', 'N/A')
@@ -415,7 +468,24 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
                 if len(log_lines) > available:
                     log_lines = log_lines[-available:]
 
+                # Track if we're in a fingerprint block to skip
+                in_fingerprint_block = False
+
                 for line in log_lines:
+                    # Filter out noisy nmap TCP/IP fingerprint data
+                    if 'TCP/IP fingerprint:' in line:
+                        in_fingerprint_block = True
+                        continue
+
+                    # Skip lines that are part of fingerprint block (start with OS:, SEQ:, etc.)
+                    if in_fingerprint_block:
+                        # Fingerprint lines typically start with known prefixes
+                        if line.startswith(('OS:', 'SEQ:', 'OPS:', 'WIN:', 'ECN:', 'T1:', 'T2:', 'T3:', 'T4:', 'T5:', 'T6:', 'T7:', 'U1:', 'IE:')):
+                            continue
+                        else:
+                            # Empty line or new section means fingerprint block ended
+                            in_fingerprint_block = False
+
                     # Truncate long lines
                     if len(line) > width:
                         line = line[:width-3] + '...'

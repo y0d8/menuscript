@@ -61,21 +61,51 @@ def parse_nmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dic
     try:
         from menuscript.parsers.nmap_parser import parse_nmap_log
         from menuscript.storage.hosts import HostManager
-        
+
         # Parse the log file
         parsed = parse_nmap_log(log_path)
-        
+
         if 'error' in parsed:
             return {'error': parsed['error']}
-        
+
         # Import into database
         hm = HostManager()
         result = hm.import_nmap_results(workspace_id, parsed)
-        
+
+        # Build host details list for summary
+        host_details = []
+        for host_data in parsed.get('hosts', []):
+            if host_data.get('status') == 'up':
+                services = host_data.get('services', [])
+                service_count = len(services)
+
+                # Get top ports for detailed scans
+                top_ports = []
+                for svc in services[:5]:  # Top 5 ports
+                    port = svc.get('port')
+                    service_name = svc.get('service', 'unknown')
+                    top_ports.append(f"{port}/{service_name}")
+
+                host_details.append({
+                    'ip': host_data.get('ip'),
+                    'hostname': host_data.get('hostname'),
+                    'os': host_data.get('os'),
+                    'service_count': service_count,
+                    'top_ports': top_ports
+                })
+
+        # Determine scan type based on job args
+        args = job.get('args', [])
+        is_discovery = '-sn' in args or '--discovery' in args
+        is_full_scan = any(x in args for x in ['-sV', '-O', '-A', '-p1-65535'])
+
         return {
             'tool': 'nmap',
             'hosts_added': result['hosts_added'],
-            'services_added': result['services_added']
+            'services_added': result['services_added'],
+            'host_details': host_details,
+            'is_discovery': is_discovery,
+            'is_full_scan': is_full_scan
         }
     except Exception as e:
         return {'error': str(e)}

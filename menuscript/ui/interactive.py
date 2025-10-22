@@ -335,8 +335,10 @@ def view_jobs_menu():
                 status_str = click.style(status, fg='green')
             elif status == 'running':
                 status_str = click.style(status, fg='yellow')
-            elif status == 'failed':
+            elif status in ('failed', 'error'):
                 status_str = click.style(status, fg='red')
+            elif status == 'killed':
+                status_str = click.style(status, fg='magenta')
             else:
                 status_str = status
 
@@ -414,7 +416,22 @@ def view_job_detail(job_id: int):
         click.echo(click.style("No log file available", fg='yellow'))
 
     click.echo()
-    click.pause("Press any key to return...")
+
+    # Show kill option for running jobs
+    if job.get('status') == 'running':
+        try:
+            if click.confirm(click.style("\nKill this job?", fg='red'), default=False):
+                from menuscript.engine.background import kill_job
+                if kill_job(job_id):
+                    click.echo(click.style("✓ Job killed successfully", fg='green'))
+                else:
+                    click.echo(click.style("✗ Failed to kill job", fg='red'))
+                click.pause("\nPress any key to continue...")
+                return  # Return to refresh job list
+        except (KeyboardInterrupt, click.Abort):
+            pass
+
+    click.pause("\nPress any key to return...")
 
 
 def view_results_menu():

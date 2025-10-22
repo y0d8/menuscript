@@ -196,11 +196,25 @@ def jobs_list(limit, status):
     click.echo("=" * 100)
     
     for job in jobs_data:
+        status_val = job.get('status', 'N/A')
+
+        # Color code status
+        if status_val == 'done':
+            status_str = click.style(f"{status_val:<10}", fg='green')
+        elif status_val == 'running':
+            status_str = click.style(f"{status_val:<10}", fg='yellow')
+        elif status_val in ('error', 'failed'):
+            status_str = click.style(f"{status_val:<10}", fg='red')
+        elif status_val == 'killed':
+            status_str = click.style(f"{status_val:<10}", fg='magenta')
+        else:
+            status_str = f"{status_val:<10}"
+
         click.echo(
             f"{job['id']:<5} "
             f"{job.get('tool', 'N/A'):<12} "
             f"{job.get('target', 'N/A')[:24]:<25} "
-            f"{job.get('status', 'N/A'):<10} "
+            f"{status_str} "
             f"{job.get('label', '')[:19]:<20} "
             f"{job.get('created_at', 'N/A'):<20}"
         )
@@ -325,6 +339,30 @@ def jobs_tail(job_id, follow):
         pass
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
+
+
+@jobs.command("kill")
+@click.argument("job_id", type=int)
+@click.option("--force", "-f", is_flag=True, help="Force kill (SIGKILL)")
+def jobs_kill(job_id, force):
+    """Kill a running job."""
+    from menuscript.engine.background import kill_job
+
+    job = get_job(job_id)
+
+    if not job:
+        click.echo(f"✗ Job {job_id} not found", err=True)
+        return
+
+    status = job.get('status')
+    if status != 'running':
+        click.echo(f"✗ Job {job_id} is not running (status: {status})", err=True)
+        return
+
+    if kill_job(job_id):
+        click.echo(f"✓ Job {job_id} killed successfully", fg='green')
+    else:
+        click.echo(f"✗ Failed to kill job {job_id}", err=True)
 
 
 @cli.group()

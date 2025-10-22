@@ -105,7 +105,8 @@ def enqueue_job(tool: str, target: str, args: List[str], label: str="") -> int:
             "finished_at": None,
             "result_scan_id": None,
             "error": None,
-            "log": os.path.join(JOBS_DIR, f"{jid}.log")
+            "log": os.path.join(JOBS_DIR, f"{jid}.log"),
+            "pid": None
         }
         jobs.append(job)
         _write_jobs(jobs)
@@ -122,6 +123,51 @@ def get_job(jid:int) -> Optional[Dict[str,Any]]:
         if j.get("id") == jid:
             return j
     return None
+
+def kill_job(jid: int) -> bool:
+    """
+    Kill a running job by sending SIGTERM to its process.
+
+    Args:
+        jid: Job ID to kill
+
+    Returns:
+        True if job was killed, False if not running or not found
+    """
+    job = get_job(jid)
+    if not job:
+        return False
+
+    status = job.get('status')
+    if status != 'running':
+        return False
+
+    pid = job.get('pid')
+    if not pid:
+        return False
+
+    try:
+        import signal
+        # Try SIGTERM first (graceful)
+        os.kill(pid, signal.SIGTERM)
+        _append_worker_log(f"job {jid}: sent SIGTERM to PID {pid}")
+
+        # Update job status
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        _update_job(jid, status="killed", finished_at=now, pid=None)
+
+        return True
+    except ProcessLookupError:
+        # Process already dead
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        _update_job(jid, status="error", error="Process not found", finished_at=now, pid=None)
+        return False
+    except PermissionError:
+        _append_worker_log(f"job {jid}: permission denied to kill PID {pid}")
+        return False
+    except Exception as e:
+        _append_worker_log(f"job {jid}: error killing process: {e}")
+        return False
 
 def _update_job(jid:int, **fields):
     with _lock:
@@ -213,24 +259,37 @@ def _try_run_plugin(tool: str, target: str, args: List[str], label: str, log_pat
         _append_worker_log(f"plugin loading error: {e}")
         return (False, 0)
 
-def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, timeout: int = JOB_TIMEOUT_SECONDS) -> int:
+def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, jid: int = None, timeout: int = JOB_TIMEOUT_SECONDS) -> int:
     cmd = [tool] + (args or [])
     cmd = [c.replace("<target>", target) for c in cmd]
-    
+
     with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
         fh.write(f"=== Subprocess Execution ===\n")
         fh.write(f"Command: {' '.join(cmd)}\n")
         fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
         fh.flush()
-        
+
         try:
-            proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+            proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
+
+            # Store PID if job ID provided
+            if jid is not None:
+                _update_job(jid, pid=proc.pid)
+                _append_worker_log(f"job {jid}: running with PID {proc.pid}")
+
+            # Wait for process with timeout
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                fh.write(f"\nERROR: Command timed out after {timeout} seconds\n")
+                return 124
+
             fh.write(f"\n=== Completed: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
             fh.write(f"Exit Code: {proc.returncode}\n")
             return proc.returncode
-        except subprocess.TimeoutExpired:
-            fh.write(f"\nERROR: Command timed out after {timeout} seconds\n")
-            return 124
+
         except FileNotFoundError:
             fh.write(f"\nERROR: Tool not found: {cmd[0]}\n")
             return 127
@@ -262,14 +321,14 @@ def run_job(jid: int) -> None:
         label = job.get("label", "")
         
         plugin_executed, rc = _try_run_plugin(tool, target, args, label, log_path)
-        
+
         if not plugin_executed:
             _append_worker_log(f"job {jid}: no plugin found for '{tool}', using subprocess")
-            rc = _run_subprocess(tool, target, args, log_path, timeout=JOB_TIMEOUT_SECONDS)
+            rc = _run_subprocess(tool, target, args, log_path, jid=jid, timeout=JOB_TIMEOUT_SECONDS)
         
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         status = "done" if rc == 0 else "error"
-        _update_job(jid, status=status, finished_at=now)
+        _update_job(jid, status=status, finished_at=now, pid=None)
         
         # Try to parse results into database
         try:

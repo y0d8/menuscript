@@ -112,13 +112,13 @@ class HostManager:
     def import_nmap_results(self, workspace_id: int, parsed_data: Dict[str, Any]) -> Dict[str, int]:
         """
         Import parsed nmap results into the database.
-        
+
         Args:
             workspace_id: Workspace ID
             parsed_data: Output from nmap_parser.parse_nmap_text()
-        
+
         Returns:
-            {'hosts_added': N, 'services_added': M}
+            {'hosts_added': N, 'services_added': M} - N is count of live hosts only (status='up')
         """
         hosts_added = 0
         services_added = 0
@@ -126,8 +126,11 @@ class HostManager:
         for host_data in parsed_data.get('hosts', []):
             # Add/update host
             host_id = self.add_or_update_host(workspace_id, host_data)
-            hosts_added += 1
-            
+
+            # Only count live hosts
+            if host_data.get('status') == 'up':
+                hosts_added += 1
+
             # Add services
             for service_data in host_data.get('services', []):
                 self.add_service(host_id, service_data)
