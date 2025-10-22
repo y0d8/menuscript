@@ -12,6 +12,7 @@ from menuscript.storage.hosts import HostManager
 from menuscript.storage.findings import FindingsManager
 from menuscript.storage.osint import OsintManager
 from menuscript.storage.web_paths import WebPathsManager
+from menuscript.ui.terminal import setup_terminal
 
 
 def show_main_menu() -> Optional[Dict[str, Any]]:
@@ -718,6 +719,9 @@ def view_web_paths(workspace_id: int):
 
 def run_interactive_menu():
     """Main interactive menu loop."""
+    # Set up terminal for proper line editing (backspace, arrows, history)
+    setup_terminal()
+
     while True:
         # Show main menu
         result = show_main_menu()
