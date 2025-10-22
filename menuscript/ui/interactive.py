@@ -555,7 +555,16 @@ def view_services(workspace_id: int):
             port = svc.get('port', '?')
             protocol = svc.get('protocol', 'tcp')
             service = (svc.get('service_name') or 'unknown')[:15]
-            version = (svc.get('service_version') or '')[:25] or '-'
+
+            # Clean version string - remove nmap metadata like "syn-ack ttl 64"
+            raw_version = svc.get('service_version') or ''
+            if raw_version:
+                # Strip nmap response prefixes (syn-ack, reset, etc.) and ttl info
+                import re
+                version = re.sub(r'^(syn-ack|reset|tcp-response)\s+ttl\s+\d+\s*', '', raw_version)
+                version = version[:25] or '-'
+            else:
+                version = '-'
 
             click.echo(f"{host_ip:<18} {port:<7} {protocol:<10} {service:<15} {version:<25}")
 
