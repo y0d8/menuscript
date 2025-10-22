@@ -645,28 +645,75 @@ def view_host_services(host: dict, hm: HostManager):
 
 
 def view_findings(workspace_id: int):
-    """Display findings in workspace."""
+    """Display findings in workspace with filtering options."""
     fm = FindingsManager()
-    findings = fm.list_findings(workspace_id)
 
-    click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo("FINDINGS")
-    click.echo("=" * 70 + "\n")
+    # Active filters
+    filters = {
+        'severity': None,
+        'finding_type': None,
+        'tool': None,
+        'search': None,
+        'ip_address': None
+    }
 
-    if not findings:
-        click.echo("No findings found.")
-    else:
-        # Show summary
-        by_severity = {}
-        for f in findings:
-            sev = f.get('severity', 'info')
-            by_severity[sev] = by_severity.get(sev, 0) + 1
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("FINDINGS")
+        click.echo("=" * 80 + "\n")
 
-        click.echo("Summary by severity:")
-        for sev in ['critical', 'high', 'medium', 'low', 'info']:
-            if sev in by_severity:
-                count = by_severity[sev]
+        # Show active filters
+        active_filters = [f"{k}: {v}" for k, v in filters.items() if v]
+        if active_filters:
+            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+            click.echo()
+
+        # Get findings with filters
+        findings = fm.list_findings(
+            workspace_id,
+            severity=filters['severity'],
+            finding_type=filters['finding_type'],
+            tool=filters['tool'],
+            search=filters['search'],
+            ip_address=filters['ip_address']
+        )
+
+        if not findings:
+            click.echo("No findings found with current filters.")
+        else:
+            # Show summary
+            by_severity = {}
+            for f in findings:
+                sev = f.get('severity', 'info')
+                by_severity[sev] = by_severity.get(sev, 0) + 1
+
+            click.echo("Summary by severity:")
+            for sev in ['critical', 'high', 'medium', 'low', 'info']:
+                if sev in by_severity:
+                    count = by_severity[sev]
+                    color = {
+                        'critical': 'red',
+                        'high': 'red',
+                        'medium': 'yellow',
+                        'low': 'blue',
+                        'info': 'white'
+                    }.get(sev, 'white')
+
+                    click.echo(f"  {sev.capitalize():<10}: {click.style(str(count), fg=color)}")
+
+            click.echo()
+            click.echo(f"{'ID':<5} {'Severity':<10} {'Type':<20} {'Host':<15} {'Title':<35}")
+            click.echo("-" * 90)
+
+            for finding in findings[:30]:  # Limit to 30
+                fid = finding.get('id', '?')
+                sev = finding.get('severity', 'info')
+                ftype = (finding.get('finding_type') or 'unknown')[:19]
+                host = (finding.get('ip_address') or 'N/A')[:14]
+                title = (finding.get('title') or 'No title')[:34]
+
+                # Color code severity
                 color = {
                     'critical': 'red',
                     'high': 'red',
@@ -675,36 +722,129 @@ def view_findings(workspace_id: int):
                     'info': 'white'
                 }.get(sev, 'white')
 
-                click.echo(f"  {sev.capitalize():<10}: {click.style(str(count), fg=color)}")
+                sev_colored = click.style(sev, fg=color)
 
+                click.echo(f"{fid:<5} {sev_colored:<10} {ftype:<20} {host:<15} {title:<35}")
+
+            if len(findings) > 30:
+                click.echo(f"\n... and {len(findings) - 30} more (use filters to narrow results)")
+
+        # Menu options
+        click.echo("\n" + "-" * 80)
+        click.echo("Options:")
+        click.echo("  [1] Filter by Severity")
+        click.echo("  [2] Filter by Type")
+        click.echo("  [3] Filter by Tool")
+        click.echo("  [4] Search (title/description)")
+        click.echo("  [5] Filter by IP Address")
+        click.echo("  [6] Clear All Filters")
+        click.echo("  [0] Back to Main Menu")
         click.echo()
-        click.echo(f"{'ID':<5} {'Severity':<10} {'Type':<20} {'Title':<40}")
-        click.echo("-" * 70)
 
-        for finding in findings[:30]:  # Limit to 30
-            fid = finding.get('id', '?')
-            sev = finding.get('severity', 'info')
-            ftype = (finding.get('finding_type') or 'unknown')[:20]
-            title = (finding.get('title') or 'No title')[:40]
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
 
-            # Color code severity
-            color = {
-                'critical': 'red',
-                'high': 'red',
-                'medium': 'yellow',
-                'low': 'blue',
-                'info': 'white'
-            }.get(sev, 'white')
+            if choice == 0:
+                return
+            elif choice == 1:
+                filters['severity'] = _filter_by_severity()
+            elif choice == 2:
+                filters['finding_type'] = _filter_by_type(workspace_id, fm)
+            elif choice == 3:
+                filters['tool'] = _filter_by_tool(workspace_id, fm)
+            elif choice == 4:
+                filters['search'] = _filter_by_search()
+            elif choice == 5:
+                filters['ip_address'] = _filter_by_ip()
+            elif choice == 6:
+                filters = {k: None for k in filters}
+                click.echo(click.style("✓ All filters cleared", fg='green'))
+                click.pause()
 
-            sev_colored = click.style(sev, fg=color)
+        except (KeyboardInterrupt, click.Abort):
+            return
 
-            click.echo(f"{fid:<5} {sev_colored:<10} {ftype:<20} {title:<40}")
 
-        if len(findings) > 30:
-            click.echo(f"\n... and {len(findings) - 30} more")
+def _filter_by_severity():
+    """Prompt for severity filter."""
+    click.echo("\nSelect severity:")
+    click.echo("  [1] Critical")
+    click.echo("  [2] High")
+    click.echo("  [3] Medium")
+    click.echo("  [4] Low")
+    click.echo("  [5] Info")
+    click.echo("  [0] Clear filter")
 
-    click.echo()
-    click.pause("Press any key to return...")
+    try:
+        choice = click.prompt("Severity", type=int, default=0)
+        severity_map = {1: 'critical', 2: 'high', 3: 'medium', 4: 'low', 5: 'info'}
+        return severity_map.get(choice)
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_by_type(workspace_id: int, fm: 'FindingsManager'):
+    """Prompt for finding type filter."""
+    types = fm.get_unique_types(workspace_id)
+
+    if not types:
+        click.echo(click.style("No finding types available", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nSelect finding type:")
+    for idx, ftype in enumerate(types, 1):
+        click.echo(f"  [{idx}] {ftype}")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Type", type=int, default=0)
+        if choice > 0 and choice <= len(types):
+            return types[choice - 1]
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_by_tool(workspace_id: int, fm: 'FindingsManager'):
+    """Prompt for tool filter."""
+    tools = fm.get_unique_tools(workspace_id)
+
+    if not tools:
+        click.echo(click.style("No tools available", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nSelect tool:")
+    for idx, tool in enumerate(tools, 1):
+        click.echo(f"  [{idx}] {tool}")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Tool", type=int, default=0)
+        if choice > 0 and choice <= len(tools):
+            return tools[choice - 1]
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_by_search():
+    """Prompt for search term."""
+    try:
+        search = click.prompt("Search term (or press Enter to clear)", default="", show_default=False)
+        return search if search else None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_by_ip():
+    """Prompt for IP address filter."""
+    try:
+        ip = click.prompt("IP address (or press Enter to clear)", default="", show_default=False)
+        return ip if ip else None
+    except (KeyboardInterrupt, click.Abort):
+        return None
 
 
 def view_osint(workspace_id: int):

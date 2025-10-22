@@ -75,7 +75,10 @@ class FindingsManager:
         workspace_id: int,
         host_id: int = None,
         severity: str = None,
-        tool: str = None
+        tool: str = None,
+        finding_type: str = None,
+        search: str = None,
+        ip_address: str = None
     ) -> List[Dict[str, Any]]:
         """
         List findings with optional filters.
@@ -85,6 +88,9 @@ class FindingsManager:
             host_id: Filter by host ID (optional)
             severity: Filter by severity (optional)
             tool: Filter by tool (optional)
+            finding_type: Filter by finding type (optional)
+            search: Search in title and description (optional)
+            ip_address: Filter by IP address (optional)
 
         Returns:
             List of finding dicts
@@ -111,6 +117,20 @@ class FindingsManager:
         if tool:
             query += " AND f.tool = ?"
             params.append(tool)
+
+        if finding_type:
+            query += " AND f.finding_type = ?"
+            params.append(finding_type)
+
+        if search:
+            query += " AND (f.title LIKE ? OR f.description LIKE ?)"
+            search_pattern = f"%{search}%"
+            params.append(search_pattern)
+            params.append(search_pattern)
+
+        if ip_address:
+            query += " AND h.ip_address LIKE ?"
+            params.append(f"%{ip_address}%")
 
         query += " ORDER BY f.created_at DESC"
 
@@ -178,3 +198,25 @@ class FindingsManager:
                 summary[severity] = count
 
         return summary
+
+    def get_unique_types(self, workspace_id: int) -> List[str]:
+        """Get list of unique finding types in workspace."""
+        query = """
+            SELECT DISTINCT finding_type
+            FROM findings
+            WHERE workspace_id = ? AND finding_type IS NOT NULL
+            ORDER BY finding_type
+        """
+        results = self.db.execute(query, (workspace_id,))
+        return [row['finding_type'] for row in results if row.get('finding_type')]
+
+    def get_unique_tools(self, workspace_id: int) -> List[str]:
+        """Get list of unique tools that generated findings in workspace."""
+        query = """
+            SELECT DISTINCT tool
+            FROM findings
+            WHERE workspace_id = ? AND tool IS NOT NULL
+            ORDER BY tool
+        """
+        results = self.db.execute(query, (workspace_id,))
+        return [row['tool'] for row in results if row.get('tool')]
