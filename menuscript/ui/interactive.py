@@ -524,34 +524,88 @@ def view_hosts(workspace_id: int):
 
 
 def view_services(workspace_id: int):
-    """Display services in workspace."""
+    """Display services grouped by host."""
     hm = HostManager()
+    import re
 
-    # Get all hosts and their services
-    hosts = hm.list_hosts(workspace_id)
-    all_services = []
+    while True:
+        # Get all hosts with services
+        hosts = hm.list_hosts(workspace_id)
+        hosts_with_services = []
 
-    for host in hosts:
-        services = hm.get_host_services(host['id'])
-        for svc in services:
-            all_services.append({
-                'host_ip': host['ip_address'],
-                **svc
-            })
+        for host in hosts:
+            services = hm.get_host_services(host['id'])
+            if services:  # Only show hosts with services
+                hosts_with_services.append({
+                    'host': host,
+                    'service_count': len(services)
+                })
+
+        # Sort by service count (most services first)
+        hosts_with_services.sort(key=lambda x: x['service_count'], reverse=True)
+
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("SERVICES BY HOST")
+        click.echo("=" * 70 + "\n")
+
+        if not hosts_with_services:
+            click.echo("No services found.")
+            click.echo()
+            click.pause("Press any key to return...")
+            return
+
+        # Show host selection menu
+        click.echo(f"{'#':<3} {'Host IP':<18} {'Hostname':<25} {'Services':<10}")
+        click.echo("-" * 70)
+
+        for idx, item in enumerate(hosts_with_services, 1):
+            host = item['host']
+            ip = host.get('ip_address', 'N/A')
+            hostname = (host.get('hostname') or '')[:25] or '-'
+            svc_count = item['service_count']
+
+            click.echo(f"{idx:<3} {ip:<18} {hostname:<25} {svc_count} service(s)")
+
+        click.echo("\n  0. Back to Results Menu")
+
+        try:
+            choice = click.prompt("\nSelect host to view services", type=int, default=0)
+
+            if choice == 0:
+                return
+
+            if 1 <= choice <= len(hosts_with_services):
+                selected = hosts_with_services[choice - 1]
+                view_host_services(selected['host'], hm)
+            else:
+                click.echo(click.style("Invalid selection", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def view_host_services(host: dict, hm: HostManager):
+    """Display services for a specific host."""
+    import re
+
+    services = hm.get_host_services(host['id'])
 
     click.clear()
     click.echo("\n" + "=" * 70)
-    click.echo("SERVICES")
+    click.echo(f"SERVICES - {host.get('ip_address', 'N/A')}")
+    if host.get('hostname'):
+        click.echo(f"Hostname: {host['hostname']}")
     click.echo("=" * 70 + "\n")
 
-    if not all_services:
+    if not services:
         click.echo("No services found.")
     else:
-        click.echo(f"{'Host IP':<18} {'Port':<7} {'Protocol':<10} {'Service':<15} {'Version':<25}")
+        click.echo(f"{'Port':<7} {'Protocol':<10} {'Service':<15} {'Version'}")
         click.echo("-" * 70)
 
-        for svc in all_services[:50]:  # Limit to 50
-            host_ip = svc.get('host_ip', 'N/A')
+        for svc in services:
             port = svc.get('port', '?')
             protocol = svc.get('protocol', 'tcp')
             service = (svc.get('service_name') or 'unknown')[:15]
@@ -560,19 +614,17 @@ def view_services(workspace_id: int):
             raw_version = svc.get('service_version') or ''
             if raw_version:
                 # Strip nmap response prefixes (syn-ack, reset, etc.) and ttl info
-                import re
                 version = re.sub(r'^(syn-ack|reset|tcp-response)\s+ttl\s+\d+\s*', '', raw_version)
-                version = version[:25] or '-'
+                version = version[:60] or '-'
             else:
                 version = '-'
 
-            click.echo(f"{host_ip:<18} {port:<7} {protocol:<10} {service:<15} {version:<25}")
+            click.echo(f"{port:<7} {protocol:<10} {service:<15} {version}")
 
-        if len(all_services) > 50:
-            click.echo(f"\n... and {len(all_services) - 50} more")
+        click.echo(f"\nTotal: {len(services)} service(s)")
 
     click.echo()
-    click.pause("Press any key to return...")
+    click.pause("Press any key to continue...")
 
 
 def view_findings(workspace_id: int):
