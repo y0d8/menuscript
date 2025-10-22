@@ -387,17 +387,17 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     # Active jobs
     output.extend(render_active_jobs(width))
 
-    # Recent hosts discovered
+    # Top hosts by services (most interesting targets)
     output.extend(render_recent_hosts(workspace_id, width))
+
+    # Top open ports (network overview)
+    output.extend(render_top_ports(workspace_id, width))
 
     # Critical/High findings
     output.extend(render_critical_findings(workspace_id, width))
 
     # MSF Valid Credentials
     output.extend(render_msf_credentials(workspace_id, width))
-
-    # Top open ports
-    output.extend(render_top_ports(workspace_id, width))
 
     # Live log - auto-follow most recent running job if not explicitly following
     if not follow_job_id:
