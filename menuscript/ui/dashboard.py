@@ -29,40 +29,47 @@ def get_terminal_size():
         return 80, 24
 
 
-def render_header(workspace_name: str, width: int):
-    """Render dashboard header."""
+def render_header(workspace_name: str, workspace_id: int, width: int):
+    """Render compact dashboard header with status bar and quick actions."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Get workspace stats for header
+    wm = WorkspaceManager()
+    stats = wm.stats(workspace_id)
+
     lines = []
-    lines.append("=" * width)
-    title = "MENUSCRIPT LIVE DASHBOARD"
-    lines.append(title.center(width))
-    lines.append(f"Workspace: {workspace_name}".center(width))
-    lines.append(timestamp.center(width))
-    lines.append("=" * width)
+
+    # Top border
+    lines.append("┌" + "─" * (width - 2) + "┐")
+
+    # Title line with workspace and time
+    title_left = f"│ MENUSCRIPT DASHBOARD │ Workspace: {workspace_name}"
+    title_right = f"{timestamp} │"
+    padding = width - len(title_left) - len(title_right)
+    lines.append(title_left + " " * padding + title_right)
+
+    # Stats line
+    stats_content = f"│ 📊 Hosts: {stats['hosts']} │ Services: {stats['services']} │ Findings: {stats['findings']}"
+    stats_padding = width - len(stats_content) - 1
+    lines.append(stats_content + " " * stats_padding + "│")
+
+    # Bottom border
+    lines.append("└" + "─" * (width - 2) + "┘")
+
+    # Quick actions bar (bold/highlighted)
+    lines.append("┏" + "━" * (width - 2) + "┓")
+    actions_text = " QUICK ACTIONS: [m] Menu  [h] Hosts  [s] Services  [f] Findings  [j] Jobs  [q] Quit "
+    actions_padding = width - len(actions_text) - 2
+    lines.append("┃" + click.style(actions_text + " " * actions_padding, bold=True, fg='cyan') + "┃")
+    lines.append("┗" + "━" * (width - 2) + "┛")
 
     return lines
 
 
 def render_workspace_stats(workspace_id: int, width: int):
-    """Render workspace statistics panel."""
-    wm = WorkspaceManager()
-    stats = wm.stats(workspace_id)
-
-    lines = []
-    lines.append("")
-    lines.append(click.style("WORKSPACE STATS", bold=True, fg='cyan'))
-    lines.append("-" * width)
-
-    # Create a compact stats view
-    stats_line = (
-        f"Hosts: {stats['hosts']:>4} | "
-        f"Services: {stats['services']:>4} | "
-        f"Findings: {stats['findings']:>4}"
-    )
-    lines.append(stats_line)
-
-    return lines
+    """Render workspace statistics panel (removed - now integrated in header)."""
+    # Stats are now shown in the header, so this function returns empty
+    return []
 
 
 def render_active_jobs(width: int):
@@ -74,8 +81,8 @@ def render_active_jobs(width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("ACTIVE JOBS", bold=True, fg='green'))
-    lines.append("-" * width)
+    lines.append(click.style("⚡ ACTIVE JOBS", bold=True, fg='green'))
+    lines.append("─" * width)
 
     if not active_jobs:
         lines.append("No active jobs")
@@ -137,28 +144,41 @@ def render_recent_hosts(workspace_id: int, width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("TOP HOSTS BY SERVICES", bold=True, fg='green'))
-    lines.append("-" * width)
+    lines.append(click.style("🎯 TOP HOSTS BY SERVICES", bold=True, fg='green'))
+    lines.append("─" * width)
 
     if not top_hosts:
         lines.append("No live hosts discovered yet")
     else:
-        for host, svc_count in top_hosts:
-            hid = host.get('id', '?')
+        # Top border
+        lines.append("  ┌" + "─" * 8 + "┬" + "─" * 18 + "┬" + "─" * 37 + "┬" + "─" * 10 + "┐")
+
+        # Table headers
+        header = f"  │ {'ID':<6} │ {'IP Address':<16} │ {'Description/OS':<35} │ {'Services':>8} │"
+        lines.append(click.style(header, bold=True))
+
+        # Header separator
+        lines.append("  ├" + "─" * 8 + "┼" + "─" * 18 + "┼" + "─" * 37 + "┼" + "─" * 10 + "┤")
+
+        for i, (host, svc_count) in enumerate(top_hosts):
+            hid = f"#{host.get('id', '?')}"
             ip = (host.get('ip_address') or 'unknown')[:15]
-            hostname = (host.get('hostname') or '')[:25]
-            os_info = (host.get('os_name') or '')[:20]
+            hostname = (host.get('hostname') or '')[:30]
+            os_info = (host.get('os_name') or '')[:30]
 
             # Build description
             if hostname:
-                desc = hostname
+                desc = hostname[:34]
             elif os_info:
-                desc = os_info
+                desc = os_info[:34]
             else:
                 desc = "new host"
 
-            host_line = f"  [{hid:>3}] {ip:<15} {desc:<25} ({svc_count} svcs)"
+            host_line = f"  │ {hid:<6} │ {ip:<16} │ {desc:<35} │ {svc_count:>8} │"
             lines.append(host_line)
+
+        # Bottom border
+        lines.append("  └" + "─" * 8 + "┴" + "─" * 18 + "┴" + "─" * 37 + "┴" + "─" * 10 + "┘")
 
     return lines
 
@@ -174,8 +194,8 @@ def render_critical_findings(workspace_id: int, width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("CRITICAL/HIGH FINDINGS", bold=True, fg='red'))
-    lines.append("-" * width)
+    lines.append(click.style("🔍 CRITICAL/HIGH FINDINGS", bold=True, fg='red'))
+    lines.append("─" * width)
 
     if not recent:
         lines.append("No critical/high findings")
@@ -222,13 +242,26 @@ def render_top_ports(workspace_id: int, width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("TOP OPEN PORTS", bold=True, fg='cyan'))
-    lines.append("-" * width)
+    lines.append(click.style("🔌 TOP OPEN PORTS", bold=True, fg='cyan'))
+    lines.append("─" * width)
 
     if not top_ports:
         lines.append("No ports discovered yet")
     else:
-        for port_service, host_ips in top_ports:
+        # Use same width as hosts table for consistency (78 chars total)
+        hosts_col_width = 43  # Fixed width for hosts column to match hosts table width
+
+        # Top border
+        lines.append("  ┌" + "─" * 22 + "┬" + "─" * 8 + "┬" + "─" * hosts_col_width + "┐")
+
+        # Table headers
+        header = f"  │ {'Port/Service':<20} │ {'Count':>6} │ {'Hosts':<{hosts_col_width-2}} │"
+        lines.append(click.style(header, bold=True))
+
+        # Header separator
+        lines.append("  ├" + "─" * 22 + "┼" + "─" * 8 + "┼" + "─" * hosts_col_width + "┤")
+
+        for i, (port_service, host_ips) in enumerate(top_ports):
             count = len(host_ips)
 
             # Smart truncation: show first 4 IPs, then "+X more"
@@ -239,8 +272,14 @@ def render_top_ports(workspace_id: int, width: int):
                 remaining = count - 4
                 ip_list = ", ".join(shown) + f" +{remaining} more"
 
-            port_label = f"{port_service} ({count} host{'s' if count != 1 else ''})"
-            lines.append(f"  {port_label:<22} {ip_list}")
+            # Truncate hosts list if too long for column
+            if len(ip_list) > hosts_col_width - 2:
+                ip_list = ip_list[:hosts_col_width-5] + "..."
+
+            lines.append(f"  │ {port_service:<20} │ {count:>6} │ {ip_list:<{hosts_col_width-2}} │")
+
+        # Bottom border
+        lines.append("  └" + "─" * 22 + "┴" + "─" * 8 + "┴" + "─" * hosts_col_width + "┘")
 
     return lines
 
@@ -255,8 +294,8 @@ def render_recent_findings(workspace_id: int, width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("RECENT FINDINGS", bold=True, fg='red'))
-    lines.append("-" * width)
+    lines.append(click.style("🔍 RECENT FINDINGS", bold=True, fg='red'))
+    lines.append("─" * width)
 
     if not recent:
         lines.append("No findings yet")
@@ -296,8 +335,8 @@ def render_msf_credentials(workspace_id: int, width: int):
 
     lines = []
     lines.append("")
-    lines.append(click.style("MSF VALID CREDENTIALS", bold=True, fg='red'))
-    lines.append("-" * width)
+    lines.append(click.style("🔓 MSF VALID CREDENTIALS", bold=True, fg='red'))
+    lines.append("─" * width)
 
     if not recent_creds:
         lines.append("No credentials found yet")
@@ -343,8 +382,8 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
     # If job is completed, show summary instead of raw log
     if status in ('done', 'error'):
-        lines.append(click.style(f"JOB #{job_id} SUMMARY - {tool}", bold=True, fg='green' if status == 'done' else 'red'))
-        lines.append("-" * width)
+        lines.append(click.style(f"📋 JOB #{job_id} SUMMARY - {tool}", bold=True, fg='green' if status == 'done' else 'red'))
+        lines.append("─" * width)
 
         if status == 'error':
             lines.append(click.style("✗ Job failed", fg='red', bold=True))
@@ -452,8 +491,8 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
     else:
         # Job is still running - show live log
-        lines.append(click.style(f"LIVE LOG - Job #{job_id} ({tool})", bold=True, fg='magenta'))
-        lines.append("-" * width)
+        lines.append(click.style(f"📡 LIVE LOG - Job #{job_id} ({tool})", bold=True, fg='magenta'))
+        lines.append("─" * width)
 
         log_path = job.get('log')
         if log_path and os.path.exists(log_path):
@@ -507,8 +546,8 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     # Build all panels
     output = []
 
-    # Header
-    output.extend(render_header(workspace_name, width))
+    # Header with status bar and quick actions
+    output.extend(render_header(workspace_name, workspace_id, width))
 
     # Stats
     output.extend(render_workspace_stats(workspace_id, width))
@@ -539,13 +578,14 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     if follow_job_id:
         output.extend(render_live_log(follow_job_id, width, height))
 
-    # Instructions
+    # Footer
     output.append("")
-    output.append("-" * width)
+    output.append("─" * width)
     if follow_job_id:
-        output.append(f"Following Job #{follow_job_id} | Press Ctrl+C to exit | Refresh: {refresh_interval}s".center(width))
+        footer_text = f"Following Job #{follow_job_id} | Refresh: {refresh_interval}s"
     else:
-        output.append(f"Press Ctrl+C to exit | Refresh: {refresh_interval}s".center(width))
+        footer_text = f"Auto-refresh: {refresh_interval}s"
+    output.append(footer_text.center(width))
 
     # Print all lines
     for line in output:
@@ -593,10 +633,6 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                             job_completed = True
 
             render_dashboard(workspace_id, workspace_name, current_follow_id, refresh_interval)
-
-            # Show interactive hints at bottom
-            click.echo()
-            click.echo(click.style("Quick Actions: ", bold=True) + "[m] Menu  [h] Hosts  [s] Services  [f] Findings  [j] Jobs  [q] Quit")
 
             # If job just completed, stop auto-refresh and prompt
             if job_completed:
@@ -662,41 +698,81 @@ def _wait_for_input(timeout: int) -> Optional[str]:
 
 
 def _show_dashboard_menu(workspace_id: int):
-    """Show interactive dashboard menu."""
+    """Show interactive dashboard menu with clear instructions."""
     click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo("DASHBOARD MENU")
-    click.echo("=" * 70 + "\n")
-    click.echo("  [1] View Hosts")
-    click.echo("  [2] View Services")
-    click.echo("  [3] View Findings")
-    click.echo("  [4] View Jobs")
-    click.echo("  [5] View Web Paths")
-    click.echo("  [6] View OSINT Data")
-    click.echo("  [0] Resume Monitoring")
+
+    # Header
+    click.echo("\n┌" + "─" * 76 + "┐")
+    click.echo("│" + click.style(" DASHBOARD NAVIGATION MENU ".center(76), bold=True, fg='cyan') + "│")
+    click.echo("└" + "─" * 76 + "┘")
     click.echo()
 
-    try:
-        choice = click.prompt("Select option", type=int, default=0)
+    # Instructions
+    click.echo(click.style("  💡 TIP: ", fg='yellow', bold=True) +
+               "From the dashboard, press the shortcut key anytime (no menu needed)")
+    click.echo()
 
-        if choice == 1:
+    # Data Views section
+    click.echo(click.style("  📊 DATA VIEWS", bold=True, fg='green'))
+    click.echo("  ─" * 38)
+    click.echo("    " + click.style("[h]", fg='cyan', bold=True) + " or " +
+               click.style("[1]", fg='cyan') + "  🎯 Hosts          - View discovered hosts, add tags, filter")
+    click.echo("    " + click.style("[s]", fg='cyan', bold=True) + " or " +
+               click.style("[2]", fg='cyan') + "  🔌 Services       - Browse open ports and services")
+    click.echo("    " + click.style("[f]", fg='cyan', bold=True) + " or " +
+               click.style("[3]", fg='cyan') + "  🔍 Findings       - Review vulnerabilities and issues")
+    click.echo("    " + click.style("[j]", fg='cyan', bold=True) + " or " +
+               click.style("[4]", fg='cyan') + "  ⚡ Jobs           - Manage scanning tasks")
+    click.echo()
+    click.echo("                " + click.style("[5]", fg='cyan') + "  🌐 Web Paths      - View discovered web directories")
+    click.echo("                " + click.style("[6]", fg='cyan') + "  📡 OSINT Data     - View gathered intelligence")
+    click.echo()
+
+    # Actions section
+    click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
+    click.echo("  ─" * 38)
+    click.echo("    " + click.style("[q]", fg='red', bold=True) + " or " +
+               click.style("[0]", fg='red') + "  ← Return to Live Dashboard")
+    click.echo()
+
+    # Footer instructions
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  Enter your choice: ", bold=True), nl=False)
+
+    try:
+        choice = input().strip().lower()
+
+        # Map both letters and numbers
+        choice_map = {
+            'h': 1, '1': 1,
+            's': 2, '2': 2,
+            'f': 3, '3': 3,
+            'j': 4, '4': 4,
+            '5': 5,
+            '6': 6,
+            'q': 0, '0': 0, '': 0
+        }
+
+        choice_num = choice_map.get(choice, 0)
+
+        if choice_num == 1:
             from menuscript.ui.interactive import view_hosts
             view_hosts(workspace_id)
-        elif choice == 2:
+        elif choice_num == 2:
             from menuscript.ui.interactive import view_services
             view_services(workspace_id)
-        elif choice == 3:
+        elif choice_num == 3:
             from menuscript.ui.interactive import view_findings
             view_findings(workspace_id)
-        elif choice == 4:
+        elif choice_num == 4:
             from menuscript.ui.interactive import view_jobs_menu
             view_jobs_menu()
-        elif choice == 5:
+        elif choice_num == 5:
             from menuscript.ui.interactive import view_web_paths
             view_web_paths(workspace_id)
-        elif choice == 6:
+        elif choice_num == 6:
             from menuscript.ui.interactive import view_osint
             view_osint(workspace_id)
 
-    except (KeyboardInterrupt, click.Abort):
+    except (KeyboardInterrupt, EOFError):
         pass

@@ -32,65 +32,144 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         by_category[cat].append((name, plugin))
 
     click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo("MENUSCRIPT - Interactive Menu")
-    click.echo("=" * 70 + "\n")
+
+    # Header with box drawing
+    click.echo("\n┌" + "─" * 76 + "┐")
+    click.echo("│" + click.style(" MENUSCRIPT - INTERACTIVE MENU ".center(76), bold=True, fg='cyan') + "│")
+    click.echo("└" + "─" * 76 + "┘")
 
     # Show current workspace with stats
     wm = WorkspaceManager()
     current_ws = wm.get_current()
     if current_ws:
         stats = wm.stats(current_ws['id'])
-        click.echo(f"Workspace: {current_ws['name']}")
-        click.echo(f"Data: {stats['hosts']} hosts | {stats['services']} services | {stats['findings']} findings\n")
+        click.echo(f"\n  📂 Workspace: " + click.style(current_ws['name'], fg='green', bold=True))
+        click.echo(f"  📊 Data: {stats['hosts']} hosts | {stats['services']} services | {stats['findings']} findings")
     else:
-        click.echo(click.style("⚠ No workspace selected! Use 'menuscript workspace use <name>'", fg='yellow'))
-        click.echo()
+        click.echo("\n  " + click.style("⚠️  No workspace selected! ", fg='yellow', bold=True) +
+                   "Use 'menuscript workspace use <name>'")
 
-    # Menu options
-    click.echo(click.style("LAUNCH TOOLS", bold=True, fg='green'))
-    click.echo("-" * 70)
+    click.echo()
+    click.echo(click.style("  💡 TIP: ", fg='yellow', bold=True) +
+               "Use letter shortcuts (d/j/r/w) or enter the tool number")
+    click.echo()
+    click.echo("  " + "━" * 76)
+    click.echo()
+
+    # Menu options - Tools section
+    click.echo(click.style("  🔧 SCANNING TOOLS", bold=True, fg='green'))
+    click.echo("  ─" * 38)
 
     # Display tools by category
     tool_list = []
     idx = 1
 
+    # Category icons
+    category_icons = {
+        'network': '🌐',
+        'web': '🔍',
+        'msf': '💥',
+        'other': '🛠️'
+    }
+
     for category in sorted(by_category.keys()):
-        click.echo(click.style(f"  {category.upper()}", fg='cyan'))
+        icon = category_icons.get(category, '🛠️')
+        click.echo(f"\n    {icon} " + click.style(category.upper(), fg='cyan', bold=True))
 
         for name, plugin in sorted(by_category[category], key=lambda x: x[0]):
             help_info = getattr(plugin, 'HELP', {})
-            desc = help_info.get('description', 'No description')[:40]
+            desc = help_info.get('description', 'No description')
 
-            click.echo(f"    {idx:2}. {name}")
+            # Create better, concise descriptions
+            desc_map = {
+                'msf_auxiliary': 'Metasploit auxiliary modules (login, scanners, enumeration)',
+                'enum4linux': 'SMB/CIFS enumeration (shares, users, groups)',
+                'nmap': 'Network scanner with presets (discovery, port scans)',
+                'theharvester': 'OSINT gathering (emails, domains, subdomains)',
+                'gobuster': 'Web directory and DNS brute-forcing',
+                'nikto': 'Web server vulnerability scanner',
+                'sqlmap': 'Automated SQL injection testing and exploitation'
+            }
+
+            # Use custom description if available, otherwise use original (limited)
+            display_desc = desc_map.get(name, desc[:52])
+
+            # Format tool entry with description
+            tool_entry = f"      [{idx:2}] {name:<15} - {display_desc}"
+            click.echo(tool_entry)
+
             tool_list.append(('launch_tool', name))
             idx += 1
 
     click.echo()
+    click.echo("  " + "━" * 76)
+    click.echo()
 
-    # View options
-    click.echo(click.style("VIEW DATA", bold=True, fg='blue'))
-    click.echo("-" * 70)
+    # View options with shortcuts
+    click.echo(click.style("  📊 DATA & MONITORING", bold=True, fg='blue'))
+    click.echo("  ─" * 38)
 
     dashboard_option = idx
-    click.echo(f"  {idx:2}. Live Dashboard")
+    click.echo(f"      " + click.style("[d]", fg='cyan', bold=True) + " or " +
+               click.style(f"[{idx}]", fg='cyan') + f"  📈 Live Dashboard    - Real-time monitoring view")
     idx += 1
 
     job_option = idx
-    click.echo(f"  {idx:2}. View Jobs")
+    click.echo(f"      " + click.style("[j]", fg='cyan', bold=True) + " or " +
+               click.style(f"[{idx}]", fg='cyan') + f"  ⚡ View Jobs         - Manage running scans")
     idx += 1
 
     results_option = idx
-    click.echo(f"  {idx:2}. View Scan Results")
+    click.echo(f"      " + click.style("[r]", fg='cyan', bold=True) + " or " +
+               click.style(f"[{idx}]", fg='cyan') + f"  📋 View Results      - Browse scan findings")
     idx += 1
 
     click.echo()
-    click.echo(f"   0. Exit")
+    click.echo("  " + "━" * 76)
     click.echo()
+    click.echo(click.style("  🗂️  WORKSPACE MANAGEMENT", bold=True, fg='magenta'))
+    click.echo("  ─" * 38)
+
+    workspace_option = idx
+    click.echo(f"      " + click.style("[w]", fg='cyan', bold=True) + " or " +
+               click.style(f"[{idx}]", fg='cyan') + f"  📂 Manage Workspaces - Switch, create, or delete workspaces")
+    idx += 1
+
+    click.echo()
+    click.echo("  " + "━" * 76)
+    click.echo()
+    click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
+    click.echo("  ─" * 38)
+    click.echo(f"      " + click.style("[q]", fg='red', bold=True) + " or " +
+               click.style("[0]", fg='red') + "  ← Exit")
+
+    click.echo()
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  Enter your choice: ", bold=True), nl=False)
 
     # Get user selection
     try:
-        choice = click.prompt("Select an option", type=int, default=0)
+        choice_input = input().strip().lower()
+
+        # Handle letter shortcuts
+        if choice_input == 'd':
+            return {'action': 'view_dashboard'}
+        elif choice_input == 'j':
+            return {'action': 'view_jobs'}
+        elif choice_input == 'r':
+            return {'action': 'view_results'}
+        elif choice_input == 'w':
+            return {'action': 'manage_workspaces'}
+        elif choice_input in ('q', '0', ''):
+            return None
+
+        # Handle numeric input
+        try:
+            choice = int(choice_input)
+        except ValueError:
+            click.echo(click.style("\n  ✗ Invalid input! Please enter a number or letter shortcut.", fg='red'))
+            click.pause()
+            return {'action': 'retry'}
 
         if choice == 0:
             return None
@@ -104,16 +183,19 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == results_option:
             return {'action': 'view_results'}
 
+        if choice == workspace_option:
+            return {'action': 'manage_workspaces'}
+
         if 1 <= choice <= len(tool_list):
             action_type, tool_name = tool_list[choice - 1]
             return {'action': action_type, 'tool': tool_name}
         else:
-            click.echo(click.style("Invalid selection!", fg='red'))
+            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 4} or use shortcuts.", fg='red'))
             click.pause()
             return {'action': 'retry'}
 
-    except (KeyboardInterrupt, click.Abort):
-        click.echo("\nExiting...")
+    except (KeyboardInterrupt, EOFError):
+        click.echo("\n\n  " + click.style("👋 Goodbye!", fg='green'))
         return None
 
 
@@ -501,6 +583,109 @@ def view_results_menu():
                 click.pause()
 
         except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def manage_workspaces_menu():
+    """Interactive workspace management menu."""
+    wm = WorkspaceManager()
+
+    while True:
+        click.clear()
+
+        # Header
+        click.echo("\n┌" + "─" * 76 + "┐")
+        click.echo("│" + click.style(" WORKSPACE MANAGEMENT ".center(76), bold=True, fg='magenta') + "│")
+        click.echo("└" + "─" * 76 + "┘")
+
+        # List all workspaces
+        workspaces = wm.list()
+        current_ws = wm.get_current()
+        current_id = current_ws['id'] if current_ws else None
+
+        click.echo()
+        click.echo(click.style("  📂 AVAILABLE WORKSPACES", bold=True, fg='cyan'))
+        click.echo("  ─" * 38)
+
+        if not workspaces:
+            click.echo("  No workspaces found. Create one to get started!")
+        else:
+            for ws in workspaces:
+                ws_id = ws['id']
+                ws_name = ws['name']
+                stats = wm.stats(ws_id)
+
+                # Mark current workspace
+                if ws_id == current_id:
+                    marker = click.style("★", fg='yellow', bold=True)
+                    name_style = click.style(ws_name, fg='green', bold=True)
+                else:
+                    marker = " "
+                    name_style = ws_name
+
+                click.echo(f"    {marker} [{ws_id:2}] {name_style:<20} " +
+                          f"({stats['hosts']} hosts, {stats['services']} services, {stats['findings']} findings)")
+
+        click.echo()
+        click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
+        click.echo("  ─" * 38)
+        click.echo("    " + click.style("[s]", fg='cyan', bold=True) + " Switch to Workspace  - Enter workspace name to switch")
+        click.echo("    " + click.style("[c]", fg='cyan', bold=True) + " Create Workspace     - Create a new workspace")
+        click.echo("    " + click.style("[d]", fg='cyan', bold=True) + " Delete Workspace     - Delete a workspace")
+        click.echo("    " + click.style("[b]", fg='red', bold=True) + " Back to Main Menu")
+
+        click.echo()
+        click.echo("  " + "─" * 76)
+        click.echo(click.style("  Enter your choice: ", bold=True), nl=False)
+
+        try:
+            choice = input().strip().lower()
+
+            if choice == 'b' or choice == '':
+                return
+
+            elif choice == 's':
+                # Switch workspace
+                ws_name = click.prompt("\n  Enter workspace name", type=str)
+                if wm.set_current(ws_name.strip()):
+                    click.echo(click.style(f"\n  ✓ Switched to workspace '{ws_name}'", fg='green'))
+                else:
+                    click.echo(click.style("\n  ✗ Workspace not found!", fg='red'))
+                click.pause()
+
+            elif choice == 'c':
+                # Create workspace
+                ws_name = click.prompt("\n  Enter new workspace name", type=str)
+                if ws_name.strip():
+                    ws_id = wm.create(ws_name.strip(), "")
+                    wm.set_current(ws_name.strip())
+                    click.echo(click.style(f"\n  ✓ Created workspace '{ws_name}' and set as current", fg='green'))
+                else:
+                    click.echo(click.style("\n  ✗ Workspace name cannot be empty!", fg='red'))
+                click.pause()
+
+            elif choice == 'd':
+                # Delete workspace
+                ws_name = click.prompt("\n  Enter workspace name to delete", type=str)
+                ws = wm.get(ws_name.strip())
+
+                if ws:
+                    if ws['id'] == current_id:
+                        click.echo(click.style("\n  ✗ Cannot delete the current workspace! Switch to another first.", fg='red'))
+                    elif click.confirm(f"\n  Are you sure you want to delete '{ws['name']}'? This will delete all data!", default=False):
+                        wm.delete(ws_name.strip())
+                        click.echo(click.style(f"\n  ✓ Deleted workspace '{ws['name']}'", fg='green'))
+                    else:
+                        click.echo("\n  Cancelled.")
+                else:
+                    click.echo(click.style("\n  ✗ Workspace not found!", fg='red'))
+                click.pause()
+
+            else:
+                click.echo(click.style("\n  ✗ Invalid choice! Use s/c/d/b", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, EOFError):
             return
 
 
@@ -1422,6 +1607,9 @@ def run_interactive_menu():
 
         elif action == 'view_results':
             view_results_menu()
+
+        elif action == 'manage_workspaces':
+            manage_workspaces_menu()
 
         elif action == 'launch_tool':
             tool_name = result.get('tool')
