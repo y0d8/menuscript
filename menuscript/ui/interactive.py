@@ -505,39 +505,296 @@ def view_results_menu():
 
 
 def view_hosts(workspace_id: int):
-    """Display hosts in workspace."""
+    """Display hosts with search, filtering, and tagging capabilities."""
     hm = HostManager()
-    all_hosts = hm.list_hosts(workspace_id)
 
-    # Filter to only show 'up' hosts
-    hosts = [h for h in all_hosts if h.get('status') == 'up']
+    # Active filters
+    filters = {
+        'search': None,
+        'os_name': None,
+        'status': 'up',  # Default to only show live hosts
+        'tags': None
+    }
 
-    click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo("HOSTS (live only)")
-    click.echo("=" * 70 + "\n")
+    # Selected hosts for bulk operations
+    selected_hosts = set()
 
-    if not hosts:
-        click.echo("No live hosts found.")
-    else:
-        click.echo(f"{'ID':<5} {'IP Address':<18} {'Hostname':<25} {'Status':<10}")
-        click.echo("-" * 70)
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 90)
+        click.echo("HOSTS MANAGEMENT")
+        click.echo("=" * 90 + "\n")
 
-        for host in hosts:
-            hid = host.get('id', '?')
-            ip = host.get('ip_address', 'N/A')
-            hostname = (host.get('hostname') or '')[:25] or '-'
-            status = host.get('status', 'unknown')
+        # Show active filters
+        active_filters = []
+        if filters['search']:
+            active_filters.append(f"search: {filters['search']}")
+        if filters['os_name']:
+            active_filters.append(f"OS: {filters['os_name']}")
+        if filters['status']:
+            active_filters.append(f"status: {filters['status']}")
+        if filters['tags']:
+            active_filters.append(f"tag: {filters['tags']}")
 
-            # Get service count
-            services = hm.get_host_services(hid)
-            svc_count = len(services)
+        if active_filters:
+            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+            click.echo()
 
-            click.echo(f"{hid:<5} {ip:<18} {hostname:<25} {status:<10} ({svc_count} services)")
+        # Get hosts with filters
+        hosts = hm.search_hosts(
+            workspace_id,
+            search=filters['search'],
+            os_name=filters['os_name'],
+            status=filters['status'],
+            tags=filters['tags']
+        )
 
-    click.echo(f"\nTotal: {len(hosts)} live host{'s' if len(hosts) != 1 else ''}")
-    click.echo()
-    click.pause("Press any key to return...")
+        if not hosts:
+            click.echo("No hosts found with current filters.")
+        else:
+            click.echo(f"{'[ ]':<4} {'ID':<5} {'IP Address':<18} {'Hostname':<20} {'OS':<18} {'Tags':<15}")
+            click.echo("-" * 90)
+
+            for host in hosts[:30]:  # Limit to 30
+                hid = host.get('id', '?')
+                selected = '[X]' if hid in selected_hosts else '[ ]'
+                ip = host.get('ip_address', 'N/A')[:17]
+                hostname = (host.get('hostname') or '-')[:19]
+                os = (host.get('os_name') or '-')[:17]
+                tags = (host.get('tags') or '')[:14]
+
+                click.echo(f"{selected:<4} {hid:<5} {ip:<18} {hostname:<20} {os:<18} {tags:<15}")
+
+            if len(hosts) > 30:
+                click.echo(f"\n... and {len(hosts) - 30} more (use filters to narrow results)")
+
+            click.echo(f"\nTotal: {len(hosts)} host(s) | Selected: {len(selected_hosts)}")
+
+        # Menu options
+        click.echo("\n" + "-" * 90)
+        click.echo("Filters:")
+        click.echo("  [1] Search (IP/Hostname)  [2] Filter by OS  [3] Filter by Status  [4] Filter by Tag")
+        click.echo("\nSelection:")
+        click.echo("  [5] Select Host(s)  [6] Deselect All")
+        click.echo("\nActions:")
+        click.echo("  [7] Tag Selected Hosts  [8] Remove Tag from Selected  [9] View Host Details")
+        click.echo("\n  [0] Back to Results Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                filters['search'] = _hosts_filter_search()
+            elif choice == 2:
+                filters['os_name'] = _hosts_filter_os()
+            elif choice == 3:
+                filters['status'] = _hosts_filter_status()
+            elif choice == 4:
+                filters['tags'] = _hosts_filter_by_tag(workspace_id, hm)
+            elif choice == 5:
+                _hosts_select(hosts, selected_hosts)
+            elif choice == 6:
+                selected_hosts.clear()
+                click.echo(click.style("✓ All selections cleared", fg='green'))
+                click.pause()
+            elif choice == 7:
+                if selected_hosts:
+                    _hosts_bulk_tag(selected_hosts, hm)
+                else:
+                    click.echo(click.style("No hosts selected", fg='yellow'))
+                    click.pause()
+            elif choice == 8:
+                if selected_hosts:
+                    _hosts_bulk_remove_tag(selected_hosts, hm, workspace_id)
+                else:
+                    click.echo(click.style("No hosts selected", fg='yellow'))
+                    click.pause()
+            elif choice == 9:
+                if hosts:
+                    _hosts_view_details(hosts, hm)
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _hosts_filter_search():
+    """Prompt for search term."""
+    try:
+        search = click.prompt("Search term (IP/Hostname, or press Enter to clear)", default="", show_default=False)
+        return search if search else None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _hosts_filter_os():
+    """Prompt for OS filter."""
+    try:
+        os_name = click.prompt("OS name (or press Enter to clear)", default="", show_default=False)
+        return os_name if os_name else None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _hosts_filter_status():
+    """Prompt for status filter."""
+    click.echo("\nSelect status:")
+    click.echo("  [1] Up (live)")
+    click.echo("  [2] Down")
+    click.echo("  [3] All")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Status", type=int, default=1)
+        if choice == 1:
+            return 'up'
+        elif choice == 2:
+            return 'down'
+        elif choice == 3:
+            return None
+        return 'up'  # default
+    except (KeyboardInterrupt, click.Abort):
+        return 'up'
+
+
+def _hosts_filter_by_tag(workspace_id: int, hm: 'HostManager'):
+    """Prompt for tag filter."""
+    tags = hm.get_all_tags(workspace_id)
+
+    if not tags:
+        click.echo(click.style("No tags available", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nSelect tag:")
+    for idx, tag in enumerate(tags, 1):
+        click.echo(f"  [{idx}] {tag}")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Tag", type=int, default=0)
+        if choice > 0 and choice <= len(tags):
+            return tags[choice - 1]
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _hosts_select(hosts: list, selected_hosts: set):
+    """Select hosts by ID."""
+    try:
+        host_ids = click.prompt("Enter host ID(s) to toggle selection (comma-separated)", default="", show_default=False)
+        if not host_ids:
+            return
+
+        ids = [int(x.strip()) for x in host_ids.split(',') if x.strip().isdigit()]
+
+        for hid in ids:
+            if hid in selected_hosts:
+                selected_hosts.remove(hid)
+            else:
+                # Verify host exists in current list
+                if any(h.get('id') == hid for h in hosts):
+                    selected_hosts.add(hid)
+
+        click.echo(click.style(f"✓ Selection updated ({len(selected_hosts)} selected)", fg='green'))
+        click.pause()
+    except (ValueError, KeyboardInterrupt, click.Abort):
+        pass
+
+
+def _hosts_bulk_tag(selected_hosts: set, hm: 'HostManager'):
+    """Add tag to selected hosts."""
+    try:
+        tag = click.prompt("Tag to add", type=str)
+        if not tag:
+            return
+
+        success_count = 0
+        for hid in selected_hosts:
+            if hm.add_tag(hid, tag):
+                success_count += 1
+
+        click.echo(click.style(f"✓ Tagged {success_count} host(s) with '{tag}'", fg='green'))
+        click.pause()
+    except (KeyboardInterrupt, click.Abort):
+        pass
+
+
+def _hosts_bulk_remove_tag(selected_hosts: set, hm: 'HostManager', workspace_id: int):
+    """Remove tag from selected hosts."""
+    tags = hm.get_all_tags(workspace_id)
+
+    if not tags:
+        click.echo(click.style("No tags available", fg='yellow'))
+        click.pause()
+        return
+
+    click.echo("\nSelect tag to remove:")
+    for idx, tag in enumerate(tags, 1):
+        click.echo(f"  [{idx}] {tag}")
+
+    try:
+        choice = click.prompt("Tag", type=int, default=0)
+        if choice > 0 and choice <= len(tags):
+            tag = tags[choice - 1]
+
+            success_count = 0
+            for hid in selected_hosts:
+                if hm.remove_tag(hid, tag):
+                    success_count += 1
+
+            click.echo(click.style(f"✓ Removed tag '{tag}' from {success_count} host(s)", fg='green'))
+            click.pause()
+    except (KeyboardInterrupt, click.Abort, ValueError):
+        pass
+
+
+def _hosts_view_details(hosts: list, hm: 'HostManager'):
+    """View detailed information about a specific host."""
+    try:
+        host_id = click.prompt("Enter host ID to view details", type=int)
+
+        host = next((h for h in hosts if h.get('id') == host_id), None)
+        if not host:
+            click.echo(click.style("Host not found", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo(f"HOST DETAILS - {host.get('ip_address', 'N/A')}")
+        click.echo("=" * 70 + "\n")
+
+        click.echo(f"ID:           {host.get('id')}")
+        click.echo(f"IP Address:   {host.get('ip_address', 'N/A')}")
+        click.echo(f"Hostname:     {host.get('hostname') or 'N/A'}")
+        click.echo(f"OS:           {host.get('os_name') or 'N/A'}")
+        click.echo(f"MAC Address:  {host.get('mac_address') or 'N/A'}")
+        click.echo(f"Status:       {host.get('status', 'unknown')}")
+        click.echo(f"Tags:         {host.get('tags') or 'None'}")
+
+        # Show services
+        services = hm.get_host_services(host_id)
+        click.echo(f"\nServices: {len(services)}")
+        if services:
+            click.echo(f"\n{'Port':<7} {'Protocol':<10} {'Service':<15}")
+            click.echo("-" * 40)
+            for svc in services[:10]:  # Show first 10
+                port = svc.get('port', '?')
+                protocol = svc.get('protocol', 'tcp')
+                service = (svc.get('service_name') or 'unknown')[:15]
+                click.echo(f"{port:<7} {protocol:<10} {service:<15}")
+
+            if len(services) > 10:
+                click.echo(f"... and {len(services) - 10} more")
+
+        click.echo()
+        click.pause("Press any key to return...")
+    except (KeyboardInterrupt, click.Abort, ValueError):
+        pass
 
 
 def view_services(workspace_id: int):

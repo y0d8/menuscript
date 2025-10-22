@@ -221,3 +221,139 @@ class HostManager:
             "SELECT * FROM hosts WHERE workspace_id = ? AND ip_address = ?",
             (workspace_id, ip)
         )
+
+    def search_hosts(
+        self,
+        workspace_id: int,
+        search: str = None,
+        os_name: str = None,
+        status: str = None,
+        tags: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search and filter hosts.
+
+        Args:
+            workspace_id: Workspace ID
+            search: Search in IP address and hostname
+            os_name: Filter by OS name (partial match)
+            status: Filter by status (up/down)
+            tags: Filter by tag (partial match)
+
+        Returns:
+            List of matching hosts
+        """
+        query = "SELECT * FROM hosts WHERE workspace_id = ?"
+        params = [workspace_id]
+
+        if search:
+            query += " AND (ip_address LIKE ? OR hostname LIKE ?)"
+            search_pattern = f"%{search}%"
+            params.append(search_pattern)
+            params.append(search_pattern)
+
+        if os_name:
+            query += " AND os_name LIKE ?"
+            params.append(f"%{os_name}%")
+
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        if tags:
+            query += " AND tags LIKE ?"
+            params.append(f"%{tags}%")
+
+        query += " ORDER BY ip_address"
+
+        return self.db.execute(query, tuple(params))
+
+    def add_tag(self, host_id: int, tag: str) -> bool:
+        """
+        Add a tag to a host.
+
+        Args:
+            host_id: Host ID
+            tag: Tag to add
+
+        Returns:
+            True if successful
+        """
+        host = self.db.execute_one("SELECT tags FROM hosts WHERE id = ?", (host_id,))
+        if not host:
+            return False
+
+        current_tags = host.get('tags', '') or ''
+        tag_list = [t.strip() for t in current_tags.split(',') if t.strip()]
+
+        # Add tag if not already present
+        if tag not in tag_list:
+            tag_list.append(tag)
+
+        new_tags = ', '.join(tag_list)
+
+        try:
+            self.db.execute("UPDATE hosts SET tags = ? WHERE id = ?", (new_tags, host_id))
+            return True
+        except Exception:
+            return False
+
+    def remove_tag(self, host_id: int, tag: str) -> bool:
+        """
+        Remove a tag from a host.
+
+        Args:
+            host_id: Host ID
+            tag: Tag to remove
+
+        Returns:
+            True if successful
+        """
+        host = self.db.execute_one("SELECT tags FROM hosts WHERE id = ?", (host_id,))
+        if not host:
+            return False
+
+        current_tags = host.get('tags', '') or ''
+        tag_list = [t.strip() for t in current_tags.split(',') if t.strip()]
+
+        # Remove tag if present
+        if tag in tag_list:
+            tag_list.remove(tag)
+
+        new_tags = ', '.join(tag_list)
+
+        try:
+            self.db.execute("UPDATE hosts SET tags = ? WHERE id = ?", (new_tags, host_id))
+            return True
+        except Exception:
+            return False
+
+    def set_tags(self, host_id: int, tags: str) -> bool:
+        """
+        Set tags for a host (replaces existing tags).
+
+        Args:
+            host_id: Host ID
+            tags: Comma-separated tags
+
+        Returns:
+            True if successful
+        """
+        try:
+            self.db.execute("UPDATE hosts SET tags = ? WHERE id = ?", (tags, host_id))
+            return True
+        except Exception:
+            return False
+
+    def get_all_tags(self, workspace_id: int) -> List[str]:
+        """Get list of all unique tags used in workspace."""
+        hosts = self.db.execute("SELECT tags FROM hosts WHERE workspace_id = ?", (workspace_id,))
+
+        all_tags = set()
+        for host in hosts:
+            tags_str = host.get('tags', '') or ''
+            if tags_str:
+                tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+                all_tags.update(tags)
+
+        return sorted(list(all_tags))
