@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetasploitV5>
+  <hosts>
+    <host>
+      <address>10.0.0.5</address>
+      <mac>00:0c:29:68:5f:2a</mac>
+      <name>dc01.lab.local</name>
+      <state>up</state>
+      <os-name>Windows</os-name>
+      <os-flavor>Server 2019</os-flavor>
+      <os-sp>Standard</os-sp>
+      <purpose>server</purpose>
+      <info></info>
+      <comments></comments>
+      <services>
+        <service>
+          <port>445</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>microsoft-ds</name>
+          <info>Windows Server 2019 Standard microsoft-ds</info>
+        </service>
+        <service>
+          <port>139</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>netbios-ssn</name>
+          <info>Windows Server 2019 Standard netbios-ssn</info>
+        </service>
+        <service>
+          <port>135</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>msrpc</name>
+          <info>Microsoft Windows RPC</info>
+        </service>
+        <service>
+          <port>88</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>kerberos</name>
+          <info>Microsoft Windows Kerberos</info>
+        </service>
+      </services>
+    </host>
+
+    <host>
+      <address>10.0.0.10</address>
+      <mac>00:0c:29:a4:b3:1c</mac>
+      <name>web01.lab.local</name>
+      <state>up</state>
+      <os-name>Ubuntu</os-name>
+      <os-flavor>Linux</os-flavor>
+      <services>
+        <service>
+          <port>80</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>http</name>
+          <info>Apache httpd 2.4.41</info>
+        </service>
+        <service>
+          <port>22</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>ssh</name>
+          <info>OpenSSH 8.2p1 Ubuntu</info>
+        </service>
+        <service>
+          <port>3306</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>mysql</name>
+          <info>MySQL 5.7.33</info>
+        </service>
+      </services>
+    </host>
+
+    <host>
+      <address>10.0.0.15</address>
+      <name>db01.lab.local</name>
+      <state>up</state>
+      <os-name>Ubuntu</os-name>
+      <services>
+        <service>
+          <port>5432</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>postgresql</name>
+          <info>PostgreSQL DB 9.6.0</info>
+        </service>
+        <service>
+          <port>22</port>
+          <proto>tcp</proto>
+          <state>open</state>
+          <name>ssh</name>
+          <info>OpenSSH 7.4</info>
+        </service>
+      </services>
+    </host>
+  </hosts>
+
+  <creds>
+    <cred>
+      <username>admin</username>
+      <password>Password123!</password>
+      <type>password</type>
+      <host>
+        <address>10.0.0.5</address>
+      </host>
+      <service>
+        <name>smb</name>
+        <port>445</port>
+      </service>
+    </cred>
+
+    <cred>
+      <username>root</username>
+      <password>toor</password>
+      <type>password</type>
+      <host>
+        <address>10.0.0.10</address>
+      </host>
+      <service>
+        <name>mysql</name>
+        <port>3306</port>
+      </service>
+    </cred>
+
+    <cred>
+      <username>postgres</username>
+      <password>postgres</password>
+      <type>password</type>
+      <host>
+        <address>10.0.0.15</address>
+      </host>
+      <service>
+        <name>postgresql</name>
+        <port>5432</port>
+      </service>
+    </cred>
+
+    <cred>
+      <username>webadmin</username>
+      <type>username</type>
+      <host>
+        <address>10.0.0.10</address>
+      </host>
+      <service>
+        <name>http</name>
+        <port>80</port>
+      </service>
+    </cred>
+  </creds>
+
+  <vulns>
+    <vuln>
+      <name>MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption</name>
+      <host>
+        <address>10.0.0.5</address>
+      </host>
+      <port>445</port>
+      <refs>
+        <ref>CVE-2017-0143</ref>
+        <ref>CVE-2017-0144</ref>
+        <ref>CVE-2017-0145</ref>
+        <ref>MSB-MS17-010</ref>
+      </refs>
+      <info>The target is vulnerable to EternalBlue (MS17-010), which allows remote code execution.</info>
+    </vuln>
+
+    <vuln>
+      <name>Apache HTTP Server 2.4.41 - Multiple Vulnerabilities</name>
+      <host>
+        <address>10.0.0.10</address>
+      </host>
+      <port>80</port>
+      <refs>
+        <ref>CVE-2020-1927</ref>
+        <ref>CVE-2020-1934</ref>
+      </refs>
+      <info>The Apache HTTP server version is vulnerable to path traversal and mod_proxy_ftp use-after-free.</info>
+    </vuln>
+
+    <vuln>
+      <name>MySQL Weak Password</name>
+      <host>
+        <address>10.0.0.10</address>
+      </host>
+      <port>3306</port>
+      <info>MySQL root account is configured with a weak password that can be easily brute-forced.</info>
+    </vuln>
+
+    <vuln>
+      <name>PostgreSQL Default Credentials</name>
+      <host>
+        <address>10.0.0.15</address>
+      </host>
+      <port>5432</port>
+      <info>PostgreSQL is using default credentials (postgres/postgres).</info>
+    </vuln>
+  </vulns>
+</MetasploitV5>

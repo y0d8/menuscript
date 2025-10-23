@@ -58,7 +58,7 @@ def render_header(engagement_name: str, engagement_id: int, width: int):
 
     # Quick actions bar (bold/highlighted)
     lines.append("┏" + "━" * (width - 2) + "┓")
-    actions_text = " QUICK ACTIONS: [m] Menu  [h] Hosts  [s] Services  [f] Findings  [j] Jobs  [q] Quit "
+    actions_text = " QUICK ACTIONS: [m] Menu  [h] Hosts  [s] Services  [f] Findings  [c] Creds  [j] Jobs  [q] Quit "
     actions_padding = width - len(actions_text) - 2
     lines.append("┃" + click.style(actions_text + " " * actions_padding, bold=True, fg='cyan') + "┃")
     lines.append("┗" + "━" * (width - 2) + "┛")
@@ -628,7 +628,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
     engagement_name = current_ws['name']
 
     click.echo(click.style(f"\nStarting live dashboard for workspace '{engagement_name}'...", fg='green'))
-    click.echo(click.style("Press 'm' for menu, 'q' to quit, or Ctrl+C to exit\n", fg='yellow'))
+    click.echo(click.style("Press 'x' to refresh, 'm' for menu, 'r' for reports, 'q' to quit, or Ctrl+C to exit\n", fg='yellow'))
     time.sleep(1)
 
     last_followed_job_id = None
@@ -653,6 +653,9 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                 if user_input:
                     if user_input.lower() == 'q':
                         break
+                    elif user_input.lower() == 'x':
+                        # Manual refresh - just clear and loop
+                        clear_screen()
                     elif user_input.lower() == 'm':
                         _show_dashboard_menu(engagement_id)
                         clear_screen()
@@ -668,9 +671,16 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                         from menuscript.ui.interactive import view_findings
                         view_findings(engagement_id)
                         clear_screen()
+                    elif user_input.lower() == 'c':
+                        view_credentials(engagement_id)
+                        clear_screen()
                     elif user_input.lower() == 'j':
                         from menuscript.ui.interactive import view_jobs_menu
                         view_jobs_menu()
+                        clear_screen()
+                    elif user_input.lower() == 'r':
+                        from menuscript.ui.interactive import manage_reports_menu
+                        manage_reports_menu()
                         clear_screen()
                 continue
 
@@ -712,6 +722,9 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                 if user_input:
                     if user_input.lower() == 'q':
                         break
+                    elif user_input.lower() == 'x':
+                        # Manual refresh - just clear and loop
+                        clear_screen()
                     elif user_input.lower() == 'm':
                         _show_dashboard_menu(engagement_id)
                         clear_screen()
@@ -727,9 +740,16 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                         from menuscript.ui.interactive import view_findings
                         view_findings(engagement_id)
                         clear_screen()
+                    elif user_input.lower() == 'c':
+                        view_credentials(engagement_id)
+                        clear_screen()
                     elif user_input.lower() == 'j':
                         from menuscript.ui.interactive import view_jobs_menu
                         view_jobs_menu()
+                        clear_screen()
+                    elif user_input.lower() == 'r':
+                        from menuscript.ui.interactive import manage_reports_menu
+                        manage_reports_menu()
                         clear_screen()
 
     except KeyboardInterrupt:
@@ -781,16 +801,20 @@ def _show_dashboard_menu(engagement_id: int):
                click.style("[2]", fg='cyan') + "  🔌 Services       - Browse open ports and services")
     click.echo("    " + click.style("[f]", fg='cyan', bold=True) + " or " +
                click.style("[3]", fg='cyan') + "  🔍 Findings       - Review vulnerabilities and issues")
+    click.echo("    " + click.style("[c]", fg='cyan', bold=True) + " or " +
+               click.style("[4]", fg='cyan') + "  🔑 Credentials    - View discovered users and passwords")
     click.echo("    " + click.style("[j]", fg='cyan', bold=True) + " or " +
-               click.style("[4]", fg='cyan') + "  ⚡ Jobs           - Manage scanning tasks")
+               click.style("[5]", fg='cyan') + "  ⚡ Jobs           - Manage scanning tasks")
     click.echo()
-    click.echo("                " + click.style("[5]", fg='cyan') + "  🌐 Web Paths      - View discovered web directories")
-    click.echo("                " + click.style("[6]", fg='cyan') + "  📡 OSINT Data     - View gathered intelligence")
+    click.echo("                " + click.style("[6]", fg='cyan') + "  🌐 Web Paths      - View discovered web directories")
+    click.echo("                " + click.style("[7]", fg='cyan') + "  📡 OSINT Data     - View gathered intelligence")
     click.echo()
 
     # Actions section
     click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
     click.echo("  ─" * 38)
+    click.echo("    " + click.style("[r]", fg='magenta', bold=True) + " or " +
+               click.style("[8]", fg='magenta') + "  📄 Manage Reports  - View, generate, or delete reports")
     click.echo("    " + click.style("[q]", fg='red', bold=True) + " or " +
                click.style("[0]", fg='red') + "  ← Return to Live Dashboard")
     click.echo()
@@ -807,9 +831,11 @@ def _show_dashboard_menu(engagement_id: int):
             'h': 1, '1': 1,
             's': 2, '2': 2,
             'f': 3, '3': 3,
-            'j': 4, '4': 4,
-            '5': 5,
+            'c': 4, '4': 4,
+            'j': 5, '5': 5,
             '6': 6,
+            '7': 7,
+            'r': 8, '8': 8,
             'q': 0, '0': 0, '': 0
         }
 
@@ -825,14 +851,236 @@ def _show_dashboard_menu(engagement_id: int):
             from menuscript.ui.interactive import view_findings
             view_findings(engagement_id)
         elif choice_num == 4:
+            view_credentials(engagement_id)
+        elif choice_num == 5:
             from menuscript.ui.interactive import view_jobs_menu
             view_jobs_menu()
-        elif choice_num == 5:
+        elif choice_num == 6:
             from menuscript.ui.interactive import view_web_paths
             view_web_paths(engagement_id)
-        elif choice_num == 6:
+        elif choice_num == 7:
             from menuscript.ui.interactive import view_osint
             view_osint(engagement_id)
+        elif choice_num == 8:
+            from menuscript.ui.interactive import manage_reports_menu
+            manage_reports_menu()
 
     except (KeyboardInterrupt, EOFError):
         pass
+
+
+def view_credentials(engagement_id: int):
+    """View all discovered credentials (similar to MSF's creds command)."""
+    from menuscript.storage.credentials import CredentialsManager
+    from menuscript.storage.engagements import EngagementManager
+
+    em = EngagementManager()
+    engagement = em.get_by_id(engagement_id)
+    engagement_name = engagement['name'] if engagement else 'Unknown'
+
+    click.clear()
+
+    # Header
+    click.echo("\n┌" + "─" * 138 + "┐")
+    click.echo("│" + click.style(f" CREDENTIALS - Engagement: {engagement_name} ".center(138), bold=True, fg='green') + "│")
+    click.echo("└" + "─" * 138 + "┘")
+    click.echo()
+
+    cm = CredentialsManager()
+    creds = cm.list_credentials(engagement_id)
+
+    if not creds:
+        click.echo(click.style("  No credentials found yet.", fg='yellow'))
+        click.echo()
+        click.echo("  💡 Credentials will appear here when discovered by:")
+        click.echo("     • MSF auxiliary modules (ssh_enumusers, ssh_login, etc.)")
+        click.echo("     • Brute force scans")
+        click.echo("     • User enumeration modules")
+        click.echo()
+    else:
+        # Show stats first - compact format
+        stats = cm.get_stats(engagement_id)
+        click.echo()
+        click.echo(click.style("  📊 SUMMARY", bold=True, fg='cyan'))
+        click.echo(f"     Total: {stats['total']}  |  " +
+                   click.style(f"Valid: {stats['valid']}", fg='green', bold=True) +
+                   f"  |  Usernames: {stats['users_only']}  |  Pairs: {stats['pairs']}")
+        click.echo()
+
+        # Separate valid and untested credentials
+        valid_creds = [c for c in creds if c.get('status') == 'valid']
+        untested_creds = [c for c in creds if c.get('status') != 'valid']
+
+        # Show valid credentials prominently
+        if valid_creds:
+            click.echo(click.style("  🔓 VALID CREDENTIALS (Confirmed Working)", bold=True, fg='green'))
+            click.echo("  " + "─" * 100)
+            click.echo(f"     {'Username':<20} {'Password':<20} {'Service':<10} {'Host':<18} {'Tool':<15}")
+            click.echo("  " + "─" * 100)
+
+            for cred in valid_creds:
+                username = cred.get('username', '')[:19]
+                password = cred.get('password', '')[:19]
+                service = cred.get('service', 'N/A')[:9]
+                host = cred.get('ip_address', 'N/A')[:17]
+                tool = cred.get('tool', 'N/A')[:14]
+
+                click.echo(
+                    "  " + click.style("✓", fg='green', bold=True) + " " +
+                    click.style(f"{username:<20} {password:<20}", fg='green', bold=True) +
+                    f" {service:<10} {host:<18} {tool:<15}"
+                )
+
+            click.echo("  " + "─" * 100)
+            click.echo()
+
+        # Show discovered usernames (untested) - minimal view
+        if untested_creds:
+            click.echo(click.style(f"  🔍 DISCOVERED USERNAMES ({len(untested_creds)} untested)", bold=True, fg='cyan'))
+            click.echo("  " + "─" * 80)
+
+            # Group by service
+            by_service = {}
+            for cred in untested_creds:
+                service = cred.get('service', 'unknown')
+                if service not in by_service:
+                    by_service[service] = []
+                by_service[service].append(cred.get('username', ''))
+
+            # Show count only
+            for service, usernames in sorted(by_service.items()):
+                click.echo(f"     {service.upper():<8} ({len(usernames)} users)")
+
+            click.echo("  " + "─" * 80)
+            click.echo()
+            click.echo(click.style("     💡 Press 'u' to view/manage untested usernames", fg='yellow'))
+            click.echo()
+
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  [u] View Untested  [ENTER] Return to dashboard", fg='cyan'), nl=False)
+
+    try:
+        choice = input().strip().lower()
+        if choice == 'u' and untested_creds:
+            view_untested_usernames(engagement_id)
+    except (KeyboardInterrupt, EOFError):
+        pass
+
+
+def view_untested_usernames(engagement_id: int):
+    """View and manage untested usernames."""
+    from menuscript.storage.credentials import CredentialsManager
+    from menuscript.storage.engagements import EngagementManager
+
+    em = EngagementManager()
+    engagement = em.get_by_id(engagement_id)
+    engagement_name = engagement['name'] if engagement else 'Unknown'
+
+    click.clear()
+
+    # Header
+    click.echo("\n┌" + "─" * 78 + "┐")
+    click.echo("│" + click.style(f" DISCOVERED USERNAMES - {engagement_name} ".center(78), bold=True, fg='cyan') + "│")
+    click.echo("└" + "─" * 78 + "┘")
+    click.echo()
+
+    cm = CredentialsManager()
+    all_creds = cm.list_credentials(engagement_id)
+    untested = [c for c in all_creds if c.get('status') != 'valid' and c.get('username')]
+
+    if not untested:
+        click.echo(click.style("  No untested usernames found.", fg='yellow'))
+        click.echo()
+    else:
+        # Group by service
+        by_service = {}
+        for cred in untested:
+            service = cred.get('service', 'unknown')
+            if service not in by_service:
+                by_service[service] = []
+            by_service[service].append(cred.get('username', ''))
+
+        # Show each service with expandable view
+        for service, usernames in sorted(by_service.items()):
+            click.echo(click.style(f"  {service.upper()} ({len(usernames)} users)", bold=True, fg='cyan'))
+            click.echo("  " + "─" * 76)
+
+            # Show usernames in columns
+            sorted_users = sorted(usernames)
+            cols = 4
+            col_width = 18
+
+            for i in range(0, len(sorted_users), cols):
+                row = sorted_users[i:i+cols]
+                formatted_row = ''.join([f"{u[:17]:<{col_width}}" for u in row])
+                click.echo(f"    {formatted_row}")
+
+            click.echo()
+
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  Options:", bold=True))
+    click.echo("    [1] Export to file")
+    click.echo("    [2] Launch brute force attack with these users")
+    click.echo("    [0] Return")
+    click.echo()
+    click.echo(click.style("  Select option: ", fg='cyan'), nl=False)
+
+    try:
+        choice = input().strip()
+
+        if choice == '1':
+            # Export to file
+            export_usernames_to_file(engagement_id, untested)
+            click.echo()
+            click.echo(click.style("  Press ENTER to continue...", fg='cyan'), nl=False)
+            input()
+
+        elif choice == '2':
+            # Launch brute force
+            click.echo()
+            click.echo(click.style("  Feature coming soon: Quick launch brute force", fg='yellow'))
+            click.echo(click.style("  For now, use: menuscript interactive > MSF Auxiliary > SSH Brute Force", fg='cyan'))
+            click.echo()
+            click.echo(click.style("  Press ENTER to continue...", fg='cyan'), nl=False)
+            input()
+
+    except (KeyboardInterrupt, EOFError):
+        pass
+
+
+def export_usernames_to_file(engagement_id: int, untested_creds: list):
+    """Export untested usernames to a file."""
+    import os
+    from menuscript.storage.engagements import EngagementManager
+
+    em = EngagementManager()
+    engagement = em.get_by_id(engagement_id)
+    engagement_name = engagement['name'] if engagement else 'unknown'
+
+    # Group by service
+    by_service = {}
+    for cred in untested_creds:
+        service = cred.get('service', 'unknown')
+        if service not in by_service:
+            by_service[service] = []
+        by_service[service].append(cred.get('username', ''))
+
+    # Create filename
+    filename = f"usernames_{engagement_name}_{int(time.time())}.txt"
+    filepath = os.path.join(os.getcwd(), filename)
+
+    try:
+        with open(filepath, 'w') as f:
+            for service, usernames in sorted(by_service.items()):
+                f.write(f"# {service.upper()} ({len(usernames)} users)\n")
+                for username in sorted(usernames):
+                    f.write(f"{username}\n")
+                f.write("\n")
+
+        click.echo()
+        click.echo(click.style(f"  ✓ Exported {len(untested_creds)} usernames to:", fg='green'))
+        click.echo(f"    {filepath}")
+
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f"  ✗ Error exporting: {e}", fg='red'))
