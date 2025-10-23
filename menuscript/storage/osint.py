@@ -14,7 +14,7 @@ class OsintManager:
 
     def add_osint_data(
         self,
-        workspace_id: int,
+        engagement_id: int,
         data_type: str,
         value: str,
         source: str = None
@@ -23,7 +23,7 @@ class OsintManager:
         Add OSINT data to the database.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             data_type: Type of data (email, host, ip, url, asn, etc.)
             value: The actual data value
             source: Source tool/method (e.g., 'theHarvester')
@@ -33,8 +33,8 @@ class OsintManager:
         """
         # Check if this exact entry already exists
         existing = self.db.execute_one(
-            "SELECT id FROM osint_data WHERE workspace_id = ? AND data_type = ? AND value = ?",
-            (workspace_id, data_type, value)
+            "SELECT id FROM osint_data WHERE engagement_id = ? AND data_type = ? AND value = ?",
+            (engagement_id, data_type, value)
         )
 
         if existing:
@@ -48,7 +48,7 @@ class OsintManager:
 
         # Insert new data
         data = {
-            'workspace_id': workspace_id,
+            'engagement_id': engagement_id,
             'data_type': data_type,
             'value': value
         }
@@ -60,7 +60,7 @@ class OsintManager:
 
     def bulk_add_osint_data(
         self,
-        workspace_id: int,
+        engagement_id: int,
         data_type: str,
         values: List[str],
         source: str = None
@@ -69,7 +69,7 @@ class OsintManager:
         Add multiple OSINT data entries of the same type.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             data_type: Type of data
             values: List of values to add
             source: Source tool/method
@@ -81,11 +81,11 @@ class OsintManager:
         for value in values:
             # Check if exists
             existing = self.db.execute_one(
-                "SELECT id FROM osint_data WHERE workspace_id = ? AND data_type = ? AND value = ?",
-                (workspace_id, data_type, value)
+                "SELECT id FROM osint_data WHERE engagement_id = ? AND data_type = ? AND value = ?",
+                (engagement_id, data_type, value)
             )
             if not existing:
-                self.add_osint_data(workspace_id, data_type, value, source)
+                self.add_osint_data(engagement_id, data_type, value, source)
                 count += 1
         return count
 
@@ -96,7 +96,7 @@ class OsintManager:
 
     def list_osint_data(
         self,
-        workspace_id: int,
+        engagement_id: int,
         data_type: str = None,
         source: str = None
     ) -> List[Dict[str, Any]]:
@@ -104,15 +104,15 @@ class OsintManager:
         List OSINT data with optional filters.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             data_type: Filter by data type (optional)
             source: Filter by source (optional)
 
         Returns:
             List of OSINT data dicts
         """
-        query = "SELECT * FROM osint_data WHERE workspace_id = ?"
-        params = [workspace_id]
+        query = "SELECT * FROM osint_data WHERE engagement_id = ?"
+        params = [engagement_id]
 
         if data_type:
             query += " AND data_type = ?"
@@ -126,7 +126,7 @@ class OsintManager:
 
         return self.db.execute(query, tuple(params))
 
-    def get_osint_summary(self, workspace_id: int) -> Dict[str, int]:
+    def get_osint_summary(self, engagement_id: int) -> Dict[str, int]:
         """
         Get summary of OSINT data by type.
 
@@ -136,10 +136,10 @@ class OsintManager:
         query = """
             SELECT data_type, COUNT(*) as count
             FROM osint_data
-            WHERE workspace_id = ?
+            WHERE engagement_id = ?
             GROUP BY data_type
         """
-        results = self.db.execute(query, (workspace_id,))
+        results = self.db.execute(query, (engagement_id,))
 
         summary = {}
         for row in results:

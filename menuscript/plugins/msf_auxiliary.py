@@ -14,75 +14,35 @@ HELP = {
     "description": "Metasploit Framework auxiliary scanners (non-interactive)",
     "usage": "menuscript jobs enqueue msf_auxiliary <target> --args \"<module_path>\"",
     "examples": [
-        "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/smb/smb_version\"",
+        "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/ssh/ssh_enumusers\"",
+        "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/smtp/smtp_enum\"",
+        "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/nfs/nfsmount\"",
+        "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/smb/smb_enumshares\"",
         "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/ssh/ssh_login USERNAME=root PASSWORD=toor\"",
         "menuscript jobs enqueue msf_auxiliary 10.0.0.1/24 --args \"auxiliary/scanner/ssh/ssh_login USER_FILE=/usr/share/metasploit-framework/data/wordlists/root_userpass.txt USERPASS_FILE=/usr/share/metasploit-framework/data/wordlists/root_userpass.txt\"",
         "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/mysql/mysql_login USERNAME=root PASS_FILE=/usr/share/wordlists/rockyou.txt THREADS=5\"",
-        "menuscript jobs enqueue msf_auxiliary 10.0.0.0/24 --args \"auxiliary/scanner/portscan/tcp THREADS=10\"",
     ],
     "preset_categories": {
-        "version_detection": [
-            {
-                "name": "SMB Version",
-                "args": ["auxiliary/scanner/smb/smb_version"],
-                "desc": "Detect SMB version and OS info"
-            },
-            {
-                "name": "SSH Version",
-                "args": ["auxiliary/scanner/ssh/ssh_version"],
-                "desc": "Detect SSH server version"
-            },
-            {
-                "name": "FTP Version",
-                "args": ["auxiliary/scanner/ftp/ftp_version"],
-                "desc": "Detect FTP server version"
-            },
-            {
-                "name": "HTTP Version",
-                "args": ["auxiliary/scanner/http/http_version"],
-                "desc": "Detect web server version"
-            },
-            {
-                "name": "MySQL Version",
-                "args": ["auxiliary/scanner/mysql/mysql_version"],
-                "desc": "Detect MySQL version"
-            },
-            {
-                "name": "PostgreSQL Version",
-                "args": ["auxiliary/scanner/postgres/postgres_version"],
-                "desc": "Detect PostgreSQL version"
-            },
-            {
-                "name": "MSSQL Ping",
-                "args": ["auxiliary/scanner/mssql/mssql_ping"],
-                "desc": "Discover MSSQL instances"
-            }
-        ],
         "login_bruteforce": [
             {
-                "name": "SSH Login",
+                "name": "SSH Brute Force",
                 "args": ["auxiliary/scanner/ssh/ssh_login"],
                 "desc": "Brute force SSH authentication"
             },
             {
-                "name": "Telnet Login",
-                "args": ["auxiliary/scanner/telnet/telnet_login"],
-                "desc": "Brute force Telnet authentication"
+                "name": "RDP Brute Force",
+                "args": ["auxiliary/scanner/rdp/rdp_login"],
+                "desc": "Brute force RDP authentication"
             },
             {
-                "name": "MySQL Login",
+                "name": "SMB Brute Force",
+                "args": ["auxiliary/scanner/smb/smb_login"],
+                "desc": "Brute force SMB/Windows authentication"
+            },
+            {
+                "name": "MySQL Brute Force",
                 "args": ["auxiliary/scanner/mysql/mysql_login"],
                 "desc": "Brute force MySQL authentication"
-            },
-            {
-                "name": "RLogin",
-                "args": ["auxiliary/scanner/rservices/rlogin_login"],
-                "desc": "Brute force rlogin authentication"
-            },
-            {
-                "name": "VNC Login",
-                "args": ["auxiliary/scanner/vnc/vnc_login"],
-                "desc": "Brute force VNC authentication"
             }
         ],
         "enumeration": [
@@ -92,36 +52,32 @@ HELP = {
                 "desc": "Enumerate SMB shares"
             },
             {
-                "name": "VNC None Auth",
-                "args": ["auxiliary/scanner/vnc/vnc_none_auth"],
-                "desc": "Detect VNC servers with no auth"
-            }
-        ],
-        "other": [
+                "name": "SSH Users",
+                "args": ["auxiliary/scanner/ssh/ssh_enumusers"],
+                "desc": "Enumerate SSH users"
+            },
             {
-                "name": "Port Scan",
-                "args": ["auxiliary/scanner/portscan/tcp"],
-                "desc": "Fast TCP port scanner"
+                "name": "SMTP Users",
+                "args": ["auxiliary/scanner/smtp/smtp_enum"],
+                "desc": "Enumerate SMTP users via VRFY/EXPN/RCPT"
+            },
+            {
+                "name": "NFS Mounts",
+                "args": ["auxiliary/scanner/nfs/nfsmount"],
+                "desc": "Enumerate NFS mounts"
             }
         ]
     },
     "presets": [
         # Flattened list for backward compatibility
-        {"name": "SMB Version", "args": ["auxiliary/scanner/smb/smb_version"], "desc": "Detect SMB version and OS info"},
-        {"name": "SSH Version", "args": ["auxiliary/scanner/ssh/ssh_version"], "desc": "Detect SSH server version"},
-        {"name": "FTP Version", "args": ["auxiliary/scanner/ftp/ftp_version"], "desc": "Detect FTP server version"},
-        {"name": "HTTP Version", "args": ["auxiliary/scanner/http/http_version"], "desc": "Detect web server version"},
-        {"name": "MySQL Version", "args": ["auxiliary/scanner/mysql/mysql_version"], "desc": "Detect MySQL version"},
-        {"name": "PostgreSQL Version", "args": ["auxiliary/scanner/postgres/postgres_version"], "desc": "Detect PostgreSQL version"},
-        {"name": "MSSQL Ping", "args": ["auxiliary/scanner/mssql/mssql_ping"], "desc": "Discover MSSQL instances"},
-        {"name": "SSH Login", "args": ["auxiliary/scanner/ssh/ssh_login"], "desc": "Brute force SSH authentication"},
-        {"name": "Telnet Login", "args": ["auxiliary/scanner/telnet/telnet_login"], "desc": "Brute force Telnet authentication"},
-        {"name": "MySQL Login", "args": ["auxiliary/scanner/mysql/mysql_login"], "desc": "Brute force MySQL authentication"},
-        {"name": "RLogin", "args": ["auxiliary/scanner/rservices/rlogin_login"], "desc": "Brute force rlogin authentication"},
-        {"name": "VNC Login", "args": ["auxiliary/scanner/vnc/vnc_login"], "desc": "Brute force VNC authentication"},
+        {"name": "SSH Brute Force", "args": ["auxiliary/scanner/ssh/ssh_login"], "desc": "Brute force SSH authentication"},
+        {"name": "RDP Brute Force", "args": ["auxiliary/scanner/rdp/rdp_login"], "desc": "Brute force RDP authentication"},
+        {"name": "SMB Brute Force", "args": ["auxiliary/scanner/smb/smb_login"], "desc": "Brute force SMB/Windows authentication"},
+        {"name": "MySQL Brute Force", "args": ["auxiliary/scanner/mysql/mysql_login"], "desc": "Brute force MySQL authentication"},
         {"name": "SMB Shares", "args": ["auxiliary/scanner/smb/smb_enumshares"], "desc": "Enumerate SMB shares"},
-        {"name": "VNC None Auth", "args": ["auxiliary/scanner/vnc/vnc_none_auth"], "desc": "Detect VNC servers with no auth"},
-        {"name": "Port Scan", "args": ["auxiliary/scanner/portscan/tcp"], "desc": "Fast TCP port scanner"}
+        {"name": "SSH Users", "args": ["auxiliary/scanner/ssh/ssh_enumusers"], "desc": "Enumerate SSH users"},
+        {"name": "SMTP Users", "args": ["auxiliary/scanner/smtp/smtp_enum"], "desc": "Enumerate SMTP users via VRFY/EXPN/RCPT"},
+        {"name": "NFS Mounts", "args": ["auxiliary/scanner/nfs/nfsmount"], "desc": "Enumerate NFS mounts"}
     ],
     "common_options": {
         "RHOSTS": "Target host(s) - IP, range, or CIDR (e.g., 10.0.0.1 or 10.0.0.0/24)",

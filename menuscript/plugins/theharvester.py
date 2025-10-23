@@ -17,28 +17,47 @@ HELP = {
     "examples": [
         "menuscript jobs enqueue theharvester example.com --args \"-b google\"",
         "menuscript jobs enqueue theharvester example.com --args \"-b all\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b certspotter,crtsh\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b linkedin -l 200\"",
     ],
     "flags": [
-        ["-b <source>", "Data source (google, bing, linkedin, all, etc.)"],
+        ["-b <source>", "Data source (google, bing, linkedin, certspotter, crtsh, dnsdumpster, etc.)"],
         ["-l <limit>", "Limit results (default 500)"],
         ["-s <start>", "Start at result number X"],
+        ["-f <file>", "Save results to HTML/XML file"],
     ],
+    "preset_categories": {
+        "active_sources": [
+            {
+                "name": "Google Search",
+                "args": ["-b", "google", "-l", "500"],
+                "desc": "Search Google for emails/subdomains/hosts"
+            },
+            {
+                "name": "Quick Search",
+                "args": ["-b", "google,bing", "-l", "100"],
+                "desc": "Quick search engine scan (100 results)"
+            }
+        ],
+        "passive_sources": [
+            {
+                "name": "Certificate Logs",
+                "args": ["-b", "certspotter,crtsh"],
+                "desc": "Certificate transparency logs (subdomains)"
+            },
+            {
+                "name": "Comprehensive Passive",
+                "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,threatcrowd,virustotal"],
+                "desc": "All passive sources (no active queries)"
+            }
+        ]
+    },
     "presets": [
-        {
-            "name": "Google Search",
-            "args": ["-b", "google", "-l", "500"],
-            "desc": "Search Google for emails/subdomains"
-        },
-        {
-            "name": "All Sources",
-            "args": ["-b", "all", "-l", "500"],
-            "desc": "Search all available sources"
-        },
-        {
-            "name": "Quick Scan",
-            "args": ["-b", "google,bing", "-l", "100"],
-            "desc": "Quick scan (Google + Bing)"
-        },
+        # Flattened list for backward compatibility
+        {"name": "Google Search", "args": ["-b", "google", "-l", "500"], "desc": "Search Google for emails/subdomains/hosts"},
+        {"name": "Quick Search", "args": ["-b", "google,bing", "-l", "100"], "desc": "Quick search engine scan (100 results)"},
+        {"name": "Certificate Logs", "args": ["-b", "certspotter,crtsh"], "desc": "Certificate transparency logs (subdomains)"},
+        {"name": "Comprehensive Passive", "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,threatcrowd,virustotal"], "desc": "All passive sources (no active queries)"}
     ]
 }
 

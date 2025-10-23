@@ -24,39 +24,39 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if status != 'done' or not log_path or not os.path.exists(log_path):
         return None
     
-    # Get current workspace
+    # Get current engagement
     try:
-        from menuscript.storage.workspaces import WorkspaceManager
-        wm = WorkspaceManager()
-        workspace = wm.get_current()
-        
-        if not workspace:
+        from menuscript.storage.engagements import EngagementManager
+        em = EngagementManager()
+        engagement = em.get_current()
+
+        if not engagement:
             return None
-        
-        workspace_id = workspace['id']
+
+        engagement_id = engagement['id']
     except Exception:
         return None
-    
+
     # Route to appropriate parser
     if tool == 'nmap':
-        return parse_nmap_job(workspace_id, log_path, job)
+        return parse_nmap_job(engagement_id, log_path, job)
     elif tool == 'nikto':
-        return parse_nikto_job(workspace_id, log_path, job)
+        return parse_nikto_job(engagement_id, log_path, job)
     elif tool == 'theharvester':
-        return parse_theharvester_job(workspace_id, log_path, job)
+        return parse_theharvester_job(engagement_id, log_path, job)
     elif tool == 'gobuster':
-        return parse_gobuster_job(workspace_id, log_path, job)
+        return parse_gobuster_job(engagement_id, log_path, job)
     elif tool == 'enum4linux':
-        return parse_enum4linux_job(workspace_id, log_path, job)
+        return parse_enum4linux_job(engagement_id, log_path, job)
     elif tool == 'msf_auxiliary':
-        return parse_msf_auxiliary_job(workspace_id, log_path, job)
+        return parse_msf_auxiliary_job(engagement_id, log_path, job)
     elif tool == 'sqlmap':
-        return parse_sqlmap_job(workspace_id, log_path, job)
+        return parse_sqlmap_job(engagement_id, log_path, job)
 
     return None
 
 
-def parse_nmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_nmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse nmap job results."""
     try:
         from menuscript.parsers.nmap_parser import parse_nmap_log
@@ -70,7 +70,7 @@ def parse_nmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dic
 
         # Import into database
         hm = HostManager()
-        result = hm.import_nmap_results(workspace_id, parsed)
+        result = hm.import_nmap_results(engagement_id, parsed)
 
         # Build host details list for summary
         host_details = []
@@ -111,7 +111,7 @@ def parse_nmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dic
         return {'error': str(e)}
 
 
-def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_nikto_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse nikto job results."""
     try:
         from menuscript.parsers.nikto_parser import parse_nikto_output, format_finding_title
@@ -132,7 +132,7 @@ def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Di
 
         if parsed['target_ip']:
             # Add or update host
-            host_id = hm.add_or_update_host(workspace_id, {
+            host_id = hm.add_or_update_host(engagement_id, {
                 'ip': parsed['target_ip'],
                 'hostname': parsed.get('target_host'),
                 'status': 'up'
@@ -146,7 +146,7 @@ def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Di
             title = format_finding_title(finding)
 
             fm.add_finding(
-                workspace_id=workspace_id,
+                engagement_id=engagement_id,
                 host_id=host_id,
                 title=title,
                 finding_type='web_vulnerability',
@@ -169,7 +169,7 @@ def parse_nikto_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Di
         return {'error': str(e)}
 
 
-def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_theharvester_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse theHarvester job results."""
     try:
         from menuscript.parsers.theharvester_parser import parse_theharvester_output, get_osint_stats
@@ -190,27 +190,27 @@ def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]
 
         # Add emails
         if parsed['emails']:
-            count = om.bulk_add_osint_data(workspace_id, 'email', parsed['emails'], 'theHarvester')
+            count = om.bulk_add_osint_data(engagement_id, 'email', parsed['emails'], 'theHarvester')
             osint_added += count
 
         # Add hosts/subdomains
         if parsed['hosts']:
-            count = om.bulk_add_osint_data(workspace_id, 'host', parsed['hosts'], 'theHarvester')
+            count = om.bulk_add_osint_data(engagement_id, 'host', parsed['hosts'], 'theHarvester')
             osint_added += count
 
         # Add IPs
         if parsed['ips']:
-            count = om.bulk_add_osint_data(workspace_id, 'ip', parsed['ips'], 'theHarvester')
+            count = om.bulk_add_osint_data(engagement_id, 'ip', parsed['ips'], 'theHarvester')
             osint_added += count
 
         # Add URLs
         if parsed['urls']:
-            count = om.bulk_add_osint_data(workspace_id, 'url', parsed['urls'], 'theHarvester')
+            count = om.bulk_add_osint_data(engagement_id, 'url', parsed['urls'], 'theHarvester')
             osint_added += count
 
         # Add ASNs
         if parsed['asns']:
-            count = om.bulk_add_osint_data(workspace_id, 'asn', parsed['asns'], 'theHarvester')
+            count = om.bulk_add_osint_data(engagement_id, 'asn', parsed['asns'], 'theHarvester')
             osint_added += count
 
         # Also add discovered IPs and hosts to the hosts table if they look valid
@@ -220,7 +220,7 @@ def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]
         for ip in parsed['ips']:
             try:
                 # Try to add IP as a host
-                hm.add_or_update_host(workspace_id, {
+                hm.add_or_update_host(engagement_id, {
                     'ip': ip,
                     'status': 'unknown'
                 })
@@ -240,7 +240,7 @@ def parse_theharvester_job(workspace_id: int, log_path: str, job: Dict[str, Any]
         return {'error': str(e)}
 
 
-def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_gobuster_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse gobuster job results."""
     try:
         from menuscript.parsers.gobuster_parser import parse_gobuster_output, get_paths_stats
@@ -266,7 +266,7 @@ def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) ->
 
             if hostname:
                 # Try to find existing host by hostname
-                hosts = hm.list_hosts(workspace_id)
+                hosts = hm.list_hosts(engagement_id)
                 for host in hosts:
                     if host.get('hostname') == hostname or host.get('ip_address') == hostname:
                         host_id = host['id']
@@ -279,7 +279,7 @@ def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) ->
                     is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname)
 
                     if is_ip:
-                        host_id = hm.add_or_update_host(workspace_id, {
+                        host_id = hm.add_or_update_host(engagement_id, {
                             'ip': hostname,
                             'status': 'up'
                         })
@@ -308,7 +308,7 @@ def parse_gobuster_job(workspace_id: int, log_path: str, job: Dict[str, Any]) ->
         return {'error': str(e)}
 
 
-def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_enum4linux_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse enum4linux job results."""
     try:
         from menuscript.parsers.enum4linux_parser import parse_enum4linux_output, get_smb_stats, categorize_share
@@ -333,12 +333,12 @@ def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) 
             is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', parsed['target'])
 
             if is_ip:
-                host = hm.get_host_by_ip(workspace_id, parsed['target'])
+                host = hm.get_host_by_ip(engagement_id, parsed['target'])
                 if host:
                     host_id = host['id']
                 else:
                     # Create host
-                    host_id = hm.add_or_update_host(workspace_id, {
+                    host_id = hm.add_or_update_host(engagement_id, {
                         'ip': parsed['target'],
                         'status': 'up'
                     })
@@ -375,7 +375,7 @@ def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) 
             description = f"Share: {share_name}\nType: {share_type}\nComment: {share.get('comment', 'N/A')}\nAccess: {access_desc}"
 
             fm.add_finding(
-                workspace_id=workspace_id,
+                engagement_id=engagement_id,
                 host_id=host_id,
                 title=title,
                 finding_type='smb_share',
@@ -400,7 +400,7 @@ def parse_enum4linux_job(workspace_id: int, log_path: str, job: Dict[str, Any]) 
         return {'error': str(e)}
 
 
-def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def parse_sqlmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
     """Parse sqlmap job results."""
     try:
         from menuscript.parsers.sqlmap_parser import parse_sqlmap_output, get_sqli_stats
@@ -430,17 +430,17 @@ def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> D
                 is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname)
 
                 if is_ip:
-                    host = hm.get_host_by_ip(workspace_id, hostname)
+                    host = hm.get_host_by_ip(engagement_id, hostname)
                     if host:
                         host_id = host['id']
                     else:
-                        host_id = hm.add_or_update_host(workspace_id, {
+                        host_id = hm.add_or_update_host(engagement_id, {
                             'ip': hostname,
                             'status': 'up'
                         })
                 else:
                     # Try to match by hostname
-                    hosts = hm.list_hosts(workspace_id)
+                    hosts = hm.list_hosts(engagement_id)
                     for h in hosts:
                         if h.get('hostname') == hostname:
                             host_id = h['id']
@@ -478,7 +478,7 @@ def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> D
                 description += f"\nDBMS: {vuln['dbms']}"
 
             fm.add_finding(
-                workspace_id=workspace_id,
+                engagement_id=engagement_id,
                 host_id=host_id,
                 title=title,
                 finding_type=finding_type,
@@ -502,7 +502,7 @@ def parse_sqlmap_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> D
     except Exception as e:
         return {'error': str(e)}
 
-def parse_msf_auxiliary_job(workspace_id: int, log_path: str, job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def parse_msf_auxiliary_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Parse MSF auxiliary module job results."""
     try:
         from menuscript.parsers.msf_parser import parse_msf_log
@@ -523,9 +523,9 @@ def parse_msf_auxiliary_job(workspace_id: int, log_path: str, job: Dict[str, Any
         findings_added = 0
 
         # Get or create host
-        host = hm.get_host_by_ip(workspace_id, target)
+        host = hm.get_host_by_ip(engagement_id, target)
         if not host:
-            host_id = hm.add_host(workspace_id, target)
+            host_id = hm.add_host(engagement_id, target)
         else:
             host_id = host['id']
 
@@ -544,7 +544,7 @@ def parse_msf_auxiliary_job(workspace_id: int, log_path: str, job: Dict[str, Any
         # Add findings
         for finding in parsed.get('findings', []):
             fm.add_finding(
-                workspace_id=workspace_id,
+                engagement_id=engagement_id,
                 host_id=host_id,
                 title=finding.get('title'),
                 finding_type='credential' if 'credential' in finding.get('title', '').lower() else 'security_issue',

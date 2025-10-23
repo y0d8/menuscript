@@ -108,7 +108,7 @@ class WebPathsManager:
     def list_web_paths(
         self,
         host_id: int = None,
-        workspace_id: int = None,
+        engagement_id: int = None,
         status_code: int = None
     ) -> List[Dict[str, Any]]:
         """
@@ -116,20 +116,20 @@ class WebPathsManager:
 
         Args:
             host_id: Filter by host ID (optional)
-            workspace_id: Filter by workspace ID (optional)
+            engagement_id: Filter by engagement ID (optional)
             status_code: Filter by HTTP status code (optional)
 
         Returns:
             List of web path dicts
         """
-        if workspace_id:
+        if engagement_id:
             query = """
                 SELECT wp.*, h.ip_address, h.hostname
                 FROM web_paths wp
                 JOIN hosts h ON wp.host_id = h.id
-                WHERE h.workspace_id = ?
+                WHERE h.engagement_id = ?
             """
-            params = [workspace_id]
+            params = [engagement_id]
         elif host_id:
             query = """
                 SELECT wp.*, h.ip_address, h.hostname
@@ -143,14 +143,14 @@ class WebPathsManager:
             params = []
 
         if status_code is not None:
-            query += " AND wp.status_code = ?" if workspace_id or host_id else " AND status_code = ?"
+            query += " AND wp.status_code = ?" if engagement_id or host_id else " AND status_code = ?"
             params.append(status_code)
 
         query += " ORDER BY wp.created_at DESC"
 
         return self.db.execute(query, tuple(params))
 
-    def get_paths_summary(self, workspace_id: int) -> Dict[str, int]:
+    def get_paths_summary(self, engagement_id: int) -> Dict[str, int]:
         """
         Get summary of web paths by status code.
 
@@ -161,10 +161,10 @@ class WebPathsManager:
             SELECT wp.status_code, COUNT(*) as count
             FROM web_paths wp
             JOIN hosts h ON wp.host_id = h.id
-            WHERE h.workspace_id = ?
+            WHERE h.engagement_id = ?
             GROUP BY wp.status_code
         """
-        results = self.db.execute(query, (workspace_id,))
+        results = self.db.execute(query, (engagement_id,))
 
         summary = {}
         for row in results:

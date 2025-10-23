@@ -18,38 +18,101 @@ HELP = {
         "menuscript jobs enqueue sqlmap \"http://example.com/page.php?id=1\" --args \"--batch\"",
         "menuscript jobs enqueue sqlmap \"http://example.com/page.php?id=1\" --args \"--batch --dbs\"",
         "menuscript jobs enqueue sqlmap \"http://example.com/login\" --args \"--batch --forms\"",
+        "menuscript jobs enqueue sqlmap \"http://example.com/page.php?id=1\" --args \"--batch --level=5 --risk=3\"",
+        "menuscript jobs enqueue sqlmap \"http://example.com/page.php\" --args \"--batch --data='username=admin&password=pass' -p username\"",
     ],
     "flags": [
         ["--batch", "Never ask for user input, use default behavior"],
         ["--dbs", "Enumerate databases"],
         ["--tables", "Enumerate tables"],
+        ["--columns", "Enumerate columns"],
         ["--dump", "Dump database table entries"],
+        ["--dump-all", "Dump all database tables"],
         ["--forms", "Parse and test forms"],
+        ["--crawl=N", "Crawl website starting from target URL (depth N)"],
         ["-p <param>", "Testable parameter(s)"],
+        ["--data=<data>", "Data string to be sent through POST"],
+        ["--cookie=<cookie>", "HTTP Cookie header value"],
         ["--level <1-5>", "Level of tests (1-5, default 1)"],
         ["--risk <1-3>", "Risk of tests (1-3, default 1)"],
+        ["--technique=<tech>", "SQL injection techniques to use (default BEUSTQ)"],
+        ["--dbms=<dbms>", "Force back-end DBMS (MySQL, Oracle, PostgreSQL, etc.)"],
+        ["--os-shell", "Prompt for an interactive OS shell"],
+        ["--sql-shell", "Prompt for an SQL shell"],
+        ["--tamper=<script>", "Use tamper script(s) for WAF/IPS evasion"],
     ],
+    "preset_categories": {
+        "basic_detection": [
+            {
+                "name": "Quick Test",
+                "args": ["--batch", "--level=1", "--risk=1"],
+                "desc": "Quick SQL injection test (safe, low risk)"
+            },
+            {
+                "name": "Standard Test",
+                "args": ["--batch", "--level=2", "--risk=1"],
+                "desc": "Standard detection (includes cookies/headers)"
+            }
+        ],
+        "form_crawl": [
+            {
+                "name": "Forms Quick",
+                "args": ["--batch", "--forms", "--level=1"],
+                "desc": "Test forms only (no crawl)"
+            },
+            {
+                "name": "Forms + Crawl",
+                "args": ["--batch", "--forms", "--crawl=2"],
+                "desc": "Test forms and crawl 2 levels"
+            }
+        ],
+        "enumeration": [
+            {
+                "name": "Current User Info",
+                "args": ["--batch", "--current-user", "--current-db", "--hostname"],
+                "desc": "Get current user, database, and hostname"
+            }
+        ],
+        "exploitation_workflow": [
+            {
+                "name": "Discover Databases",
+                "args": ["--batch", "--dbs", "--level=3", "--crawl=2"],
+                "desc": "Enumerate databases with deep crawl"
+            },
+            {
+                "name": "Enumerate Tables",
+                "args": ["--batch", "-D", "<DB_NAME>", "--tables", "--crawl=2"],
+                "desc": "List tables in database (replace <DB_NAME>)"
+            },
+            {
+                "name": "Enumerate Columns",
+                "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "--columns", "--crawl=2"],
+                "desc": "List columns in table (replace <DB_NAME> and <TABLE>)"
+            },
+            {
+                "name": "Extract Table Data",
+                "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "--dump", "--crawl=2"],
+                "desc": "Dump entire table (replace <DB_NAME> and <TABLE>)"
+            },
+            {
+                "name": "Extract Column Data",
+                "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "-C", "<COLUMNS>", "--dump", "--crawl=2"],
+                "desc": "Dump specific columns (e.g., username,password)"
+            }
+        ]
+    },
     "presets": [
-        {
-            "name": "Quick Test",
-            "args": ["--batch", "--level=1", "--risk=1"],
-            "desc": "Quick SQL injection test (safe)"
-        },
-        {
-            "name": "Deep Test",
-            "args": ["--batch", "--level=3", "--risk=2"],
-            "desc": "Thorough SQL injection test"
-        },
-        {
-            "name": "Forms Test",
-            "args": ["--batch", "--forms", "--crawl=2"],
-            "desc": "Test forms and crawl 2 levels"
-        },
-        {
-            "name": "Enumerate DBs",
-            "args": ["--batch", "--dbs"],
-            "desc": "Detect SQLi and enumerate databases"
-        },
+        # Flattened list for backward compatibility
+        {"name": "Quick Test", "args": ["--batch", "--level=1", "--risk=1"], "desc": "Quick SQL injection test (safe, low risk)"},
+        {"name": "Standard Test", "args": ["--batch", "--level=2", "--risk=1"], "desc": "Standard detection (includes cookies/headers)"},
+        {"name": "Forms Quick", "args": ["--batch", "--forms", "--level=1"], "desc": "Test forms only (no crawl)"},
+        {"name": "Forms + Crawl", "args": ["--batch", "--forms", "--crawl=2"], "desc": "Test forms and crawl 2 levels"},
+        {"name": "Current User Info", "args": ["--batch", "--current-user", "--current-db", "--hostname"], "desc": "Get current user, database, and hostname"},
+        {"name": "Discover Databases", "args": ["--batch", "--dbs", "--level=3", "--crawl=2"], "desc": "Enumerate databases with deep crawl"},
+        {"name": "Enumerate Tables", "args": ["--batch", "-D", "<DB_NAME>", "--tables", "--crawl=2"], "desc": "List tables in database (replace <DB_NAME>)"},
+        {"name": "Enumerate Columns", "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "--columns", "--crawl=2"], "desc": "List columns in table (replace <DB_NAME> and <TABLE>)"},
+        {"name": "Extract Table Data", "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "--dump", "--crawl=2"], "desc": "Dump entire table (replace <DB_NAME> and <TABLE>)"},
+        {"name": "Extract Column Data", "args": ["--batch", "-D", "<DB_NAME>", "-T", "<TABLE>", "-C", "<COLUMNS>", "--dump", "--crawl=2"], "desc": "Dump specific columns (e.g., username,password)"}
     ]
 }
 

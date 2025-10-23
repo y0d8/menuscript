@@ -14,7 +14,7 @@ class FindingsManager:
 
     def add_finding(
         self,
-        workspace_id: int,
+        engagement_id: int,
         title: str,
         finding_type: str,
         severity: str = 'info',
@@ -29,7 +29,7 @@ class FindingsManager:
         Add a finding to the database.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             title: Finding title/summary
             finding_type: Type of finding (e.g., 'web_vulnerability', 'misconfiguration', etc.)
             severity: Severity level ('critical', 'high', 'medium', 'low', 'info')
@@ -44,7 +44,7 @@ class FindingsManager:
             Finding ID
         """
         data = {
-            'workspace_id': workspace_id,
+            'engagement_id': engagement_id,
             'title': title,
             'finding_type': finding_type,
             'severity': severity
@@ -72,7 +72,7 @@ class FindingsManager:
 
     def list_findings(
         self,
-        workspace_id: int,
+        engagement_id: int,
         host_id: int = None,
         severity: str = None,
         tool: str = None,
@@ -84,7 +84,7 @@ class FindingsManager:
         List findings with optional filters.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             host_id: Filter by host ID (optional)
             severity: Filter by severity (optional)
             tool: Filter by tool (optional)
@@ -102,9 +102,9 @@ class FindingsManager:
                 h.hostname
             FROM findings f
             LEFT JOIN hosts h ON f.host_id = h.id
-            WHERE f.workspace_id = ?
+            WHERE f.engagement_id = ?
         """
-        params = [workspace_id]
+        params = [engagement_id]
 
         if host_id:
             query += " AND f.host_id = ?"
@@ -168,7 +168,7 @@ class FindingsManager:
         except Exception:
             return False
 
-    def get_findings_summary(self, workspace_id: int) -> Dict[str, int]:
+    def get_findings_summary(self, engagement_id: int) -> Dict[str, int]:
         """
         Get summary of findings by severity.
 
@@ -178,10 +178,10 @@ class FindingsManager:
         query = """
             SELECT severity, COUNT(*) as count
             FROM findings
-            WHERE workspace_id = ?
+            WHERE engagement_id = ?
             GROUP BY severity
         """
-        results = self.db.execute(query, (workspace_id,))
+        results = self.db.execute(query, (engagement_id,))
 
         summary = {
             'critical': 0,
@@ -199,24 +199,24 @@ class FindingsManager:
 
         return summary
 
-    def get_unique_types(self, workspace_id: int) -> List[str]:
-        """Get list of unique finding types in workspace."""
+    def get_unique_types(self, engagement_id: int) -> List[str]:
+        """Get list of unique finding types in engagement."""
         query = """
             SELECT DISTINCT finding_type
             FROM findings
-            WHERE workspace_id = ? AND finding_type IS NOT NULL
+            WHERE engagement_id = ? AND finding_type IS NOT NULL
             ORDER BY finding_type
         """
-        results = self.db.execute(query, (workspace_id,))
+        results = self.db.execute(query, (engagement_id,))
         return [row['finding_type'] for row in results if row.get('finding_type')]
 
-    def get_unique_tools(self, workspace_id: int) -> List[str]:
-        """Get list of unique tools that generated findings in workspace."""
+    def get_unique_tools(self, engagement_id: int) -> List[str]:
+        """Get list of unique tools that generated findings in engagement."""
         query = """
             SELECT DISTINCT tool
             FROM findings
-            WHERE workspace_id = ? AND tool IS NOT NULL
+            WHERE engagement_id = ? AND tool IS NOT NULL
             ORDER BY tool
         """
-        results = self.db.execute(query, (workspace_id,))
+        results = self.db.execute(query, (engagement_id,))
         return [row['tool'] for row in results if row.get('tool')]

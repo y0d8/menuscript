@@ -17,20 +17,74 @@ HELP = {
         "menuscript jobs enqueue nmap 10.0.0.0/24 --args \"-vv -sn\"",
         "menuscript jobs enqueue nmap 10.0.0.82 --args \"-v -PS -F\"",
         "menuscript jobs enqueue nmap 10.0.0.82 --args \"-vv -sV -O -p1-65535\"",
+        "menuscript jobs enqueue nmap 10.0.0.82 --args \"-sU -sV --top-ports 100\"",
+        "menuscript jobs enqueue nmap 10.0.0.82 --args \"--script vuln\"",
     ],
     "flags": [
         ["-sn", "Ping scan (no port scan)"],
+        ["-sS", "TCP SYN scan (stealth)"],
+        ["-sU", "UDP scan"],
         ["-sV", "Service/version detection"],
         ["-O", "OS detection"],
         ["-v/-vv", "Verbose/Very verbose output"],
-        ["-PS", "TCP SYN ping"],
         ["-F", "Fast scan (top 100 ports)"],
-        ["-p1-65535", "Scan all TCP ports"]
+        ["-p1-65535", "Scan all TCP ports"],
+        ["--top-ports N", "Scan N most common ports"],
+        ["-sC/--script", "Run default/specific NSE scripts"],
+        ["-T0 to -T5", "Timing template (0=slowest, 5=fastest)"]
     ],
+    "preset_categories": {
+        "basic_scans": [
+            {
+                "name": "Discovery",
+                "args": ["-vv", "-sn"],
+                "desc": "Ping sweep (no port scan)"
+            },
+            {
+                "name": "Fast Scan",
+                "args": ["-v", "-PS", "-F"],
+                "desc": "Fast port scan (top 100 ports)"
+            },
+            {
+                "name": "Full Scan",
+                "args": ["-vv", "-sV", "-O", "-p1-65535"],
+                "desc": "Deep scan (all ports, version, OS)"
+            }
+        ],
+        "service_detection": [
+            {
+                "name": "Service Detection",
+                "args": ["-sV", "-sC", "--open"],
+                "desc": "Service detection + safe NSE scripts"
+            },
+            {
+                "name": "Vulnerability Scan",
+                "args": ["-sV", "--script", "vuln", "--open"],
+                "desc": "Detect known vulnerabilities (CVEs)"
+            }
+        ],
+        "specialized": [
+            {
+                "name": "UDP Scan",
+                "args": ["-sU", "-sV", "--top-ports", "100"],
+                "desc": "Scan top 100 UDP ports with version detection"
+            },
+            {
+                "name": "SMB Enumeration",
+                "args": ["-p445", "--script", "smb-enum-shares,smb-enum-users,smb-os-discovery"],
+                "desc": "SMB enumeration scripts"
+            }
+        ]
+    },
     "presets": [
-        {"name": "Discovery", "args": ["-vv", "-sn"], "desc": "Ping sweep (very verbose)"},
-        {"name": "Fast", "args": ["-v", "-PS", "-F"], "desc": "Fast port scan (top 100 ports)"},
-        {"name": "Full", "args": ["-vv", "-sV", "-O", "-p1-65535"], "desc": "Deep scan (all ports, version, OS)"}
+        # Flattened list for backward compatibility
+        {"name": "Discovery", "args": ["-vv", "-sn"], "desc": "Ping sweep (no port scan)"},
+        {"name": "Fast Scan", "args": ["-v", "-PS", "-F"], "desc": "Fast port scan (top 100 ports)"},
+        {"name": "Full Scan", "args": ["-vv", "-sV", "-O", "-p1-65535"], "desc": "Deep scan (all ports, version, OS)"},
+        {"name": "Service Detection", "args": ["-sV", "-sC", "--open"], "desc": "Service detection + safe NSE scripts"},
+        {"name": "Vulnerability Scan", "args": ["-sV", "--script", "vuln", "--open"], "desc": "Detect known vulnerabilities (CVEs)"},
+        {"name": "UDP Scan", "args": ["-sU", "-sV", "--top-ports", "100"], "desc": "Scan top 100 UDP ports with version detection"},
+        {"name": "SMB Enumeration", "args": ["-p445", "--script", "smb-enum-shares,smb-enum-users,smb-os-discovery"], "desc": "SMB enumeration scripts"}
     ]
 }
 

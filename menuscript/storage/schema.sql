@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS workspaces (
+CREATE TABLE IF NOT EXISTS engagements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     description TEXT,
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
 
 CREATE TABLE IF NOT EXISTS hosts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id INTEGER NOT NULL,
+    engagement_id INTEGER NOT NULL,
     ip_address TEXT NOT NULL,
     hostname TEXT,
     os_name TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS services (
 
 CREATE TABLE IF NOT EXISTS findings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id INTEGER NOT NULL,
+    engagement_id INTEGER NOT NULL,
     host_id INTEGER,
     service_id INTEGER,
     finding_type TEXT NOT NULL,
@@ -60,15 +60,15 @@ CREATE TABLE IF NOT EXISTS web_paths (
 
 CREATE TABLE IF NOT EXISTS osint_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id INTEGER NOT NULL,
+    engagement_id INTEGER NOT NULL,
     data_type TEXT NOT NULL,
     value TEXT NOT NULL,
     source TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_hosts_workspace ON hosts(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_hosts_engagement ON hosts(engagement_id);
 CREATE INDEX IF NOT EXISTS idx_hosts_ip ON hosts(ip_address);
 CREATE INDEX IF NOT EXISTS idx_services_host ON services(host_id);
-CREATE INDEX IF NOT EXISTS idx_findings_workspace ON findings(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_findings_engagement ON findings(engagement_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);

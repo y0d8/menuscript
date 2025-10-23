@@ -9,7 +9,7 @@ from pathlib import Path
 
 try:
     from menuscript.engine.background import enqueue_job, list_jobs, get_job, start_worker, worker_loop
-    from menuscript.storage.workspaces import WorkspaceManager
+    from menuscript.storage.engagements import EngagementManager
     from menuscript.ui.interactive import run_interactive_menu
     from menuscript.ui.dashboard import run_dashboard
 except ImportError as e:
@@ -39,45 +39,45 @@ def dashboard(follow, refresh):
 
 
 @cli.group()
-def workspace():
-    """Workspace management (like msf workspaces)."""
+def engagement():
+    """Engagement management - organize your penetration testing engagements."""
     pass
 
 
-@workspace.command("create")
+@engagement.command("create")
 @click.argument("name")
-@click.option("--description", "-d", default="", help="Workspace description")
-def workspace_create(name, description):
-    """Create a new workspace."""
-    wm = WorkspaceManager()
+@click.option("--description", "-d", default="", help="Engagement description")
+def engagement_create(name, description):
+    """Create a new engagement."""
+    em = EngagementManager()
     try:
-        ws_id = wm.create(name, description)
-        click.echo(f"✓ Created workspace '{name}' (id={ws_id})")
+        eng_id = em.create(name, description)
+        click.echo(f"✓ Created engagement '{name}' (id={eng_id})")
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
 
 
-@workspace.command("list")
-def workspace_list():
-    """List all workspaces."""
-    wm = WorkspaceManager()
-    workspaces = wm.list()
-    current = wm.get_current()
+@engagement.command("list")
+def engagement_list():
+    """List all engagements."""
+    em = EngagementManager()
+    engagements = em.list()
+    current = em.get_current()
     
-    if not workspaces:
-        click.echo("No workspaces found. Create one with: menuscript workspace create <name>")
+    if not engagements:
+        click.echo("No engagements found. Create one with: menuscript engagement create <name>")
         return
     
     click.echo("\n" + "=" * 80)
-    click.echo("WORKSPACES")
+    click.echo("ENGAGEMENTS")
     click.echo("=" * 80)
     
-    for ws in workspaces:
-        marker = "* " if current and ws['id'] == current['id'] else "  "
-        stats = wm.stats(ws['id'])
-        click.echo(f"{marker}{ws['name']:<20} | Hosts: {stats['hosts']:>3} | Services: {stats['services']:>3} | Findings: {stats['findings']:>3}")
-        if ws.get('description'):
-            click.echo(f"  └─ {ws['description']}")
+    for eng in engagements:
+        marker = "* " if current and eng['id'] == current['id'] else "  "
+        stats = em.stats(eng['id'])
+        click.echo(f"{marker}{eng['name']:<20} | Hosts: {stats['hosts']:>3} | Services: {stats['services']:>3} | Findings: {stats['findings']:>3}")
+        if eng.get('description'):
+            click.echo(f"  └─ {eng['description']}")
     
     click.echo("=" * 80)
     if current:
@@ -85,34 +85,34 @@ def workspace_list():
     click.echo()
 
 
-@workspace.command("use")
+@engagement.command("use")
 @click.argument("name")
-def workspace_use(name):
-    """Switch to a workspace."""
-    wm = WorkspaceManager()
-    if wm.set_current(name):
+def engagement_use(name):
+    """Switch to an engagement."""
+    em = EngagementManager()
+    if em.set_current(name):
         click.echo(f"✓ Switched to workspace '{name}'")
     else:
         click.echo(f"✗ Workspace '{name}' not found", err=True)
-        click.echo("Available workspaces:")
-        for ws in wm.list():
-            click.echo(f"  - {ws['name']}")
+        click.echo("Available engagements:")
+        for eng in em.list():
+            click.echo(f"  - {eng['name']}")
 
 
-@workspace.command("current")
-def workspace_current():
-    """Show current workspace."""
-    wm = WorkspaceManager()
-    current = wm.get_current()
+@engagement.command("current")
+def engagement_current():
+    """Show current engagement."""
+    em = EngagementManager()
+    current = em.get_current()
     
     if not current:
-        click.echo("No workspace selected")
+        click.echo("No engagement selected")
         return
     
-    stats = wm.stats(current['id'])
+    stats = em.stats(current['id'])
     
     click.echo("\n" + "=" * 60)
-    click.echo(f"Current Workspace: {current['name']}")
+    click.echo(f"Current Engagement: {current['name']}")
     click.echo("=" * 60)
     click.echo(f"Description: {current.get('description', 'N/A')}")
     click.echo(f"Created: {current.get('created_at', 'N/A')}")
@@ -124,21 +124,21 @@ def workspace_current():
     click.echo("=" * 60 + "\n")
 
 
-@workspace.command("delete")
+@engagement.command("delete")
 @click.argument("name")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
-def workspace_delete(name, force):
-    """Delete a workspace and all its data."""
-    wm = WorkspaceManager()
-    ws = wm.get(name)
+def engagement_delete(name, force):
+    """Delete an engagement and all its data."""
+    em = EngagementManager()
+    eng = em.get(name)
     
-    if not ws:
+    if not eng:
         click.echo(f"✗ Workspace '{name}' not found", err=True)
         return
     
     if not force:
-        stats = wm.stats(ws['id'])
-        click.echo(f"\nWarning: This will delete workspace '{name}' and:")
+        stats = em.stats(eng['id'])
+        click.echo(f"\nWarning: This will delete engagement '{name}' and:")
         click.echo(f"  - {stats['hosts']} hosts")
         click.echo(f"  - {stats['services']} services")
         click.echo(f"  - {stats['findings']} findings")
@@ -147,7 +147,7 @@ def workspace_delete(name, force):
             click.echo("Cancelled")
             return
     
-    if wm.delete(name):
+    if em.delete(name):
         click.echo(f"✓ Deleted workspace '{name}'")
     else:
         click.echo(f"✗ Error deleting workspace", err=True)
@@ -456,28 +456,28 @@ def hosts():
 
 
 @hosts.command("list")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 @click.option("--all", "-a", is_flag=True, help="Show all hosts (including down hosts)")
 @click.option("--status", "-s", default=None, help="Filter by status (up/down/unknown)")
-def hosts_list(workspace, all, status):
-    """List hosts in workspace (default: only live/up hosts)."""
+def hosts_list(engagement, all, status):
+    """List hosts in engagement (default: only live/up hosts)."""
     from menuscript.storage.hosts import HostManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected. Use: menuscript workspace use <name>", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected. Use: menuscript engagement use <name>", err=True)
             return
 
     hm = HostManager()
-    all_hosts = hm.list_hosts(ws['id'])
+    all_hosts = hm.list_hosts(eng['id'])
 
     # Filter hosts
     if status:
@@ -490,7 +490,7 @@ def hosts_list(workspace, all, status):
 
     if not hosts:
         filter_msg = f" with status='{status}'" if status else " (live only)" if not all else ""
-        click.echo(f"No hosts found in workspace '{ws['name']}'{filter_msg}")
+        click.echo(f"No hosts found in workspace '{eng['name']}'{filter_msg}")
         return
 
     # Show filter info in header
@@ -501,7 +501,7 @@ def hosts_list(workspace, all, status):
         filter_info = " (live hosts only)"
 
     click.echo("\n" + "=" * 100)
-    click.echo(f"HOSTS - Workspace: {ws['name']}{filter_info}")
+    click.echo(f"HOSTS - Engagement: {eng['name']}{filter_info}")
     click.echo("=" * 100)
     click.echo(f"{'IP Address':<18} {'Hostname':<30} {'Status':<10} {'OS':<30}")
     click.echo("=" * 100)
@@ -520,29 +520,29 @@ def hosts_list(workspace, all, status):
 
 @hosts.command("show")
 @click.argument("ip_address")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 def hosts_show(ip_address, workspace):
     """Show detailed host information."""
     from menuscript.storage.hosts import HostManager
     
-    wm = WorkspaceManager()
+    em = EngagementManager()
     
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
     
     hm = HostManager()
-    host = hm.get_host_by_ip(ws['id'], ip_address)
+    host = hm.get_host_by_ip(eng['id'], ip_address)
     
     if not host:
-        click.echo(f"✗ Host {ip_address} not found in workspace '{ws['name']}'", err=True)
+        click.echo(f"✗ Host {ip_address} not found in workspace '{eng['name']}'", err=True)
         return
     
     services = hm.get_host_services(host['id'])
@@ -587,29 +587,29 @@ def services():
 
 
 @services.command("list")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 @click.option("--port", "-p", type=int, default=None, help="Filter by port")
-def services_list(workspace, port):
+def services_list(engagement, port):
     """List all services across all hosts."""
     from menuscript.storage.hosts import HostManager
     
-    wm = WorkspaceManager()
+    em = EngagementManager()
     
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
     
     hm = HostManager()
     
     # Get all hosts and their services
-    hosts = hm.list_hosts(ws['id'])
+    hosts = hm.list_hosts(eng['id'])
     
     all_services = []
     for host in hosts:
@@ -623,11 +623,11 @@ def services_list(workspace, port):
                 })
     
     if not all_services:
-        click.echo(f"No services found in workspace '{ws['name']}'")
+        click.echo(f"No services found in workspace '{eng['name']}'")
         return
     
     click.echo("\n" + "=" * 120)
-    click.echo(f"SERVICES - Workspace: {ws['name']}")
+    click.echo(f"SERVICES - Engagement: {eng['name']}")
     if port:
         click.echo(f"Filtered by port: {port}")
     click.echo("=" * 120)
@@ -657,25 +657,25 @@ def findings():
 
 
 @findings.command("list")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 @click.option("--severity", "-s", default=None, help="Filter by severity (critical, high, medium, low, info)")
 @click.option("--tool", "-t", default=None, help="Filter by tool")
 @click.option("--host", "-h", default=None, help="Filter by host IP")
-def findings_list(workspace, severity, tool, host):
-    """List all findings in workspace."""
+def findings_list(engagement, severity, tool, host):
+    """List all findings in engagement."""
     from menuscript.storage.findings import FindingsManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     fm = FindingsManager()
@@ -685,16 +685,16 @@ def findings_list(workspace, severity, tool, host):
     if host:
         from menuscript.storage.hosts import HostManager
         hm = HostManager()
-        host_obj = hm.get_host_by_ip(ws['id'], host)
+        host_obj = hm.get_host_by_ip(eng['id'], host)
         if not host_obj:
             click.echo(f"✗ Host {host} not found", err=True)
             return
         host_id = host_obj['id']
 
-    findings = fm.list_findings(ws['id'], host_id=host_id, severity=severity, tool=tool)
+    findings = fm.list_findings(eng['id'], host_id=host_id, severity=severity, tool=tool)
 
     if not findings:
-        click.echo(f"No findings found in workspace '{ws['name']}'")
+        click.echo(f"No findings found in workspace '{eng['name']}'")
         return
 
     # Get severity color mapping
@@ -707,7 +707,7 @@ def findings_list(workspace, severity, tool, host):
     }
 
     click.echo("\n" + "=" * 140)
-    click.echo(f"FINDINGS - Workspace: {ws['name']}")
+    click.echo(f"FINDINGS - Engagement: {eng['name']}")
     if severity:
         click.echo(f"Filtered by severity: {severity}")
     if tool:
@@ -768,31 +768,31 @@ def findings_show(finding_id):
 
 
 @findings.command("summary")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 def findings_summary(workspace):
     """Show findings summary by severity."""
     from menuscript.storage.findings import FindingsManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     fm = FindingsManager()
-    summary = fm.get_findings_summary(ws['id'])
+    summary = fm.get_findings_summary(eng['id'])
 
     total = sum(summary.values())
 
     click.echo("\n" + "=" * 60)
-    click.echo(f"FINDINGS SUMMARY - Workspace: {ws['name']}")
+    click.echo(f"FINDINGS SUMMARY - Engagement: {eng['name']}")
     click.echo("=" * 60)
     click.echo(f"{'Severity':<15} {'Count':<10} {'Percentage':<15}")
     click.echo("=" * 60)
@@ -829,35 +829,35 @@ def osint():
 
 
 @osint.command("list")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 @click.option("--type", "-t", default=None, help="Filter by data type (email, host, ip, url, asn)")
 @click.option("--source", "-s", default=None, help="Filter by source tool")
-def osint_list(workspace, type, source):
-    """List all OSINT data in workspace."""
+def osint_list(engagement, type, source):
+    """List all OSINT data in engagement."""
     from menuscript.storage.osint import OsintManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     om = OsintManager()
-    osint_data = om.list_osint_data(ws['id'], data_type=type, source=source)
+    osint_data = om.list_osint_data(eng['id'], data_type=type, source=source)
 
     if not osint_data:
-        click.echo(f"No OSINT data found in workspace '{ws['name']}'")
+        click.echo(f"No OSINT data found in workspace '{eng['name']}'")
         return
 
     click.echo("\n" + "=" * 120)
-    click.echo(f"OSINT DATA - Workspace: {ws['name']}")
+    click.echo(f"OSINT DATA - Engagement: {eng['name']}")
     if type:
         click.echo(f"Filtered by type: {type}")
     if source:
@@ -880,35 +880,35 @@ def osint_list(workspace, type, source):
 
 
 @osint.command("summary")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 def osint_summary(workspace):
     """Show OSINT data summary by type."""
     from menuscript.storage.osint import OsintManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     om = OsintManager()
-    summary = om.get_osint_summary(ws['id'])
+    summary = om.get_osint_summary(eng['id'])
 
     total = sum(summary.values())
 
     if total == 0:
-        click.echo(f"No OSINT data found in workspace '{ws['name']}'")
+        click.echo(f"No OSINT data found in workspace '{eng['name']}'")
         return
 
     click.echo("\n" + "=" * 60)
-    click.echo(f"OSINT SUMMARY - Workspace: {ws['name']}")
+    click.echo(f"OSINT SUMMARY - Engagement: {eng['name']}")
     click.echo("=" * 60)
     click.echo(f"{'Type':<15} {'Count':<10} {'Percentage':<15}")
     click.echo("=" * 60)
@@ -938,25 +938,25 @@ def paths():
 
 
 @paths.command("list")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 @click.option("--status", "-s", type=int, default=None, help="Filter by HTTP status code")
 @click.option("--host", "-h", default=None, help="Filter by host IP or hostname")
-def paths_list(workspace, status, host):
+def paths_list(engagement, status, host):
     """List discovered web paths."""
     from menuscript.storage.web_paths import WebPathsManager
     from menuscript.storage.hosts import HostManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     wpm = WebPathsManager()
@@ -965,7 +965,7 @@ def paths_list(workspace, status, host):
     host_id = None
     if host:
         hm = HostManager()
-        hosts = hm.list_hosts(ws['id'])
+        hosts = hm.list_hosts(eng['id'])
         for h in hosts:
             if h.get('hostname') == host or h.get('ip_address') == host:
                 host_id = h['id']
@@ -978,14 +978,14 @@ def paths_list(workspace, status, host):
     if host_id:
         paths = wpm.list_web_paths(host_id=host_id, status_code=status)
     else:
-        paths = wpm.list_web_paths(workspace_id=ws['id'], status_code=status)
+        paths = wpm.list_web_paths(engagement_id=eng['id'], status_code=status)
 
     if not paths:
-        click.echo(f"No web paths found in workspace '{ws['name']}'")
+        click.echo(f"No web paths found in workspace '{eng['name']}'")
         return
 
     click.echo("\n" + "=" * 140)
-    click.echo(f"WEB PATHS - Workspace: {ws['name']}")
+    click.echo(f"WEB PATHS - Engagement: {eng['name']}")
     if status:
         click.echo(f"Filtered by status: {status}")
     if host:
@@ -1021,35 +1021,35 @@ def paths_list(workspace, status, host):
 
 
 @paths.command("summary")
-@click.option("--workspace", "-w", default=None, help="Workspace name (default: current)")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
 def paths_summary(workspace):
     """Show web paths summary by status code."""
     from menuscript.storage.web_paths import WebPathsManager
 
-    wm = WorkspaceManager()
+    em = EngagementManager()
 
     if workspace:
-        ws = wm.get(workspace)
-        if not ws:
+        eng = em.get(workspace)
+        if not eng:
             click.echo(f"✗ Workspace '{workspace}' not found", err=True)
             return
     else:
-        ws = wm.get_current()
-        if not ws:
-            click.echo("✗ No workspace selected", err=True)
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
             return
 
     wpm = WebPathsManager()
-    summary = wpm.get_paths_summary(ws['id'])
+    summary = wpm.get_paths_summary(eng['id'])
 
     total = sum(summary.values())
 
     if total == 0:
-        click.echo(f"No web paths found in workspace '{ws['name']}'")
+        click.echo(f"No web paths found in workspace '{eng['name']}'")
         return
 
     click.echo("\n" + "=" * 60)
-    click.echo(f"WEB PATHS SUMMARY - Workspace: {ws['name']}")
+    click.echo(f"WEB PATHS SUMMARY - Engagement: {eng['name']}")
     click.echo("=" * 60)
     click.echo(f"{'Status Code':<15} {'Count':<10} {'Percentage':<15}")
     click.echo("=" * 60)

@@ -10,27 +10,27 @@ class HostManager:
     def __init__(self):
         self.db = get_db()
     
-    def add_or_update_host(self, workspace_id: int, host_data: Dict[str, Any]) -> int:
+    def add_or_update_host(self, engagement_id: int, host_data: Dict[str, Any]) -> int:
         """
         Add or update a host in the database.
-        
+
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             host_data: Host data from parser (ip, hostname, status, os)
-        
+
         Returns:
             host_id
         """
         ip = host_data.get('ip')
         if not ip:
             raise ValueError("Host must have an IP address")
-        
+
         # Check if host already exists
         existing = self.db.execute_one(
-            "SELECT id FROM hosts WHERE workspace_id = ? AND ip_address = ?",
-            (workspace_id, ip)
+            "SELECT id FROM hosts WHERE engagement_id = ? AND ip_address = ?",
+            (engagement_id, ip)
         )
-        
+
         if existing:
             # Update existing host
             host_id = existing['id']
@@ -39,23 +39,23 @@ class HostManager:
                 'os_name': host_data.get('os'),
                 'status': host_data.get('status', 'up')
             }
-            
+
             updates = ', '.join([f"{k} = ?" for k in update_data.keys()])
             values = list(update_data.values()) + [host_id]
-            
+
             self.db.execute(f"UPDATE hosts SET {updates} WHERE id = ?", tuple(values))
-            
+
             return host_id
         else:
             # Insert new host
             host_id = self.db.insert('hosts', {
-                'workspace_id': workspace_id,
+                'engagement_id': engagement_id,
                 'ip_address': ip,
                 'hostname': host_data.get('hostname'),
                 'os_name': host_data.get('os'),
                 'status': host_data.get('status', 'up')
             })
-            
+
             return host_id
     
     def add_service(self, host_id: int, service_data: Dict[str, Any]) -> int:
@@ -109,12 +109,12 @@ class HostManager:
             
             return service_id
     
-    def import_nmap_results(self, workspace_id: int, parsed_data: Dict[str, Any]) -> Dict[str, int]:
+    def import_nmap_results(self, engagement_id: int, parsed_data: Dict[str, Any]) -> Dict[str, int]:
         """
         Import parsed nmap results into the database.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             parsed_data: Output from nmap_parser.parse_nmap_text()
 
         Returns:
@@ -122,10 +122,10 @@ class HostManager:
         """
         hosts_added = 0
         services_added = 0
-        
+
         for host_data in parsed_data.get('hosts', []):
             # Add/update host
-            host_id = self.add_or_update_host(workspace_id, host_data)
+            host_id = self.add_or_update_host(engagement_id, host_data)
 
             # Only count live hosts
             if host_data.get('status') == 'up':
@@ -135,17 +135,17 @@ class HostManager:
             for service_data in host_data.get('services', []):
                 self.add_service(host_id, service_data)
                 services_added += 1
-        
+
         return {
             'hosts_added': hosts_added,
             'services_added': services_added
         }
     
-    def list_hosts(self, workspace_id: int) -> List[Dict[str, Any]]:
-        """List all hosts in workspace."""
+    def list_hosts(self, engagement_id: int) -> List[Dict[str, Any]]:
+        """List all hosts in engagement."""
         return self.db.execute(
-            "SELECT * FROM hosts WHERE workspace_id = ? ORDER BY ip_address",
-            (workspace_id,)
+            "SELECT * FROM hosts WHERE engagement_id = ? ORDER BY ip_address",
+            (engagement_id,)
         )
     
     def get_host_services(self, host_id: int) -> List[Dict[str, Any]]:
@@ -157,7 +157,7 @@ class HostManager:
 
     def get_all_services(
         self,
-        workspace_id: int,
+        engagement_id: int,
         service_name: str = None,
         port_min: int = None,
         port_max: int = None,
@@ -165,10 +165,10 @@ class HostManager:
         sort_by: str = 'port'
     ) -> List[Dict[str, Any]]:
         """
-        Get all services across all hosts in workspace with optional filters.
+        Get all services across all hosts in engagement with optional filters.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             service_name: Filter by service name (partial match)
             port_min: Filter by minimum port number
             port_max: Filter by maximum port number
@@ -185,9 +185,9 @@ class HostManager:
                 h.hostname
             FROM services s
             JOIN hosts h ON s.host_id = h.id
-            WHERE h.workspace_id = ?
+            WHERE h.engagement_id = ?
         """
-        params = [workspace_id]
+        params = [engagement_id]
 
         if service_name:
             query += " AND s.service_name LIKE ?"
@@ -215,16 +215,16 @@ class HostManager:
 
         return self.db.execute(query, tuple(params))
     
-    def get_host_by_ip(self, workspace_id: int, ip: str) -> Optional[Dict[str, Any]]:
+    def get_host_by_ip(self, engagement_id: int, ip: str) -> Optional[Dict[str, Any]]:
         """Get host by IP address."""
         return self.db.execute_one(
-            "SELECT * FROM hosts WHERE workspace_id = ? AND ip_address = ?",
-            (workspace_id, ip)
+            "SELECT * FROM hosts WHERE engagement_id = ? AND ip_address = ?",
+            (engagement_id, ip)
         )
 
     def search_hosts(
         self,
-        workspace_id: int,
+        engagement_id: int,
         search: str = None,
         os_name: str = None,
         status: str = None,
@@ -234,7 +234,7 @@ class HostManager:
         Search and filter hosts.
 
         Args:
-            workspace_id: Workspace ID
+            engagement_id: Engagement ID
             search: Search in IP address and hostname
             os_name: Filter by OS name (partial match)
             status: Filter by status (up/down)
@@ -243,8 +243,8 @@ class HostManager:
         Returns:
             List of matching hosts
         """
-        query = "SELECT * FROM hosts WHERE workspace_id = ?"
-        params = [workspace_id]
+        query = "SELECT * FROM hosts WHERE engagement_id = ?"
+        params = [engagement_id]
 
         if search:
             query += " AND (ip_address LIKE ? OR hostname LIKE ?)"
@@ -345,9 +345,9 @@ class HostManager:
         except Exception:
             return False
 
-    def get_all_tags(self, workspace_id: int) -> List[str]:
-        """Get list of all unique tags used in workspace."""
-        hosts = self.db.execute("SELECT tags FROM hosts WHERE workspace_id = ?", (workspace_id,))
+    def get_all_tags(self, engagement_id: int) -> List[str]:
+        """Get list of all unique tags used in engagement."""
+        hosts = self.db.execute("SELECT tags FROM hosts WHERE engagement_id = ?", (engagement_id,))
 
         all_tags = set()
         for host in hosts:

@@ -14,25 +14,63 @@ HELP = {
     "description": "Gobuster: directory/file and DNS/vhost brute force tool.",
     "usage": "menuscript jobs enqueue gobuster <target> --args \"dir -u <url> -w <wordlist> -t <threads>\"",
     "examples": [
-        "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\""
+        "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\"",
+        "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -x php,txt,html -t 20\"",
+        "menuscript jobs enqueue gobuster example.com --args \"dns -d example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
+        "menuscript jobs enqueue gobuster http://example.com --args \"vhost -u http://example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
     ],
     "flags": [
-        ["dir", "Dir mode"],
-        ["dns", "DNS mode"],
+        ["dir", "Directory/file enumeration mode"],
+        ["dns", "DNS subdomain enumeration mode"],
+        ["vhost", "Virtual host discovery mode"],
+        ["-u <url>", "Target URL (dir/vhost modes)"],
+        ["-d <domain>", "Target domain (dns mode)"],
         ["-w <wordlist>", "Wordlist path"],
-        ["-t <threads>", "Threads"],
+        ["-t <threads>", "Number of threads"],
+        ["-x <extensions>", "File extensions to check (comma-separated)"],
+        ["-b <codes>", "Status codes to blacklist"],
+        ["--wildcard", "Force continued operation when wildcard found"],
     ],
+    "preset_categories": {
+        "directory_enum": [
+            {
+                "name": "Quick Scan",
+                "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"],
+                "desc": "Common wordlist (4600 entries)"
+            },
+            {
+                "name": "Standard Scan",
+                "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/big.txt", "-t", "20"],
+                "desc": "Big wordlist (20,000 entries)"
+            },
+            {
+                "name": "PHP Extensions",
+                "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,phps,php3,php4,php5,phtml", "-t", "15"],
+                "desc": "Common paths + PHP extensions"
+            }
+        ],
+        "subdomain_enum": [
+            {
+                "name": "Subdomain Scan",
+                "args": ["dns", "-d", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
+                "desc": "Top 5000 subdomains (fast)"
+            }
+        ],
+        "vhost_discovery": [
+            {
+                "name": "Virtual Hosts",
+                "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
+                "desc": "Virtual host discovery (top 5000)"
+            }
+        ]
+    },
     "presets": [
-        {
-            "name": "Dir Quick",
-            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"],
-            "desc": "Common wordlist quick"
-        },
-        {
-            "name": "Dir Deep",
-            "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-t", "20"],
-            "desc": "Large wordlist deep scan"
-        },
+        # Flattened list for backward compatibility
+        {"name": "Quick Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"], "desc": "Common wordlist (4600 entries)"},
+        {"name": "Standard Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/big.txt", "-t", "20"], "desc": "Big wordlist (20,000 entries)"},
+        {"name": "PHP Extensions", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,phps,php3,php4,php5,phtml", "-t", "15"], "desc": "Common paths + PHP extensions"},
+        {"name": "Subdomain Scan", "args": ["dns", "-d", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains (fast)"},
+        {"name": "Virtual Hosts", "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Virtual host discovery (top 5000)"}
     ]
 }
 

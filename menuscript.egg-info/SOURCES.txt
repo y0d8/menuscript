@@ -16,7 +16,17 @@ menuscript.egg-info/dependency_links.txt
 menuscript.egg-info/entry_points.txt
 menuscript.egg-info/top_level.txt
 menuscript/parsers/__init__.py
+menuscript/parsers/enum4linux_parser.py
+menuscript/parsers/gobuster_parser.py
+menuscript/parsers/msf_parser.py
+menuscript/parsers/nikto_parser.py
 menuscript/parsers/nmap_parser.py
+menuscript/parsers/sqlmap_parser.py
+menuscript/parsers/theharvester_parser.py
+menuscript/ui/__init__.py
+menuscript/ui/dashboard.py
+menuscript/ui/interactive.py
+menuscript/ui/terminal.py
 tests/test_config_cli.py
 tests/test_gobuster_plugin.py
 tests/test_jobs.py

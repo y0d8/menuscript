@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from menuscript.engine.background import list_jobs, get_job
-from menuscript.storage.workspaces import WorkspaceManager
+from menuscript.storage.engagements import EngagementManager
 from menuscript.storage.hosts import HostManager
 from menuscript.storage.findings import FindingsManager
 
@@ -29,13 +29,13 @@ def get_terminal_size():
         return 80, 24
 
 
-def render_header(workspace_name: str, workspace_id: int, width: int):
+def render_header(engagement_name: str, engagement_id: int, width: int):
     """Render compact dashboard header with status bar and quick actions."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Get workspace stats for header
-    wm = WorkspaceManager()
-    stats = wm.stats(workspace_id)
+    em = EngagementManager()
+    stats = em.stats(engagement_id)
 
     lines = []
 
@@ -43,7 +43,7 @@ def render_header(workspace_name: str, workspace_id: int, width: int):
     lines.append("┌" + "─" * (width - 2) + "┐")
 
     # Title line with workspace and time
-    title_left = f"│ MENUSCRIPT DASHBOARD │ Workspace: {workspace_name}"
+    title_left = f"│ MENUSCRIPT DASHBOARD │ Engagement: {engagement_name}"
     title_right = f"{timestamp} │"
     padding = width - len(title_left) - len(title_right)
     lines.append(title_left + " " * padding + title_right)
@@ -66,7 +66,7 @@ def render_header(workspace_name: str, workspace_id: int, width: int):
     return lines
 
 
-def render_workspace_stats(workspace_id: int, width: int):
+def render_workspace_stats(engagement_id: int, width: int):
     """Render workspace statistics panel (removed - now integrated in header)."""
     # Stats are now shown in the header, so this function returns empty
     return []
@@ -123,10 +123,10 @@ def render_active_jobs(width: int):
     return lines
 
 
-def render_recent_hosts(workspace_id: int, width: int):
+def render_recent_hosts(engagement_id: int, width: int):
     """Render hosts with most open ports/services."""
     hm = HostManager()
-    all_hosts = hm.list_hosts(workspace_id)
+    all_hosts = hm.list_hosts(engagement_id)
 
     # Filter to live hosts and get service counts
     live_hosts = [h for h in all_hosts if h.get('status') == 'up']
@@ -150,15 +150,20 @@ def render_recent_hosts(workspace_id: int, width: int):
     if not top_hosts:
         lines.append("No live hosts discovered yet")
     else:
+        # Calculate dynamic column widths based on terminal width
+        # Total needed: ID(8) + IP(18) + Services(10) + borders/padding(8) = 44
+        # Remaining width goes to Description/OS
+        desc_width = max(35, width - 48)  # Minimum 35, or use remaining space
+
         # Top border
-        lines.append("  ┌" + "─" * 8 + "┬" + "─" * 18 + "┬" + "─" * 37 + "┬" + "─" * 10 + "┐")
+        lines.append("  ┌" + "─" * 8 + "┬" + "─" * 18 + "┬" + "─" * desc_width + "┬" + "─" * 10 + "┐")
 
         # Table headers
-        header = f"  │ {'ID':<6} │ {'IP Address':<16} │ {'Description/OS':<35} │ {'Services':>8} │"
+        header = f"  │ {'ID':<6} │ {'IP Address':<16} │ {'Description/OS':<{desc_width-2}} │ {'Services':>8} │"
         lines.append(click.style(header, bold=True))
 
         # Header separator
-        lines.append("  ├" + "─" * 8 + "┼" + "─" * 18 + "┼" + "─" * 37 + "┼" + "─" * 10 + "┤")
+        lines.append("  ├" + "─" * 8 + "┼" + "─" * 18 + "┼" + "─" * desc_width + "┼" + "─" * 10 + "┤")
 
         for i, (host, svc_count) in enumerate(top_hosts):
             hid = f"#{host.get('id', '?')}"
@@ -168,25 +173,29 @@ def render_recent_hosts(workspace_id: int, width: int):
 
             # Build description
             if hostname:
-                desc = hostname[:34]
+                desc = hostname
             elif os_info:
-                desc = os_info[:34]
+                desc = os_info
             else:
                 desc = "new host"
 
-            host_line = f"  │ {hid:<6} │ {ip:<16} │ {desc:<35} │ {svc_count:>8} │"
+            # Truncate description if needed
+            if len(desc) > desc_width - 2:
+                desc = desc[:desc_width-5] + "..."
+
+            host_line = f"  │ {hid:<6} │ {ip:<16} │ {desc:<{desc_width-2}} │ {svc_count:>8} │"
             lines.append(host_line)
 
         # Bottom border
-        lines.append("  └" + "─" * 8 + "┴" + "─" * 18 + "┴" + "─" * 37 + "┴" + "─" * 10 + "┘")
+        lines.append("  └" + "─" * 8 + "┴" + "─" * 18 + "┴" + "─" * desc_width + "┴" + "─" * 10 + "┘")
 
     return lines
 
 
-def render_critical_findings(workspace_id: int, width: int):
+def render_critical_findings(engagement_id: int, width: int):
     """Render critical and high severity findings."""
     fm = FindingsManager()
-    findings = fm.list_findings(workspace_id)
+    findings = fm.list_findings(engagement_id)
 
     # Filter to critical/high severity
     critical = [f for f in findings if f.get('severity') in ('critical', 'high')]
@@ -217,10 +226,10 @@ def render_critical_findings(workspace_id: int, width: int):
     return lines
 
 
-def render_top_ports(workspace_id: int, width: int):
+def render_top_ports(engagement_id: int, width: int):
     """Render most commonly discovered open ports with host IPs."""
     hm = HostManager()
-    all_hosts = hm.list_hosts(workspace_id)
+    all_hosts = hm.list_hosts(engagement_id)
 
     # Track ports and which hosts have them
     port_data = {}  # key: "port/service" -> value: list of host IPs
@@ -248,8 +257,10 @@ def render_top_ports(workspace_id: int, width: int):
     if not top_ports:
         lines.append("No ports discovered yet")
     else:
-        # Use same width as hosts table for consistency (78 chars total)
-        hosts_col_width = 43  # Fixed width for hosts column to match hosts table width
+        # Calculate dynamic column widths to match hosts table width
+        # Total needed: Port/Service(22) + Count(8) + borders/padding(8) = 38
+        # Remaining width goes to Hosts column
+        hosts_col_width = max(40, width - 40)  # Minimum 40, or use remaining space
 
         # Top border
         lines.append("  ┌" + "─" * 22 + "┬" + "─" * 8 + "┬" + "─" * hosts_col_width + "┐")
@@ -284,10 +295,10 @@ def render_top_ports(workspace_id: int, width: int):
     return lines
 
 
-def render_recent_findings(workspace_id: int, width: int):
+def render_recent_findings(engagement_id: int, width: int):
     """Render recent findings/alerts."""
     fm = FindingsManager()
-    findings = fm.list_findings(workspace_id)
+    findings = fm.list_findings(engagement_id)
 
     # Get most recent findings (by ID desc)
     recent = sorted(findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
@@ -321,46 +332,58 @@ def render_recent_findings(workspace_id: int, width: int):
     return lines
 
 
-def render_msf_credentials(workspace_id: int, width: int):
-    """Render MSF credential findings (valid logins discovered)."""
+def render_identified_users(engagement_id: int, width: int):
+    """Render identified users and credentials from all scans."""
     fm = FindingsManager()
-    findings = fm.list_findings(workspace_id)
+    findings = fm.list_findings(engagement_id)
 
-    # Filter to credential findings (critical severity with "Valid Credentials" in title)
-    cred_findings = [
-        f for f in findings
-        if f.get('severity') == 'critical' and 'Valid Credentials' in f.get('title', '')
-    ]
-    recent_creds = sorted(cred_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
+    # Filter to user/credential related findings
+    # Include: valid credentials, user enumeration, account discoveries
+    user_keywords = ['credential', 'user', 'username', 'login', 'account', 'valid', 'password']
+
+    user_findings = []
+    for f in findings:
+        title = (f.get('title', '') or '').lower()
+        desc = (f.get('description', '') or '').lower()
+
+        # Check if title or description contains user-related keywords
+        if any(keyword in title or keyword in desc for keyword in user_keywords):
+            user_findings.append(f)
+
+    recent_users = sorted(user_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
 
     lines = []
     lines.append("")
-    lines.append(click.style("🔓 MSF VALID CREDENTIALS", bold=True, fg='red'))
+    lines.append(click.style("🔓 IDENTIFIED USERS & CREDENTIALS", bold=True, fg='red'))
     lines.append("─" * width)
 
-    if not recent_creds:
-        lines.append("No credentials found yet")
+    if not recent_users:
+        lines.append("No users or credentials identified yet")
     else:
-        for finding in recent_creds:
+        for finding in recent_users:
             fid = finding.get('id', '?')
             title = finding.get('title', 'No title')
             desc = finding.get('description', '')
-            port = finding.get('port', '?')
+            severity = finding.get('severity', 'info')
+            tool = finding.get('tool', 'unknown')
+            ip = finding.get('ip_address', 'N/A')
 
-            # Extract service from title (e.g., "SSH Valid Credentials Found" -> "SSH")
-            service = 'unknown'
-            if title:
-                service = title.split()[0].lower() if title.split() else 'unknown'
+            # Color code by severity
+            if severity == 'critical':
+                sev_color = 'red'
+            elif severity == 'high':
+                sev_color = 'red'
+            elif severity == 'medium':
+                sev_color = 'yellow'
+            else:
+                sev_color = 'white'
 
-            # Extract credentials from description
-            # Format: "Valid ssh credentials: username:password"
-            creds = "N/A"
-            if ':' in desc and 'credentials:' in desc:
-                creds_part = desc.split('credentials:')[-1].strip()
-                creds = creds_part[:40]  # Truncate if too long
+            # Truncate title if too long
+            display_title = title[:50] + "..." if len(title) > 50 else title
 
-            cred_line = f"  [{fid:>3}] {service.upper():<8} {port:<6} {click.style(creds, fg='red', bold=True)}"
-            lines.append(cred_line)
+            # Show IP, tool, and title
+            finding_line = f"  [{fid:>3}] {ip:<15} {tool:<12} {click.style(display_title, fg=sev_color)}"
+            lines.append(finding_line)
 
     return lines
 
@@ -537,7 +560,7 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
     return lines
 
 
-def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Optional[int] = None, refresh_interval: int = 5):
+def render_dashboard(engagement_id: int, engagement_name: str, follow_job_id: Optional[int] = None, refresh_interval: int = 5):
     """Render complete dashboard."""
     width, height = get_terminal_size()
 
@@ -547,25 +570,25 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
     output = []
 
     # Header with status bar and quick actions
-    output.extend(render_header(workspace_name, workspace_id, width))
+    output.extend(render_header(engagement_name, engagement_id, width))
 
     # Stats
-    output.extend(render_workspace_stats(workspace_id, width))
+    output.extend(render_workspace_stats(engagement_id, width))
 
     # Active jobs
     output.extend(render_active_jobs(width))
 
     # Top hosts by services (most interesting targets)
-    output.extend(render_recent_hosts(workspace_id, width))
+    output.extend(render_recent_hosts(engagement_id, width))
 
     # Top open ports (network overview)
-    output.extend(render_top_ports(workspace_id, width))
+    output.extend(render_top_ports(engagement_id, width))
 
     # Critical/High findings
-    output.extend(render_critical_findings(workspace_id, width))
+    output.extend(render_critical_findings(engagement_id, width))
 
-    # MSF Valid Credentials
-    output.extend(render_msf_credentials(workspace_id, width))
+    # Identified Users & Credentials (from all scans)
+    output.extend(render_identified_users(engagement_id, width))
 
     # Live log - auto-follow most recent running job if not explicitly following
     if not follow_job_id:
@@ -594,17 +617,17 @@ def render_dashboard(workspace_id: int, workspace_name: str, follow_job_id: Opti
 
 def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5):
     """Run the live dashboard with auto-refresh and interactive menu."""
-    wm = WorkspaceManager()
-    current_ws = wm.get_current()
+    em = EngagementManager()
+    current_ws = em.get_current()
 
     if not current_ws:
         click.echo(click.style("✗ No workspace selected! Use 'menuscript workspace use <name>'", fg='red'))
         return
 
-    workspace_id = current_ws['id']
-    workspace_name = current_ws['name']
+    engagement_id = current_ws['id']
+    engagement_name = current_ws['name']
 
-    click.echo(click.style(f"\nStarting live dashboard for workspace '{workspace_name}'...", fg='green'))
+    click.echo(click.style(f"\nStarting live dashboard for workspace '{engagement_name}'...", fg='green'))
     click.echo(click.style("Press 'm' for menu, 'q' to quit, or Ctrl+C to exit\n", fg='yellow'))
     time.sleep(1)
 
@@ -613,13 +636,50 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
 
     try:
         while True:
+            # Check if there are any active jobs
+            jobs = list_jobs(limit=50)
+            active_jobs = [j for j in jobs if j.get('status') in ('pending', 'running')]
+
+            # If no active jobs and not following a specific job, show static dashboard
+            if not active_jobs and not follow_job_id:
+                render_dashboard(engagement_id, engagement_name, None, refresh_interval)
+                click.echo()
+                click.echo(click.style("  ℹ️  No active scans running. Dashboard is in static mode.", fg='yellow', bold=True))
+                click.echo(click.style("  💡 Launch a scan to enable auto-refresh monitoring.", fg='cyan'))
+                click.echo()
+
+                # Wait for user input without auto-refresh
+                user_input = _wait_for_input(30)  # Longer timeout in static mode
+                if user_input:
+                    if user_input.lower() == 'q':
+                        break
+                    elif user_input.lower() == 'm':
+                        _show_dashboard_menu(engagement_id)
+                        clear_screen()
+                    elif user_input.lower() == 'h':
+                        from menuscript.ui.interactive import view_hosts
+                        view_hosts(engagement_id)
+                        clear_screen()
+                    elif user_input.lower() == 's':
+                        from menuscript.ui.interactive import view_services
+                        view_services(engagement_id)
+                        clear_screen()
+                    elif user_input.lower() == 'f':
+                        from menuscript.ui.interactive import view_findings
+                        view_findings(engagement_id)
+                        clear_screen()
+                    elif user_input.lower() == 'j':
+                        from menuscript.ui.interactive import view_jobs_menu
+                        view_jobs_menu()
+                        clear_screen()
+                continue
+
             # Track which job we're following
             current_follow_id = follow_job_id
 
             # Auto-follow most recent running job if not explicitly set
             if not current_follow_id:
-                jobs = list_jobs(limit=20)
-                running_jobs = [j for j in jobs if j.get('status') == 'running']
+                running_jobs = [j for j in active_jobs if j.get('status') == 'running']
                 if running_jobs:
                     current_follow_id = running_jobs[0].get('id')
                     last_followed_job_id = current_follow_id
@@ -632,7 +692,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                         if completed_job and completed_job.get('status') in ('done', 'error'):
                             job_completed = True
 
-            render_dashboard(workspace_id, workspace_name, current_follow_id, refresh_interval)
+            render_dashboard(engagement_id, engagement_name, current_follow_id, refresh_interval)
 
             # If job just completed, stop auto-refresh and prompt
             if job_completed:
@@ -653,19 +713,19 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                     if user_input.lower() == 'q':
                         break
                     elif user_input.lower() == 'm':
-                        _show_dashboard_menu(workspace_id)
+                        _show_dashboard_menu(engagement_id)
                         clear_screen()
                     elif user_input.lower() == 'h':
                         from menuscript.ui.interactive import view_hosts
-                        view_hosts(workspace_id)
+                        view_hosts(engagement_id)
                         clear_screen()
                     elif user_input.lower() == 's':
                         from menuscript.ui.interactive import view_services
-                        view_services(workspace_id)
+                        view_services(engagement_id)
                         clear_screen()
                     elif user_input.lower() == 'f':
                         from menuscript.ui.interactive import view_findings
-                        view_findings(workspace_id)
+                        view_findings(engagement_id)
                         clear_screen()
                     elif user_input.lower() == 'j':
                         from menuscript.ui.interactive import view_jobs_menu
@@ -697,7 +757,7 @@ def _wait_for_input(timeout: int) -> Optional[str]:
         return None
 
 
-def _show_dashboard_menu(workspace_id: int):
+def _show_dashboard_menu(engagement_id: int):
     """Show interactive dashboard menu with clear instructions."""
     click.clear()
 
@@ -757,22 +817,22 @@ def _show_dashboard_menu(workspace_id: int):
 
         if choice_num == 1:
             from menuscript.ui.interactive import view_hosts
-            view_hosts(workspace_id)
+            view_hosts(engagement_id)
         elif choice_num == 2:
             from menuscript.ui.interactive import view_services
-            view_services(workspace_id)
+            view_services(engagement_id)
         elif choice_num == 3:
             from menuscript.ui.interactive import view_findings
-            view_findings(workspace_id)
+            view_findings(engagement_id)
         elif choice_num == 4:
             from menuscript.ui.interactive import view_jobs_menu
             view_jobs_menu()
         elif choice_num == 5:
             from menuscript.ui.interactive import view_web_paths
-            view_web_paths(workspace_id)
+            view_web_paths(engagement_id)
         elif choice_num == 6:
             from menuscript.ui.interactive import view_osint
-            view_osint(workspace_id)
+            view_osint(engagement_id)
 
     except (KeyboardInterrupt, EOFError):
         pass

@@ -32,26 +32,26 @@ class Database:
         else:
             # If schema file doesn't exist, create minimal tables inline
             conn.executescript("""
-                CREATE TABLE IF NOT EXISTS workspaces (
+                CREATE TABLE IF NOT EXISTS engagements (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT UNIQUE NOT NULL,
                     description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS hosts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    workspace_id INTEGER NOT NULL,
+                    engagement_id INTEGER NOT NULL,
                     ip_address TEXT NOT NULL,
                     hostname TEXT,
                     os_name TEXT,
                     status TEXT DEFAULT 'up',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
-                    UNIQUE(workspace_id, ip_address)
+                    FOREIGN KEY (engagement_id) REFERENCES engagements(id),
+                    UNIQUE(engagement_id, ip_address)
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS services (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     host_id INTEGER NOT NULL,
@@ -63,10 +63,10 @@ class Database:
                     FOREIGN KEY (host_id) REFERENCES hosts(id),
                     UNIQUE(host_id, port, protocol)
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS findings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    workspace_id INTEGER NOT NULL,
+                    engagement_id INTEGER NOT NULL,
                     host_id INTEGER,
                     finding_type TEXT NOT NULL,
                     severity TEXT DEFAULT 'info',
@@ -74,7 +74,7 @@ class Database:
                     description TEXT,
                     tool TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+                    FOREIGN KEY (engagement_id) REFERENCES engagements(id),
                     FOREIGN KEY (host_id) REFERENCES hosts(id)
                 );
             """)

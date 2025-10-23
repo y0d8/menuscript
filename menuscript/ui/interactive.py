@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any, Optional, List
 from menuscript.engine.loader import discover_plugins
 from menuscript.engine.background import enqueue_job, list_jobs, get_job
-from menuscript.storage.workspaces import WorkspaceManager
+from menuscript.storage.engagements import EngagementManager
 from menuscript.storage.hosts import HostManager
 from menuscript.storage.findings import FindingsManager
 from menuscript.storage.osint import OsintManager
@@ -33,48 +33,58 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
     click.clear()
 
-    # Header with box drawing
-    click.echo("\n┌" + "─" * 76 + "┐")
-    click.echo("│" + click.style(" MENUSCRIPT - INTERACTIVE MENU ".center(76), bold=True, fg='cyan') + "│")
-    click.echo("└" + "─" * 76 + "┘")
+    # Get terminal width
+    import os
+    try:
+        width = os.get_terminal_size().columns
+    except:
+        width = 80
 
-    # Show current workspace with stats
-    wm = WorkspaceManager()
-    current_ws = wm.get_current()
-    if current_ws:
-        stats = wm.stats(current_ws['id'])
-        click.echo(f"\n  📂 Workspace: " + click.style(current_ws['name'], fg='green', bold=True))
-        click.echo(f"  📊 Data: {stats['hosts']} hosts | {stats['services']} services | {stats['findings']} findings")
-    else:
-        click.echo("\n  " + click.style("⚠️  No workspace selected! ", fg='yellow', bold=True) +
-                   "Use 'menuscript workspace use <name>'")
+    # Header with box drawing and color
+    click.echo("\n┌" + "─" * (width - 2) + "┐")
+    click.echo("│" + click.style(" MENUSCRIPT - INTERACTIVE MENU ".center(width - 2), bold=True, fg='cyan') + "│")
+    click.echo("└" + "─" * (width - 2) + "┘")
+
+    # ASCII Art Header
+    click.echo()
+    click.echo(click.style("""
+   ███████╗ ██████╗ ██╗   ██╗██╗         ██╗  ██╗ █████╗  ██████╗██╗  ██╗███████╗██████╗ ███████╗
+   ██╔════╝██╔═══██╗██║   ██║██║         ██║  ██║██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗██╔════╝
+   ███████╗██║   ██║██║   ██║██║         ███████║███████║██║     █████╔╝ █████╗  ██████╔╝███████╗
+   ╚════██║██║   ██║██║   ██║██║         ██╔══██║██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗╚════██║
+   ███████║╚██████╔╝╚██████╔╝███████╗    ██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║███████║
+   ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝
+    """, fg='cyan', bold=True))
+
+    # Credit line
+    click.echo("  " + click.style("Created by CyberSoul SecurITy", fg='bright_black', italic=True))
+    click.echo()
+
+    # Description
+    click.echo("  Menuscript is a pentesting workflow manager that integrates popular security tools")
+    click.echo("  (Nmap, Metasploit, Gobuster, etc.) into a unified interface. Launch scans, manage")
+    click.echo("  engagements, and view results all in one place.")
 
     click.echo()
-    click.echo(click.style("  💡 TIP: ", fg='yellow', bold=True) +
-               "Use letter shortcuts (d/j/r/w) or enter the tool number")
+    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/r/w) or enter the tool number")
     click.echo()
-    click.echo("  " + "━" * 76)
+    click.echo("  " + "─" * (width - 4))
     click.echo()
+
+    # Store engagement info for footer
+    em = EngagementManager()
+    current_ws = em.get_current()
 
     # Menu options - Tools section
-    click.echo(click.style("  🔧 SCANNING TOOLS", bold=True, fg='green'))
-    click.echo("  ─" * 38)
+    click.echo(click.style("  SCANNING TOOLS", bold=True))
+    click.echo()
 
     # Display tools by category
     tool_list = []
     idx = 1
 
-    # Category icons
-    category_icons = {
-        'network': '🌐',
-        'web': '🔍',
-        'msf': '💥',
-        'other': '🛠️'
-    }
-
     for category in sorted(by_category.keys()):
-        icon = category_icons.get(category, '🛠️')
-        click.echo(f"\n    {icon} " + click.style(category.upper(), fg='cyan', bold=True))
+        click.echo("    " + click.style(category.upper(), bold=True))
 
         for name, plugin in sorted(by_category[category], key=lambda x: x[0]):
             help_info = getattr(plugin, 'HELP', {})
@@ -102,49 +112,59 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             idx += 1
 
     click.echo()
-    click.echo("  " + "━" * 76)
+    click.echo("  " + "─" * (width - 4))
     click.echo()
 
     # View options with shortcuts
-    click.echo(click.style("  📊 DATA & MONITORING", bold=True, fg='blue'))
-    click.echo("  ─" * 38)
+    click.echo(click.style("  DATA & MONITORING", bold=True))
+    click.echo()
 
     dashboard_option = idx
-    click.echo(f"      " + click.style("[d]", fg='cyan', bold=True) + " or " +
-               click.style(f"[{idx}]", fg='cyan') + f"  📈 Live Dashboard    - Real-time monitoring view")
+    click.echo(f"      " + click.style("[d]", bold=True) + " or " +
+               f"[{idx}]" + "   Live Dashboard    - Real-time monitoring view")
     idx += 1
 
     job_option = idx
-    click.echo(f"      " + click.style("[j]", fg='cyan', bold=True) + " or " +
-               click.style(f"[{idx}]", fg='cyan') + f"  ⚡ View Jobs         - Manage running scans")
+    click.echo(f"      " + click.style("[j]", bold=True) + " or " +
+               f"[{idx}]" + "   View Jobs         - Manage running scans")
     idx += 1
 
     results_option = idx
-    click.echo(f"      " + click.style("[r]", fg='cyan', bold=True) + " or " +
-               click.style(f"[{idx}]", fg='cyan') + f"  📋 View Results      - Browse scan findings")
+    click.echo(f"      " + click.style("[r]", bold=True) + " or " +
+               f"[{idx}]" + "  View Results      - Browse scan findings")
     idx += 1
 
     click.echo()
-    click.echo("  " + "━" * 76)
+    click.echo("  " + "─" * (width - 4))
     click.echo()
-    click.echo(click.style("  🗂️  WORKSPACE MANAGEMENT", bold=True, fg='magenta'))
-    click.echo("  ─" * 38)
+    click.echo(click.style("  ENGAGEMENT MANAGEMENT", bold=True))
+    click.echo()
 
-    workspace_option = idx
-    click.echo(f"      " + click.style("[w]", fg='cyan', bold=True) + " or " +
-               click.style(f"[{idx}]", fg='cyan') + f"  📂 Manage Workspaces - Switch, create, or delete workspaces")
+    engagement_option = idx
+    click.echo(f"      " + click.style("[w]", bold=True) + " or " +
+               f"[{idx}]" + "  Manage Engagements - Switch, create, or delete engagements")
     idx += 1
 
     click.echo()
-    click.echo("  " + "━" * 76)
+    click.echo("  " + "─" * (width - 4))
     click.echo()
-    click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
-    click.echo("  ─" * 38)
-    click.echo(f"      " + click.style("[q]", fg='red', bold=True) + " or " +
-               click.style("[0]", fg='red') + "  ← Exit")
+    click.echo(click.style("  ACTIONS", bold=True))
+    click.echo()
+    click.echo(f"      " + click.style("[q]", bold=True) + " or " +
+               "[0]" + "   Exit")
 
     click.echo()
-    click.echo("  " + "─" * 76)
+    click.echo("  " + "─" * (width - 4))
+
+    # Workspace status footer
+    if current_ws:
+        stats = em.stats(current_ws['id'])
+        engagement_info = f"Engagement: {click.style(current_ws['name'], bold=True)} | {stats['hosts']} hosts | {stats['services']} services | {stats['findings']} findings"
+        click.echo(f"  {engagement_info}")
+    else:
+        click.echo("  " + click.style("WARNING: No engagement selected!", bold=True) + " Use 'menuscript engagement use <name>'")
+
+    click.echo("  " + "─" * (width - 4))
     click.echo(click.style("  Enter your choice: ", bold=True), nl=False)
 
     # Get user selection
@@ -159,7 +179,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         elif choice_input == 'r':
             return {'action': 'view_results'}
         elif choice_input == 'w':
-            return {'action': 'manage_workspaces'}
+            return {'action': 'manage_engagements'}
         elif choice_input in ('q', '0', ''):
             return None
 
@@ -183,8 +203,8 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == results_option:
             return {'action': 'view_results'}
 
-        if choice == workspace_option:
-            return {'action': 'manage_workspaces'}
+        if choice == engagement_option:
+            return {'action': 'manage_engagements'}
 
         if 1 <= choice <= len(tool_list):
             action_type, tool_name = tool_list[choice - 1]
@@ -221,32 +241,32 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     # Show presets if available
     if presets:
         click.echo(click.style("PRESETS:", bold=True, fg='green'))
-        for i, preset in enumerate(presets, 1):
-            click.echo(f"  {i}. {preset['name']:<20} - {preset['desc']}")
-            click.echo(f"     Args: {' '.join(preset['args'])}")
-        click.echo()
 
-    # Show common flags
-    if flags:
-        click.echo(click.style("COMMON FLAGS:", bold=True, fg='yellow'))
-        for flag, desc in flags[:8]:  # Show first 8 flags
-            click.echo(f"  {flag:<20} - {desc}")
-        if len(flags) > 8:
-            click.echo(f"  ... and {len(flags) - 8} more")
-        click.echo()
+        # Check if tool has categorized presets
+        preset_categories = help_info.get('preset_categories', {})
 
-    # Show examples
-    examples = help_info.get('examples', [])
-    if examples:
-        click.echo(click.style("EXAMPLES:", bold=True, fg='blue'))
-        for ex in examples[:3]:  # Show first 3 examples
-            click.echo(f"  {ex}")
-        click.echo()
+        if preset_categories:
+            # Display presets grouped by category
+            preset_num = 1
+            for category_name, category_presets in preset_categories.items():
+                # Format category name (e.g., "basic_detection" -> "Basic Detection")
+                display_name = category_name.replace('_', ' ').title()
+                click.echo(f"  {display_name}:")
+                for preset in category_presets:
+                    click.echo(f"    {preset_num}. {preset['name']:<20} - {preset['desc']}")
+                    preset_num += 1
+                click.echo()
+        else:
+            # Fall back to simple list for tools without categories
+            for i, preset in enumerate(presets, 1):
+                click.echo(f"  {i}. {preset['name']:<20} - {preset['desc']}")
+            click.echo()
+
 
     click.echo("-" * 70)
 
     # Get target
-    target = click.prompt("\nTarget (IP, hostname, URL, or CIDR)", type=str)
+    target = click.prompt("\nTarget (IP, hostname, URL, or CIDR) [or 'back' to return]", type=str)
 
     if not target or target.strip() == "":
         click.echo(click.style("Target required!", fg='red'))
@@ -254,12 +274,17 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
 
     target = target.strip()
 
+    # Check if user wants to go back
+    if target.lower() in ['back', 'b', 'exit', 'q']:
+        return {'action': 'back'}
+
     # Get preset or custom args
     args = []
     selected_preset_name = None
 
     if presets:
         click.echo("\nSelect preset or enter custom args:")
+        click.echo(f"  0. Back to main menu")
         for i, preset in enumerate(presets, 1):
             click.echo(f"  {i}. {preset['name']}")
         click.echo(f"  {len(presets) + 1}. Custom args")
@@ -267,7 +292,9 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         try:
             choice = click.prompt("Choice", type=int, default=1)
 
-            if 1 <= choice <= len(presets):
+            if choice == 0:
+                return {'action': 'back'}
+            elif 1 <= choice <= len(presets):
                 selected_preset = presets[choice - 1]
                 args = selected_preset['args']
                 selected_preset_name = selected_preset['name']
@@ -518,23 +545,23 @@ def view_job_detail(job_id: int):
 
 def view_results_menu():
     """Show scan results menu."""
-    wm = WorkspaceManager()
-    current_ws = wm.get_current()
+    em = EngagementManager()
+    current_ws = em.get_current()
 
     if not current_ws:
-        click.echo(click.style("No workspace selected!", fg='red'))
+        click.echo(click.style("No engagement selected!", fg='red'))
         click.pause()
         return
 
-    workspace_id = current_ws['id']
+    engagement_id = current_ws['id']
 
     while True:
         click.clear()
         click.echo("\n" + "=" * 70)
-        click.echo(f"SCAN RESULTS - Workspace: {current_ws['name']}")
+        click.echo(f"SCAN RESULTS - Engagement: {current_ws['name']}")
         click.echo("=" * 70 + "\n")
 
-        stats = wm.stats(workspace_id)
+        stats = em.stats(engagement_id)
 
         click.echo("  1. Hosts        ({:3} total)".format(stats['hosts']))
         click.echo("  2. Services     ({:3} total)".format(stats['services']))
@@ -543,7 +570,7 @@ def view_results_menu():
         # Get OSINT and paths counts
         try:
             om = OsintManager()
-            osint_count = len(om.list_osint_data(workspace_id))
+            osint_count = len(om.list_osint_data(engagement_id))
         except:
             osint_count = 0
 
@@ -552,7 +579,7 @@ def view_results_menu():
             # Count all paths across all hosts
             paths_count = 0
             hm = HostManager()
-            for host in hm.list_hosts(workspace_id):
+            for host in hm.list_hosts(engagement_id):
                 paths_count += len(wpm.list_paths(host['id']))
         except:
             paths_count = 0
@@ -569,15 +596,15 @@ def view_results_menu():
             if choice == 0:
                 return
             elif choice == 1:
-                view_hosts(workspace_id)
+                view_hosts(engagement_id)
             elif choice == 2:
-                view_services(workspace_id)
+                view_services(engagement_id)
             elif choice == 3:
-                view_findings(workspace_id)
+                view_findings(engagement_id)
             elif choice == 4:
-                view_osint(workspace_id)
+                view_osint(engagement_id)
             elif choice == 5:
-                view_web_paths(workspace_id)
+                view_web_paths(engagement_id)
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -586,36 +613,36 @@ def view_results_menu():
             return
 
 
-def manage_workspaces_menu():
-    """Interactive workspace management menu."""
-    wm = WorkspaceManager()
+def manage_engagements_menu():
+    """Interactive engagement management menu."""
+    em = EngagementManager()
 
     while True:
         click.clear()
 
         # Header
         click.echo("\n┌" + "─" * 76 + "┐")
-        click.echo("│" + click.style(" WORKSPACE MANAGEMENT ".center(76), bold=True, fg='magenta') + "│")
+        click.echo("│" + click.style(" ENGAGEMENT MANAGEMENT ".center(76), bold=True, fg='magenta') + "│")
         click.echo("└" + "─" * 76 + "┘")
 
-        # List all workspaces
-        workspaces = wm.list()
-        current_ws = wm.get_current()
+        # List all engagements
+        engagements = em.list()
+        current_ws = em.get_current()
         current_id = current_ws['id'] if current_ws else None
 
         click.echo()
-        click.echo(click.style("  📂 AVAILABLE WORKSPACES", bold=True, fg='cyan'))
+        click.echo(click.style("  📂 AVAILABLE ENGAGEMENTS", bold=True, fg='cyan'))
         click.echo("  ─" * 38)
 
-        if not workspaces:
-            click.echo("  No workspaces found. Create one to get started!")
+        if not engagements:
+            click.echo("  No engagements found. Create one to get started!")
         else:
-            for ws in workspaces:
+            for ws in engagements:
                 ws_id = ws['id']
                 ws_name = ws['name']
-                stats = wm.stats(ws_id)
+                stats = em.stats(ws_id)
 
-                # Mark current workspace
+                # Mark current engagement
                 if ws_id == current_id:
                     marker = click.style("★", fg='yellow', bold=True)
                     name_style = click.style(ws_name, fg='green', bold=True)
@@ -629,9 +656,9 @@ def manage_workspaces_menu():
         click.echo()
         click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
         click.echo("  ─" * 38)
-        click.echo("    " + click.style("[s]", fg='cyan', bold=True) + " Switch to Workspace  - Enter workspace name to switch")
-        click.echo("    " + click.style("[c]", fg='cyan', bold=True) + " Create Workspace     - Create a new workspace")
-        click.echo("    " + click.style("[d]", fg='cyan', bold=True) + " Delete Workspace     - Delete a workspace")
+        click.echo("    " + click.style("[s]", fg='cyan', bold=True) + " Switch to Engagement  - Enter engagement name to switch")
+        click.echo("    " + click.style("[c]", fg='cyan', bold=True) + " Create Engagement     - Create a new engagement")
+        click.echo("    " + click.style("[d]", fg='cyan', bold=True) + " Delete Engagement     - Delete a engagement")
         click.echo("    " + click.style("[b]", fg='red', bold=True) + " Back to Main Menu")
 
         click.echo()
@@ -645,40 +672,40 @@ def manage_workspaces_menu():
                 return
 
             elif choice == 's':
-                # Switch workspace
-                ws_name = click.prompt("\n  Enter workspace name", type=str)
-                if wm.set_current(ws_name.strip()):
-                    click.echo(click.style(f"\n  ✓ Switched to workspace '{ws_name}'", fg='green'))
+                # Switch engagement
+                ws_name = click.prompt("\n  Enter engagement name", type=str)
+                if em.set_current(ws_name.strip()):
+                    click.echo(click.style(f"\n  ✓ Switched to engagement '{ws_name}'", fg='green'))
                 else:
-                    click.echo(click.style("\n  ✗ Workspace not found!", fg='red'))
+                    click.echo(click.style("\n  ✗ Engagement not found!", fg='red'))
                 click.pause()
 
             elif choice == 'c':
-                # Create workspace
-                ws_name = click.prompt("\n  Enter new workspace name", type=str)
+                # Create engagement
+                ws_name = click.prompt("\n  Enter new engagement name", type=str)
                 if ws_name.strip():
-                    ws_id = wm.create(ws_name.strip(), "")
-                    wm.set_current(ws_name.strip())
-                    click.echo(click.style(f"\n  ✓ Created workspace '{ws_name}' and set as current", fg='green'))
+                    ws_id = em.create(ws_name.strip(), "")
+                    em.set_current(ws_name.strip())
+                    click.echo(click.style(f"\n  ✓ Created engagement '{ws_name}' and set as current", fg='green'))
                 else:
-                    click.echo(click.style("\n  ✗ Workspace name cannot be empty!", fg='red'))
+                    click.echo(click.style("\n  ✗ Engagement name cannot be empty!", fg='red'))
                 click.pause()
 
             elif choice == 'd':
-                # Delete workspace
-                ws_name = click.prompt("\n  Enter workspace name to delete", type=str)
-                ws = wm.get(ws_name.strip())
+                # Delete engagement
+                ws_name = click.prompt("\n  Enter engagement name to delete", type=str)
+                ws = em.get(ws_name.strip())
 
                 if ws:
                     if ws['id'] == current_id:
-                        click.echo(click.style("\n  ✗ Cannot delete the current workspace! Switch to another first.", fg='red'))
+                        click.echo(click.style("\n  ✗ Cannot delete the current engagement! Switch to another first.", fg='red'))
                     elif click.confirm(f"\n  Are you sure you want to delete '{ws['name']}'? This will delete all data!", default=False):
-                        wm.delete(ws_name.strip())
-                        click.echo(click.style(f"\n  ✓ Deleted workspace '{ws['name']}'", fg='green'))
+                        em.delete(ws_name.strip())
+                        click.echo(click.style(f"\n  ✓ Deleted engagement '{ws['name']}'", fg='green'))
                     else:
                         click.echo("\n  Cancelled.")
                 else:
-                    click.echo(click.style("\n  ✗ Workspace not found!", fg='red'))
+                    click.echo(click.style("\n  ✗ Engagement not found!", fg='red'))
                 click.pause()
 
             else:
@@ -689,7 +716,7 @@ def manage_workspaces_menu():
             return
 
 
-def view_hosts(workspace_id: int):
+def view_hosts(engagement_id: int):
     """Display hosts with search, filtering, and tagging capabilities."""
     hm = HostManager()
 
@@ -727,7 +754,7 @@ def view_hosts(workspace_id: int):
 
         # Get hosts with filters
         hosts = hm.search_hosts(
-            workspace_id,
+            engagement_id,
             search=filters['search'],
             os_name=filters['os_name'],
             status=filters['status'],
@@ -737,23 +764,30 @@ def view_hosts(workspace_id: int):
         if not hosts:
             click.echo("No hosts found with current filters.")
         else:
-            click.echo(f"{'[ ]':<4} {'ID':<5} {'IP Address':<18} {'Hostname':<20} {'OS':<18} {'Tags':<15}")
-            click.echo("-" * 90)
+            # Table header
+            click.echo("  ┌" + "─" * 4 + "┬" + "─" * 6 + "┬" + "─" * 18 + "┬" + "─" * 25 + "┬" + "─" * 25 + "┬" + "─" * 18 + "┐")
+            header = f"  │ {'[ ]':<2} │ {'ID':<4} │ {'IP Address':<16} │ {'Hostname':<23} │ {'OS':<23} │ {'Tags':<16} │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├" + "─" * 4 + "┼" + "─" * 6 + "┼" + "─" * 18 + "┼" + "─" * 25 + "┼" + "─" * 25 + "┼" + "─" * 18 + "┤")
 
             for host in hosts[:30]:  # Limit to 30
                 hid = host.get('id', '?')
-                selected = '[X]' if hid in selected_hosts else '[ ]'
-                ip = host.get('ip_address', 'N/A')[:17]
-                hostname = (host.get('hostname') or '-')[:19]
-                os = (host.get('os_name') or '-')[:17]
-                tags = (host.get('tags') or '')[:14]
+                selected = 'X' if hid in selected_hosts else ' '
+                ip = (host.get('ip_address', 'N/A') or 'N/A')[:16]
+                hostname = (host.get('hostname') or '-')[:23]
+                os_info = (host.get('os_name') or '-')[:23]
+                tags = (host.get('tags') or '')[:16]
 
-                click.echo(f"{selected:<4} {hid:<5} {ip:<18} {hostname:<20} {os:<18} {tags:<15}")
+                row = f"  │ {selected:^2} │ {hid:<4} │ {ip:<16} │ {hostname:<23} │ {os_info:<23} │ {tags:<16} │"
+                click.echo(row)
+
+            # Bottom border
+            click.echo("  └" + "─" * 4 + "┴" + "─" * 6 + "┴" + "─" * 18 + "┴" + "─" * 25 + "┴" + "─" * 25 + "┴" + "─" * 18 + "┘")
 
             if len(hosts) > 30:
-                click.echo(f"\n... and {len(hosts) - 30} more (use filters to narrow results)")
+                click.echo(f"\n  ... and {len(hosts) - 30} more (use filters to narrow results)")
 
-            click.echo(f"\nTotal: {len(hosts)} host(s) | Selected: {len(selected_hosts)}")
+            click.echo(f"\n  Total: {len(hosts)} host(s) | Selected: {len(selected_hosts)}")
 
         # Menu options
         click.echo("\n" + "-" * 90)
@@ -778,7 +812,7 @@ def view_hosts(workspace_id: int):
             elif choice == 3:
                 filters['status'] = _hosts_filter_status()
             elif choice == 4:
-                filters['tags'] = _hosts_filter_by_tag(workspace_id, hm)
+                filters['tags'] = _hosts_filter_by_tag(engagement_id, hm)
             elif choice == 5:
                 _hosts_select(hosts, selected_hosts)
             elif choice == 6:
@@ -793,7 +827,7 @@ def view_hosts(workspace_id: int):
                     click.pause()
             elif choice == 8:
                 if selected_hosts:
-                    _hosts_bulk_remove_tag(selected_hosts, hm, workspace_id)
+                    _hosts_bulk_remove_tag(selected_hosts, hm, engagement_id)
                 else:
                     click.echo(click.style("No hosts selected", fg='yellow'))
                     click.pause()
@@ -844,9 +878,9 @@ def _hosts_filter_status():
         return 'up'
 
 
-def _hosts_filter_by_tag(workspace_id: int, hm: 'HostManager'):
+def _hosts_filter_by_tag(engagement_id: int, hm: 'HostManager'):
     """Prompt for tag filter."""
-    tags = hm.get_all_tags(workspace_id)
+    tags = hm.get_all_tags(engagement_id)
 
     if not tags:
         click.echo(click.style("No tags available", fg='yellow'))
@@ -908,9 +942,9 @@ def _hosts_bulk_tag(selected_hosts: set, hm: 'HostManager'):
         pass
 
 
-def _hosts_bulk_remove_tag(selected_hosts: set, hm: 'HostManager', workspace_id: int):
+def _hosts_bulk_remove_tag(selected_hosts: set, hm: 'HostManager', engagement_id: int):
     """Remove tag from selected hosts."""
-    tags = hm.get_all_tags(workspace_id)
+    tags = hm.get_all_tags(engagement_id)
 
     if not tags:
         click.echo(click.style("No tags available", fg='yellow'))
@@ -982,7 +1016,7 @@ def _hosts_view_details(hosts: list, hm: 'HostManager'):
         pass
 
 
-def view_services(workspace_id: int):
+def view_services(engagement_id: int):
     """Display services - choose between grouped by host or all services view."""
     while True:
         click.clear()
@@ -1000,22 +1034,22 @@ def view_services(workspace_id: int):
             if choice == 0:
                 return
             elif choice == 1:
-                view_services_by_host(workspace_id)
+                view_services_by_host(engagement_id)
             elif choice == 2:
-                view_all_services_filtered(workspace_id)
+                view_all_services_filtered(engagement_id)
 
         except (KeyboardInterrupt, click.Abort):
             return
 
 
-def view_services_by_host(workspace_id: int):
+def view_services_by_host(engagement_id: int):
     """Display services grouped by host."""
     hm = HostManager()
     import re
 
     while True:
         # Get all hosts with services
-        hosts = hm.list_hosts(workspace_id)
+        hosts = hm.list_hosts(engagement_id)
         hosts_with_services = []
 
         for host in hosts:
@@ -1071,7 +1105,7 @@ def view_services_by_host(workspace_id: int):
             return
 
 
-def view_all_services_filtered(workspace_id: int):
+def view_all_services_filtered(engagement_id: int):
     """Display all services with filtering and sorting options."""
     hm = HostManager()
     import re
@@ -1112,7 +1146,7 @@ def view_all_services_filtered(workspace_id: int):
 
         # Get services with filters
         services = hm.get_all_services(
-            workspace_id,
+            engagement_id,
             service_name=filters['service_name'],
             port_min=filters['port_min'],
             port_max=filters['port_max'],
@@ -1123,29 +1157,36 @@ def view_all_services_filtered(workspace_id: int):
         if not services:
             click.echo("No services found with current filters.")
         else:
-            click.echo(f"{'Port':<7} {'Proto':<7} {'Service':<15} {'Host':<18} {'Version':<30}")
-            click.echo("-" * 80)
+            # Table header
+            click.echo("  ┌" + "─" * 8 + "┬" + "─" * 9 + "┬" + "─" * 18 + "┬" + "─" * 18 + "┬" + "─" * 35 + "┐")
+            header = f"  │ {'Port':<6} │ {'Proto':<7} │ {'Service':<16} │ {'Host':<16} │ {'Version':<33} │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├" + "─" * 8 + "┼" + "─" * 9 + "┼" + "─" * 18 + "┼" + "─" * 18 + "┼" + "─" * 35 + "┤")
 
             for svc in services[:50]:  # Limit to 50
                 port = svc.get('port', '?')
-                protocol = (svc.get('protocol') or 'tcp')[:6]
-                service = (svc.get('service_name') or 'unknown')[:14]
-                host_ip = (svc.get('ip_address') or 'N/A')[:17]
+                protocol = (svc.get('protocol') or 'tcp')[:7]
+                service = (svc.get('service_name') or 'unknown')[:16]
+                host_ip = (svc.get('ip_address') or 'N/A')[:16]
 
                 # Clean version string
                 raw_version = svc.get('service_version') or ''
                 if raw_version:
                     version = re.sub(r'^(syn-ack|reset|tcp-response)\s+ttl\s+\d+\s*', '', raw_version)
-                    version = version[:29] or '-'
+                    version = version[:33] or '-'
                 else:
                     version = '-'
 
-                click.echo(f"{port:<7} {protocol:<7} {service:<15} {host_ip:<18} {version:<30}")
+                row = f"  │ {port:<6} │ {protocol:<7} │ {service:<16} │ {host_ip:<16} │ {version:<33} │"
+                click.echo(row)
+
+            # Bottom border
+            click.echo("  └" + "─" * 8 + "┴" + "─" * 9 + "┴" + "─" * 18 + "┴" + "─" * 18 + "┴" + "─" * 35 + "┘")
 
             if len(services) > 50:
-                click.echo(f"\n... and {len(services) - 50} more (use filters to narrow results)")
+                click.echo(f"\n  ... and {len(services) - 50} more (use filters to narrow results)")
             else:
-                click.echo(f"\nTotal: {len(services)} service(s)")
+                click.echo(f"\n  Total: {len(services)} service(s)")
 
         # Menu options
         click.echo("\n" + "-" * 80)
@@ -1289,8 +1330,8 @@ def view_host_services(host: dict, hm: HostManager):
     click.pause("Press any key to continue...")
 
 
-def view_findings(workspace_id: int):
-    """Display findings in workspace with filtering options."""
+def view_findings(engagement_id: int):
+    """Display findings in engagement with filtering options."""
     fm = FindingsManager()
 
     # Active filters
@@ -1316,7 +1357,7 @@ def view_findings(workspace_id: int):
 
         # Get findings with filters
         findings = fm.list_findings(
-            workspace_id,
+            engagement_id,
             severity=filters['severity'],
             finding_type=filters['finding_type'],
             tool=filters['tool'],
@@ -1348,15 +1389,19 @@ def view_findings(workspace_id: int):
                     click.echo(f"  {sev.capitalize():<10}: {click.style(str(count), fg=color)}")
 
             click.echo()
-            click.echo(f"{'ID':<5} {'Severity':<10} {'Type':<20} {'Host':<15} {'Title':<35}")
-            click.echo("-" * 90)
+
+            # Table header
+            click.echo("  ┌" + "─" * 6 + "┬" + "─" * 12 + "┬" + "─" * 22 + "┬" + "─" * 17 + "┬" + "─" * 40 + "┐")
+            header = f"  │ {'ID':<4} │ {'Severity':<10} │ {'Type':<20} │ {'Host':<15} │ {'Title':<38} │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├" + "─" * 6 + "┼" + "─" * 12 + "┼" + "─" * 22 + "┼" + "─" * 17 + "┼" + "─" * 40 + "┤")
 
             for finding in findings[:30]:  # Limit to 30
                 fid = finding.get('id', '?')
                 sev = finding.get('severity', 'info')
-                ftype = (finding.get('finding_type') or 'unknown')[:19]
-                host = (finding.get('ip_address') or 'N/A')[:14]
-                title = (finding.get('title') or 'No title')[:34]
+                ftype = (finding.get('finding_type') or 'unknown')[:20]
+                host = (finding.get('ip_address') or 'N/A')[:15]
+                title = (finding.get('title') or 'No title')[:38]
 
                 # Color code severity
                 color = {
@@ -1367,12 +1412,16 @@ def view_findings(workspace_id: int):
                     'info': 'white'
                 }.get(sev, 'white')
 
-                sev_colored = click.style(sev, fg=color)
+                sev_colored = click.style(f"{sev:<10}", fg=color)
 
-                click.echo(f"{fid:<5} {sev_colored:<10} {ftype:<20} {host:<15} {title:<35}")
+                row = f"  │ {fid:<4} │ {sev_colored} │ {ftype:<20} │ {host:<15} │ {title:<38} │"
+                click.echo(row)
+
+            # Bottom border
+            click.echo("  └" + "─" * 6 + "┴" + "─" * 12 + "┴" + "─" * 22 + "┴" + "─" * 17 + "┴" + "─" * 40 + "┘")
 
             if len(findings) > 30:
-                click.echo(f"\n... and {len(findings) - 30} more (use filters to narrow results)")
+                click.echo(f"\n  ... and {len(findings) - 30} more (use filters to narrow results)")
 
         # Menu options
         click.echo("\n" + "-" * 80)
@@ -1394,9 +1443,9 @@ def view_findings(workspace_id: int):
             elif choice == 1:
                 filters['severity'] = _filter_by_severity()
             elif choice == 2:
-                filters['finding_type'] = _filter_by_type(workspace_id, fm)
+                filters['finding_type'] = _filter_by_type(engagement_id, fm)
             elif choice == 3:
-                filters['tool'] = _filter_by_tool(workspace_id, fm)
+                filters['tool'] = _filter_by_tool(engagement_id, fm)
             elif choice == 4:
                 filters['search'] = _filter_by_search()
             elif choice == 5:
@@ -1428,9 +1477,9 @@ def _filter_by_severity():
         return None
 
 
-def _filter_by_type(workspace_id: int, fm: 'FindingsManager'):
+def _filter_by_type(engagement_id: int, fm: 'FindingsManager'):
     """Prompt for finding type filter."""
-    types = fm.get_unique_types(workspace_id)
+    types = fm.get_unique_types(engagement_id)
 
     if not types:
         click.echo(click.style("No finding types available", fg='yellow'))
@@ -1451,9 +1500,9 @@ def _filter_by_type(workspace_id: int, fm: 'FindingsManager'):
         return None
 
 
-def _filter_by_tool(workspace_id: int, fm: 'FindingsManager'):
+def _filter_by_tool(engagement_id: int, fm: 'FindingsManager'):
     """Prompt for tool filter."""
-    tools = fm.get_unique_tools(workspace_id)
+    tools = fm.get_unique_tools(engagement_id)
 
     if not tools:
         click.echo(click.style("No tools available", fg='yellow'))
@@ -1492,10 +1541,10 @@ def _filter_by_ip():
         return None
 
 
-def view_osint(workspace_id: int):
-    """Display OSINT data in workspace."""
+def view_osint(engagement_id: int):
+    """Display OSINT data in engagement."""
     om = OsintManager()
-    data = om.list_osint_data(workspace_id)
+    data = om.list_osint_data(engagement_id)
 
     click.clear()
     click.echo("\n" + "=" * 70)
@@ -1531,8 +1580,8 @@ def view_osint(workspace_id: int):
     click.pause("Press any key to return...")
 
 
-def view_web_paths(workspace_id: int):
-    """Display web paths in workspace."""
+def view_web_paths(engagement_id: int):
+    """Display web paths in engagement."""
     hm = HostManager()
     wpm = WebPathsManager()
 
@@ -1541,7 +1590,7 @@ def view_web_paths(workspace_id: int):
     click.echo("WEB PATHS")
     click.echo("=" * 70 + "\n")
 
-    hosts = hm.list_hosts(workspace_id)
+    hosts = hm.list_hosts(engagement_id)
     total_paths = 0
 
     for host in hosts:
@@ -1608,8 +1657,8 @@ def run_interactive_menu():
         elif action == 'view_results':
             view_results_menu()
 
-        elif action == 'manage_workspaces':
-            manage_workspaces_menu()
+        elif action == 'manage_engagements':
+            manage_engagements_menu()
 
         elif action == 'launch_tool':
             tool_name = result.get('tool')
@@ -1618,6 +1667,10 @@ def run_interactive_menu():
             job_params = show_tool_menu(tool_name)
 
             if not job_params:
+                continue
+
+            # Check if user wants to go back
+            if job_params.get('action') == 'back':
                 continue
 
             # Confirm before launching
