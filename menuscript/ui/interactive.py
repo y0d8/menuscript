@@ -1770,13 +1770,20 @@ def view_findings(engagement_id: int):
 
         # Menu options
         click.echo("\n" + "-" * 80)
-        click.echo("Options:")
+        click.echo("Filter Options:")
         click.echo("  [1] Filter by Severity")
         click.echo("  [2] Filter by Type")
         click.echo("  [3] Filter by Tool")
         click.echo("  [4] Search (title/description)")
         click.echo("  [5] Filter by IP Address")
         click.echo("  [6] Clear All Filters")
+        click.echo()
+        click.echo("Management Options:")
+        click.echo("  [7] View Finding Details")
+        click.echo("  [8] Add New Finding")
+        click.echo("  [9] Edit Finding")
+        click.echo("  [10] Delete Finding")
+        click.echo()
         click.echo("  [0] Back to Main Menu")
         click.echo()
 
@@ -1798,6 +1805,17 @@ def view_findings(engagement_id: int):
             elif choice == 6:
                 filters = {k: None for k in filters}
                 click.echo(click.style("✓ All filters cleared", fg='green'))
+                click.pause()
+            elif choice == 7:
+                _view_finding_details(engagement_id, fm)
+            elif choice == 8:
+                _add_new_finding(engagement_id, fm)
+            elif choice == 9:
+                _edit_finding(engagement_id, fm)
+            elif choice == 10:
+                _delete_finding(engagement_id, fm)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
 
         except (KeyboardInterrupt, click.Abort):
@@ -1884,6 +1902,285 @@ def _filter_by_ip():
         return ip if ip else None
     except (KeyboardInterrupt, click.Abort):
         return None
+
+
+def _view_finding_details(engagement_id: int, fm: 'FindingsManager'):
+    """View detailed information about a specific finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to view", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("FINDING DETAILS")
+        click.echo("=" * 80 + "\n")
+
+        # Display all fields
+        click.echo(click.style(f"ID: ", bold=True) + str(finding.get('id')))
+
+        severity = finding.get('severity', 'info')
+        sev_color = {'critical': 'red', 'high': 'red', 'medium': 'yellow', 'low': 'blue', 'info': 'white'}.get(severity, 'white')
+        click.echo(click.style(f"Severity: ", bold=True) + click.style(severity.upper(), fg=sev_color))
+
+        click.echo(click.style(f"Title: ", bold=True) + (finding.get('title') or 'N/A'))
+        click.echo(click.style(f"Type: ", bold=True) + (finding.get('finding_type') or 'N/A'))
+        click.echo(click.style(f"Tool: ", bold=True) + (finding.get('tool') or 'N/A'))
+        click.echo(click.style(f"Host: ", bold=True) + (finding.get('ip_address') or 'N/A'))
+
+        if finding.get('hostname'):
+            click.echo(click.style(f"Hostname: ", bold=True) + finding['hostname'])
+        if finding.get('port'):
+            click.echo(click.style(f"Port: ", bold=True) + str(finding['port']))
+        if finding.get('path'):
+            click.echo(click.style(f"Path: ", bold=True) + finding['path'])
+        if finding.get('refs'):
+            click.echo(click.style(f"References: ", bold=True) + finding['refs'])
+
+        click.echo(click.style(f"\nDescription:", bold=True))
+        click.echo(finding.get('description') or 'No description provided.')
+
+        click.echo(click.style(f"\nCreated: ", bold=True) + (finding.get('created_at') or 'N/A'))
+
+        click.pause("\n\nPress any key to continue...")
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
+
+
+def _add_new_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Add a new finding manually."""
+    from menuscript.storage.hosts import HostManager
+
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW FINDING")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Title (required)
+        title = click.prompt("Title", type=str)
+        if not title.strip():
+            click.echo(click.style("\n✗ Title is required!", fg='red'))
+            click.pause()
+            return
+
+        # Severity
+        click.echo("\nSeverity:")
+        click.echo("  [1] Critical")
+        click.echo("  [2] High")
+        click.echo("  [3] Medium")
+        click.echo("  [4] Low")
+        click.echo("  [5] Info")
+        sev_choice = click.prompt("Select severity", type=int, default=5)
+        severity_map = {1: 'critical', 2: 'high', 3: 'medium', 4: 'low', 5: 'info'}
+        severity = severity_map.get(sev_choice, 'info')
+
+        # Finding type
+        finding_type = click.prompt("\nFinding Type (e.g., web_vulnerability, misconfiguration)", type=str, default="")
+
+        # Description
+        description = click.prompt("\nDescription (press Enter to skip)", type=str, default="")
+
+        # Host selection
+        hm = HostManager()
+        hosts = hm.list_hosts(engagement_id)
+
+        host_id = None
+        if hosts:
+            click.echo("\nSelect host (or press Enter to skip):")
+            click.echo("  [0] No host")
+            for idx, host in enumerate(hosts[:20], 1):
+                click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+            host_choice = click.prompt("Select host", type=int, default=0)
+            if 1 <= host_choice <= len(hosts):
+                host_id = hosts[host_choice - 1]['id']
+
+        # Port
+        port_str = click.prompt("\nPort (press Enter to skip)", type=str, default="")
+        port = int(port_str) if port_str.isdigit() else None
+
+        # Path
+        path = click.prompt("\nPath/URL (press Enter to skip)", type=str, default="")
+
+        # References
+        refs = click.prompt("\nReferences/CVE (press Enter to skip)", type=str, default="")
+
+        # Tool
+        tool = click.prompt("\nTool (press Enter to skip)", type=str, default="manual")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Title: {title}")
+        click.echo(f"Severity: {severity}")
+        click.echo(f"Type: {finding_type or 'N/A'}")
+        click.echo(f"Description: {description[:50] + '...' if len(description) > 50 else description}")
+        click.echo(f"Host: {host_id or 'N/A'}")
+        click.echo(f"Port: {port or 'N/A'}")
+        click.echo(f"Path: {path or 'N/A'}")
+        click.echo(f"References: {refs or 'N/A'}")
+        click.echo(f"Tool: {tool or 'manual'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this finding?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        finding_id = fm.add_finding(
+            engagement_id=engagement_id,
+            title=title,
+            finding_type=finding_type or None,
+            severity=severity,
+            description=description or None,
+            host_id=host_id,
+            tool=tool or 'manual',
+            refs=refs or None,
+            port=port,
+            path=path or None
+        )
+
+        click.echo(click.style(f"\n✓ Finding added successfully! (ID: {finding_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _edit_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Edit an existing finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to edit", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT FINDING #{finding_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Title
+        current_title = finding.get('title', '')
+        title = click.prompt(f"Title [{current_title}]", type=str, default=current_title)
+
+        # Severity
+        current_severity = finding.get('severity', 'info')
+        click.echo(f"\nCurrent Severity: {current_severity}")
+        click.echo("  [1] Critical")
+        click.echo("  [2] High")
+        click.echo("  [3] Medium")
+        click.echo("  [4] Low")
+        click.echo("  [5] Info")
+        click.echo("  [0] Keep current")
+        sev_choice = click.prompt("Select severity", type=int, default=0)
+        severity_map = {1: 'critical', 2: 'high', 3: 'medium', 4: 'low', 5: 'info'}
+        severity = severity_map.get(sev_choice, current_severity)
+
+        # Finding type
+        current_type = finding.get('finding_type', '')
+        finding_type = click.prompt(f"\nFinding Type [{current_type}]", type=str, default=current_type)
+
+        # Description
+        current_desc = finding.get('description', '')
+        description = click.prompt(f"\nDescription [{current_desc[:30]}...]", type=str, default=current_desc)
+
+        # Build update dict
+        updates = {}
+        if title != finding.get('title'):
+            updates['title'] = title
+        if severity != finding.get('severity'):
+            updates['severity'] = severity
+        if finding_type != finding.get('finding_type'):
+            updates['finding_type'] = finding_type
+        if description != finding.get('description'):
+            updates['description'] = description
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        if fm.update_finding(finding_id, **updates):
+            click.echo(click.style("\n✓ Finding updated successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to update finding!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
+
+
+def _delete_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Delete a finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to delete", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        # Show finding details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("FINDING TO DELETE:", bold=True))
+        click.echo(f"ID: {finding.get('id')}")
+        click.echo(f"Title: {finding.get('title')}")
+        click.echo(f"Severity: {finding.get('severity')}")
+        click.echo(f"Type: {finding.get('finding_type', 'N/A')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this finding?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if fm.delete_finding(finding_id):
+            click.echo(click.style("\n✓ Finding deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete finding!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
 
 
 def view_osint(engagement_id: int):
