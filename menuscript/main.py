@@ -3,6 +3,7 @@
 menuscript.main - CLI entry point
 """
 import click
+import datetime
 import os
 import sys
 from pathlib import Path
@@ -1078,3 +1079,332 @@ def paths_summary(workspace):
     click.echo("=" * 60)
     click.echo(f"{'TOTAL':<15} {total}")
     click.echo("=" * 60 + "\n")
+
+
+# ==================== CREDENTIALS COMMANDS ====================
+
+@cli.group()
+def creds():
+    """Credentials management - similar to MSF's creds command."""
+    pass
+
+
+@creds.command("list")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
+@click.option("--service", "-s", default=None, help="Filter by service (ssh, smb, mysql, etc.)")
+@click.option("--status", "-t", default=None, help="Filter by status (valid, untested)")
+@click.option("--host", "-h", default=None, help="Filter by host IP")
+def creds_list(engagement, service, status, host):
+    """List all discovered credentials (similar to MSF's creds command)."""
+    from menuscript.storage.credentials import CredentialsManager
+    from menuscript.storage.hosts import HostManager
+
+    em = EngagementManager()
+
+    if engagement:
+        eng = em.get(engagement)
+        if not eng:
+            click.echo(f"✗ Workspace '{engagement}' not found", err=True)
+            return
+    else:
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
+            return
+
+    cm = CredentialsManager()
+
+    # Get host_id if filtering by host
+    host_id = None
+    if host:
+        hm = HostManager()
+        host_obj = hm.get_host_by_ip(eng['id'], host)
+        if not host_obj:
+            click.echo(f"✗ Host {host} not found", err=True)
+            return
+        host_id = host_obj['id']
+
+    creds = cm.list_credentials(eng['id'], host_id=host_id, service=service, status=status)
+
+    if not creds:
+        filter_msg = ""
+        if service:
+            filter_msg += f" (service={service})"
+        if status:
+            filter_msg += f" (status={status})"
+        click.echo(f"No credentials found in workspace '{eng['name']}'{filter_msg}")
+        return
+
+    # Get stats
+    stats = cm.get_stats(eng['id'])
+
+    click.echo("\n" + "=" * 100)
+    click.echo(f"CREDENTIALS - Engagement: {eng['name']}")
+    if service or status or host:
+        filters = []
+        if service:
+            filters.append(f"service={service}")
+        if status:
+            filters.append(f"status={status}")
+        if host:
+            filters.append(f"host={host}")
+        click.echo(f"Filters: {', '.join(filters)}")
+    click.echo("=" * 100)
+
+    # Summary line
+    click.echo(f"Total: {stats['total']}  |  " +
+               click.style(f"Valid: {stats['valid']}", fg='green', bold=True) +
+               f"  |  Usernames: {stats['users_only']}  |  Pairs: {stats['pairs']}")
+    click.echo()
+
+    # Separate valid and untested
+    valid_creds = [c for c in creds if c.get('status') == 'valid']
+    untested_creds = [c for c in creds if c.get('status') != 'valid']
+
+    # Show valid credentials
+    if valid_creds:
+        click.echo(click.style("VALID CREDENTIALS (Confirmed Working)", bold=True, fg='green'))
+        click.echo("─" * 100)
+        click.echo(f"{'Username':<20} {'Password':<20} {'Service':<10} {'Host':<18} {'Port':<6} {'Tool':<15}")
+        click.echo("─" * 100)
+
+        for cred in valid_creds:
+            username = cred.get('username', '')[:19]
+            password = cred.get('password', '')[:19]
+            service_name = cred.get('service', 'N/A')[:9]
+            ip = cred.get('ip_address', 'N/A')[:17]
+            port = str(cred.get('port', 'N/A'))[:5]
+            tool_name = cred.get('tool', 'N/A')[:14]
+
+            click.echo(
+                click.style("✓", fg='green', bold=True) + " " +
+                click.style(f"{username:<20} {password:<20}", fg='green', bold=True) +
+                f"{service_name:<10} {ip:<18} {port:<6} {tool_name:<15}"
+            )
+
+        click.echo("─" * 100)
+        click.echo()
+
+    # Show discovered usernames
+    if untested_creds:
+        click.echo(click.style(f"DISCOVERED USERNAMES ({len(untested_creds)} untested)", bold=True, fg='cyan'))
+        click.echo("─" * 80)
+
+        # Group by service
+        by_service = {}
+        for cred in untested_creds:
+            svc = cred.get('service', 'unknown')
+            if svc not in by_service:
+                by_service[svc] = []
+            by_service[svc].append(cred.get('username', ''))
+
+        for svc, usernames in sorted(by_service.items()):
+            user_list = ', '.join(sorted(usernames))
+            click.echo(f"{svc.upper():<8} ({len(usernames):2}): {user_list}")
+
+        click.echo("─" * 80)
+
+    click.echo(f"\nTotal displayed: {len(creds)} credentials\n")
+
+
+@creds.command("stats")
+@click.option("--engagement", "-w", default=None, help="Engagement name (default: current)")
+def creds_stats(engagement):
+    """Show credentials statistics."""
+    from menuscript.storage.credentials import CredentialsManager
+
+    em = EngagementManager()
+
+    if engagement:
+        eng = em.get(engagement)
+        if not eng:
+            click.echo(f"✗ Workspace '{engagement}' not found", err=True)
+            return
+    else:
+        eng = em.get_current()
+        if not eng:
+            click.echo("✗ No engagement selected", err=True)
+            return
+
+    cm = CredentialsManager()
+    stats = cm.get_stats(eng['id'])
+
+    click.echo("\n" + "=" * 60)
+    click.echo(f"CREDENTIALS STATISTICS - Engagement: {eng['name']}")
+    click.echo("=" * 60)
+    click.echo(f"Total Credentials:       {stats['total']}")
+    click.echo(f"Valid (confirmed):       {click.style(str(stats['valid']), fg='green')}")
+    click.echo(f"Username-only:           {stats['users_only']}")
+    click.echo(f"Password-only:           {stats['passwords_only']}")
+    click.echo(f"Username:Password pairs: {stats['pairs']}")
+    click.echo("=" * 60 + "\n")
+
+
+@cli.group()
+def report():
+    """Generate penetration test reports in various formats."""
+    pass
+
+
+@report.command("generate")
+@click.option("--format", "-f", type=click.Choice(['markdown', 'html', 'json'], case_sensitive=False), default='html', help="Report format")
+@click.option("--output", "-o", type=str, help="Output file path (default: reports/<engagement>_<timestamp>.<ext>)")
+@click.option("--engagement", "-e", type=int, help="Engagement ID (default: current engagement)")
+def report_generate(format, output, engagement):
+    """Generate a penetration test report."""
+    from menuscript.reporting.generator import ReportGenerator
+    from menuscript.storage.engagements import EngagementManager
+    import datetime
+
+    # Get engagement
+    em = EngagementManager()
+
+    if engagement:
+        eng = em.get_by_id(engagement)
+        if not eng:
+            click.echo(click.style(f"✗ Engagement {engagement} not found", fg='red'))
+            return
+    else:
+        eng = em.get_current()
+        if not eng:
+            click.echo(click.style("✗ No current engagement. Use 'menuscript engagement list' to see available engagements.", fg='red'))
+            return
+
+    engagement_id = eng['id']
+    engagement_name = eng['name']
+
+    click.echo(f"Generating {format.upper()} report for engagement: {click.style(engagement_name, fg='cyan', bold=True)}")
+
+    # Generate output filename if not specified
+    if not output:
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_name = engagement_name.replace(' ', '_').replace('/', '_')
+        ext = format if format != 'markdown' else 'md'
+        output = f"reports/{safe_name}_{timestamp}.{ext}"
+
+    try:
+        # Create report generator
+        rg = ReportGenerator(engagement_id)
+
+        # Generate report based on format
+        if format == 'markdown':
+            report_text = rg.generate_markdown(output)
+        elif format == 'html':
+            report_text = rg.generate_html(output)
+        elif format == 'json':
+            report_text = rg.generate_json(output)
+
+        click.echo(click.style(f"✓ Report generated successfully!", fg='green'))
+        click.echo(f"  File: {output}")
+        click.echo(f"  Size: {len(report_text)} bytes")
+
+        # Show summary
+        data = rg.collect_data()
+        click.echo(f"\nReport Summary:")
+        click.echo(f"  Hosts: {len(data['hosts'])}")
+        click.echo(f"  Findings: {len(data['findings'])}")
+        click.echo(f"  Credentials: {len(data['credentials'])}")
+
+    except Exception as e:
+        click.echo(click.style(f"✗ Error generating report: {e}", fg='red'))
+        import traceback
+        traceback.print_exc()
+
+
+@report.command("list")
+def report_list():
+    """List generated reports."""
+    import os
+    reports_dir = Path("reports")
+
+    if not reports_dir.exists():
+        click.echo("No reports directory found.")
+        return
+
+    reports = sorted(reports_dir.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    if not reports:
+        click.echo("No reports found.")
+        return
+
+    click.echo("\n" + "=" * 70)
+    click.echo("GENERATED REPORTS")
+    click.echo("=" * 70)
+
+    for rpt in reports:
+        size = rpt.stat().st_size
+        mtime = datetime.datetime.fromtimestamp(rpt.stat().st_mtime)
+        click.echo(f"{rpt.name}")
+        click.echo(f"  Size: {size:,} bytes | Modified: {mtime.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    click.echo("=" * 70 + "\n")
+
+
+# ============================================================================
+# Import Commands
+# ============================================================================
+
+@cli.group()
+def import_data():
+    """Import data from external sources."""
+    pass
+
+
+@import_data.command("msf")
+@click.argument('xml_file', type=click.Path(exists=True))
+@click.option('-v', '--verbose', is_flag=True, help='Show detailed import progress')
+def import_msf(xml_file, verbose):
+    """
+    Import data from Metasploit Framework XML export.
+
+    Export from MSF console:
+        db_export -f xml /path/to/export.xml
+
+    Example:
+        menuscript import-data msf /path/to/msf_export.xml
+    """
+    from menuscript.importers.msf_importer import MSFImporter
+
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("✗ No engagement selected! Use 'menuscript engagement use <name>'", fg='red'))
+        return
+
+    engagement_id = current_ws['id']
+    engagement_name = current_ws['name']
+
+    click.echo(click.style(f"\n🔄 Importing Metasploit data into engagement: {engagement_name}", fg='cyan', bold=True))
+    click.echo()
+
+    importer = MSFImporter(engagement_id)
+
+    try:
+        stats = importer.import_xml(xml_file, verbose=verbose)
+
+        click.echo()
+        click.echo(click.style("✓ Import completed successfully!", fg='green', bold=True))
+        click.echo()
+        click.echo("Import Summary:")
+        click.echo(f"  • Hosts:           {stats['hosts']}")
+        click.echo(f"  • Services:        {stats['services']}")
+        click.echo(f"  • Credentials:     {stats['credentials']}")
+        click.echo(f"  • Vulnerabilities: {stats['vulnerabilities']}")
+
+        if stats['skipped'] > 0:
+            click.echo(f"  • Skipped:         {stats['skipped']}")
+
+        click.echo()
+        click.echo(click.style("💡 TIP:", fg='yellow', bold=True) + " View imported data with:")
+        click.echo("  • menuscript dashboard")
+        click.echo("  • menuscript interactive")
+        click.echo("  • menuscript report generate")
+        click.echo()
+
+    except Exception as e:
+        click.echo(click.style(f"\n✗ Import failed: {e}", fg='red'))
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        return

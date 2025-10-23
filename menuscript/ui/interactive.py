@@ -4,6 +4,7 @@ menuscript.ui.interactive - Interactive menu system for tool selection
 """
 import click
 import os
+import textwrap
 from typing import Dict, Any, Optional, List
 from menuscript.engine.loader import discover_plugins
 from menuscript.engine.background import enqueue_job, list_jobs, get_job
@@ -13,6 +14,19 @@ from menuscript.storage.findings import FindingsManager
 from menuscript.storage.osint import OsintManager
 from menuscript.storage.web_paths import WebPathsManager
 from menuscript.ui.terminal import setup_terminal
+
+
+def get_terminal_width() -> int:
+    """Get terminal width with fallback."""
+    try:
+        width, _ = os.get_terminal_size()
+        return width
+    except:
+        # Fallback to environment variable or default
+        try:
+            return int(os.environ.get('COLUMNS', 80))
+        except:
+            return 80
 
 
 def show_main_menu() -> Optional[Dict[str, Any]]:
@@ -61,12 +75,13 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo()
 
     # Description
-    click.echo("  Menuscript is a pentesting workflow manager that integrates popular security tools")
-    click.echo("  (Nmap, Metasploit, Gobuster, etc.) into a unified interface. Launch scans, manage")
-    click.echo("  engagements, and view results all in one place.")
+    click.echo("  Menuscript ties your favorite hacking tools together so you can spend less time switching windows")
+    click.echo("  and more time breaking things (ethically of course). Kick off scans using the latest tools like")
+    click.echo("  Nmap, Metasploit, Gobuster, theHavester, and many more. Menuscript is your one stop shop to")
+    click.echo("  manage engagements, review findings, and generate reports — all in one place.")
 
     click.echo()
-    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/r/w) or enter the tool number")
+    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/f/r/i/e) or enter the tool number")
     click.echo()
     click.echo("  " + "─" * (width - 4))
     click.echo()
@@ -115,40 +130,40 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo("  " + "─" * (width - 4))
     click.echo()
 
-    # View options with shortcuts
-    click.echo(click.style("  DATA & MONITORING", bold=True))
+    # Data & Management options with shortcuts
+    click.echo(click.style("  DATA & MANAGEMENT", bold=True))
     click.echo()
 
     dashboard_option = idx
     click.echo(f"      " + click.style("[d]", bold=True) + " or " +
-               f"[{idx}]" + "   Live Dashboard    - Real-time monitoring view")
+               f"[{idx}]" + "   Live Dashboard       - Real-time monitoring view")
     idx += 1
 
     job_option = idx
     click.echo(f"      " + click.style("[j]", bold=True) + " or " +
-               f"[{idx}]" + "   View Jobs         - Manage running scans")
+               f"[{idx}]" + "  View Jobs            - Manage running scans")
     idx += 1
 
-    results_option = idx
+    findings_option = idx
+    click.echo(f"      " + click.style("[f]", bold=True) + " or " +
+               f"[{idx}]" + "  View Findings        - Browse scan findings")
+    idx += 1
+
+    reports_option = idx
     click.echo(f"      " + click.style("[r]", bold=True) + " or " +
-               f"[{idx}]" + "  View Results      - Browse scan findings")
+               f"[{idx}]" + "  Manage Reports       - View, generate, or delete reports")
     idx += 1
 
-    click.echo()
-    click.echo("  " + "─" * (width - 4))
-    click.echo()
-    click.echo(click.style("  ENGAGEMENT MANAGEMENT", bold=True))
-    click.echo()
+    import_option = idx
+    click.echo(f"      " + click.style("[i]", bold=True) + " or " +
+               f"[{idx}]" + "  Import Data          - Import from Metasploit or other sources")
+    idx += 1
 
     engagement_option = idx
-    click.echo(f"      " + click.style("[w]", bold=True) + " or " +
-               f"[{idx}]" + "  Manage Engagements - Switch, create, or delete engagements")
+    click.echo(f"      " + click.style("[e]", bold=True) + " or " +
+               f"[{idx}]" + "  Manage Engagements   - Switch, create, or delete engagements")
     idx += 1
 
-    click.echo()
-    click.echo("  " + "─" * (width - 4))
-    click.echo()
-    click.echo(click.style("  ACTIONS", bold=True))
     click.echo()
     click.echo(f"      " + click.style("[q]", bold=True) + " or " +
                "[0]" + "   Exit")
@@ -176,9 +191,13 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             return {'action': 'view_dashboard'}
         elif choice_input == 'j':
             return {'action': 'view_jobs'}
-        elif choice_input == 'r':
+        elif choice_input == 'f':
             return {'action': 'view_results'}
-        elif choice_input == 'w':
+        elif choice_input == 'r':
+            return {'action': 'manage_reports'}
+        elif choice_input == 'i':
+            return {'action': 'import_data'}
+        elif choice_input == 'e':
             return {'action': 'manage_engagements'}
         elif choice_input in ('q', '0', ''):
             return None
@@ -200,8 +219,14 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == job_option:
             return {'action': 'view_jobs'}
 
-        if choice == results_option:
+        if choice == findings_option:
             return {'action': 'view_results'}
+
+        if choice == reports_option:
+            return {'action': 'manage_reports'}
+
+        if choice == import_option:
+            return {'action': 'import_data'}
 
         if choice == engagement_option:
             return {'action': 'manage_engagements'}
@@ -210,7 +235,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             action_type, tool_name = tool_list[choice - 1]
             return {'action': action_type, 'tool': tool_name}
         else:
-            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 4} or use shortcuts.", fg='red'))
+            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 6} or use shortcuts.", fg='red'))
             click.pause()
             return {'action': 'retry'}
 
@@ -232,41 +257,49 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     presets = help_info.get('presets', [])
     flags = help_info.get('flags', [])
 
+    # Get terminal width for responsive banner
+    width = get_terminal_width()
+
+    # Tool category icons
+    category_icons = {
+        'network': '🌐',
+        'web': '🔍',
+        'osint': '🔎',
+        'metasploit': '⚡',
+        'windows': '🪟',
+        'other': '🔧'
+    }
+
+    # Build centered banner with box drawing
     click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo(f"{help_info.get('name', tool_name)}")
-    click.echo("=" * 70)
-    click.echo(f"{help_info.get('description', '')}\n")
+    tool_title = help_info.get('name', tool_name)
+    description = help_info.get('description', '')
+    category = getattr(plugin, 'category', 'other')
+    icon = category_icons.get(category, '🔧')
 
-    # Show presets if available
-    if presets:
-        click.echo(click.style("PRESETS:", bold=True, fg='green'))
+    # Top border
+    click.echo("\n" + click.style("╭" + "─" * (width - 2) + "╮", fg='cyan', bold=True))
+    # Empty line for padding
+    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
+    # Tool title with icon centered
+    title_with_icon = f"{icon}  {tool_title}"
+    padding = (width - 2 - len(title_with_icon)) // 2
+    title_line = "│" + " " * padding + title_with_icon + " " * (width - 2 - padding - len(title_with_icon)) + "│"
+    click.echo(click.style(title_line, fg='cyan', bold=True))
+    # Empty line for padding
+    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
+    # Bottom border
+    click.echo(click.style("╰" + "─" * (width - 2) + "╯", fg='cyan', bold=True))
+    click.echo()
 
-        # Check if tool has categorized presets
-        preset_categories = help_info.get('preset_categories', {})
+    # Wrap description to match terminal width
+    if description:
+        wrapped_desc = textwrap.fill(description, width=width)
+        click.echo(wrapped_desc)
+    click.echo()
 
-        if preset_categories:
-            # Display presets grouped by category
-            preset_num = 1
-            for category_name, category_presets in preset_categories.items():
-                # Format category name (e.g., "basic_detection" -> "Basic Detection")
-                display_name = category_name.replace('_', ' ').title()
-                click.echo(f"  {display_name}:")
-                for preset in category_presets:
-                    click.echo(f"    {preset_num}. {preset['name']:<20} - {preset['desc']}")
-                    preset_num += 1
-                click.echo()
-        else:
-            # Fall back to simple list for tools without categories
-            for i, preset in enumerate(presets, 1):
-                click.echo(f"  {i}. {preset['name']:<20} - {preset['desc']}")
-            click.echo()
-
-
-    click.echo("-" * 70)
-
-    # Get target
-    target = click.prompt("\nTarget (IP, hostname, URL, or CIDR) [or 'back' to return]", type=str)
+    # Get target FIRST (more logical workflow)
+    target = click.prompt("Target (IP, hostname, URL, or CIDR) [or 'back' to return]", type=str)
 
     if not target or target.strip() == "":
         click.echo(click.style("Target required!", fg='red'))
@@ -278,19 +311,43 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     if target.lower() in ['back', 'b', 'exit', 'q']:
         return {'action': 'back'}
 
-    # Get preset or custom args
+    # Now show presets and let user choose
     args = []
     selected_preset_name = None
 
     if presets:
-        click.echo("\nSelect preset or enter custom args:")
-        click.echo(f"  0. Back to main menu")
-        for i, preset in enumerate(presets, 1):
-            click.echo(f"  {i}. {preset['name']}")
+        click.echo()
+        click.echo(click.style("─" * width, fg='green'))
+        click.echo(click.style("📋 Available Presets", bold=True, fg='green'))
+        click.echo(click.style("─" * width, fg='green'))
+        click.echo()
+
+        # Check if tool has categorized presets
+        preset_categories = help_info.get('preset_categories', {})
+
+        if preset_categories:
+            # Display presets grouped by category
+            preset_num = 1
+            for category_name, category_presets in preset_categories.items():
+                # Format category name (e.g., "basic_detection" -> "Basic Detection")
+                display_name = category_name.replace('_', ' ').title()
+                click.echo(click.style(f"  {display_name}:", bold=True))
+                for preset in category_presets:
+                    click.echo(f"    {preset_num}. {preset['name']:<20} - {preset['desc']}")
+                    preset_num += 1
+                click.echo()
+        else:
+            # Fall back to simple list for tools without categories
+            for i, preset in enumerate(presets, 1):
+                click.echo(f"  {i}. {preset['name']:<20} - {preset['desc']}")
+            click.echo()
+
         click.echo(f"  {len(presets) + 1}. Custom args")
+        click.echo(f"  0. Back")
+        click.echo()
 
         try:
-            choice = click.prompt("Choice", type=int, default=1)
+            choice = click.prompt("Select preset", type=int, default=1)
 
             if choice == 0:
                 return {'action': 'back'}
@@ -298,16 +355,18 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
                 selected_preset = presets[choice - 1]
                 args = selected_preset['args']
                 selected_preset_name = selected_preset['name']
-                click.echo(f"Using preset: {selected_preset['name']}")
+                click.echo(click.style(f"\n✓ Using preset: {selected_preset['name']}", fg='green'))
             else:
                 # Custom args
-                custom = click.prompt("Enter custom arguments (space-separated)", default="", type=str)
+                custom = click.prompt("\nEnter custom arguments (space-separated)", default="", type=str)
                 if custom:
                     args = custom.split()
         except (KeyboardInterrupt, click.Abort):
             return None
     else:
         # No presets, just ask for custom args
+        click.echo()
+        click.echo(click.style("─" * width, fg='yellow'))
         custom = click.prompt("Enter arguments (space-separated, or press Enter for defaults)", default="", type=str)
         if custom:
             args = custom.split()
@@ -322,15 +381,291 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
             click.echo(click.style("=== Credential Configuration ===", bold=True, fg='yellow'))
             click.echo("Configure authentication options for this login module:\n")
 
-            # Ask about credential options
+            # Check if we have discovered credentials in the database
+            from menuscript.storage.credentials import CredentialsManager
+            from menuscript.storage.engagements import EngagementManager
+
+            em = EngagementManager()
+            current_eng = em.get_current()
+            db_users_available = False
+            db_user_count = 0
+
+            if current_eng:
+                cm = CredentialsManager()
+                # Get all credentials
+                all_creds = cm.list_credentials(current_eng['id'])
+
+                # Separate username-only and valid pairs
+                db_users = [c for c in all_creds if c.get('username') and not c.get('password')]
+                db_valid_pairs = [c for c in all_creds if c.get('username') and c.get('password')]
+
+                db_user_count = len(db_users)
+                db_pair_count = len(db_valid_pairs)
+                db_users_available = db_user_count > 0 or db_pair_count > 0
+
+                if db_users_available:
+                    click.echo(click.style("💡 Credentials in database:", fg='cyan', bold=True))
+                    if db_user_count > 0:
+                        click.echo(click.style(f"   • {db_user_count} discovered usernames (for brute force)", fg='cyan'))
+                    if db_pair_count > 0:
+                        click.echo(click.style(f"   • {db_pair_count} valid username:password pairs", fg='green', bold=True))
+                    click.echo()
+
+            # Ask about credential options with clear descriptions
+            if db_users_available:
+                click.echo(click.style("Choose how to configure credentials:", bold=True))
+                click.echo()
+                if db_pair_count > 0:
+                    click.echo("  " + click.style("[use_db_pairs]", fg='green', bold=True) + f"  - Test {db_pair_count} valid username:password pairs from database")
+                if db_user_count > 0:
+                    click.echo("  " + click.style("[use_db_user_as_pass]", fg='yellow', bold=True) + f"  - Test {db_user_count} usernames AS passwords (user:user)")
+                    click.echo("  " + click.style("[use_db_users]", fg='cyan', bold=True) + f"  - Brute force with {db_user_count} usernames from database + password wordlist")
+                click.echo("  [single]        - Test a single username/password")
+                click.echo("  [wordlist]      - Use custom username and password files")
+                click.echo("  [userpass_file] - Use custom username:password file")
+                click.echo("  [skip]          - Skip credential configuration")
+                click.echo()
+
+                # Build choices list
+                choices = []
+                if db_pair_count > 0:
+                    choices.append('use_db_pairs')
+                if db_user_count > 0:
+                    choices.append('use_db_user_as_pass')
+                    choices.append('use_db_users')
+                choices.extend(['single', 'wordlist', 'userpass_file', 'skip'])
+
+                # Smart default: pairs > user_as_pass > users_with_wordlist
+                if db_pair_count > 0:
+                    default_choice = 'use_db_pairs'
+                elif db_user_count > 0:
+                    default_choice = 'use_db_user_as_pass'  # Try username as password first (fast!)
+                else:
+                    default_choice = 'skip'
+            else:
+                choices = ['single', 'wordlist', 'userpass_file', 'skip']
+                default_choice = 'skip'
+
             cred_mode = click.prompt(
                 "Credential mode",
-                type=click.Choice(['single', 'wordlist', 'userpass_file', 'skip'], case_sensitive=False),
-                default='skip',
-                show_choices=True
+                type=click.Choice(choices, case_sensitive=False),
+                default=default_choice,
+                show_choices=False
             )
 
-            if cred_mode == 'single':
+            if cred_mode == 'use_db_pairs':
+                # Use valid username:password pairs from database
+                import tempfile
+                import os
+
+                click.echo(click.style(f"✓ Using {db_pair_count} valid username:password pairs from database", fg='green'))
+                click.echo()
+
+                # Filter options
+                click.echo("Filter credentials by:")
+                filter_service = click.prompt("  Service (ssh, smb, mysql, etc.) or leave blank for all", default="", type=str)
+                filter_host = click.prompt("  Host IP or leave blank for all", default="", type=str)
+
+                # Get filtered credentials
+                filtered_pairs = db_valid_pairs
+                if filter_service or filter_host:
+                    filtered_pairs = []
+                    for c in db_valid_pairs:
+                        if filter_service and c.get('service') != filter_service:
+                            continue
+                        if filter_host and c.get('ip_address') != filter_host:
+                            continue
+                        filtered_pairs.append(c)
+
+                if not filtered_pairs:
+                    click.echo(click.style("✗ No credentials match the filters", fg='red'))
+                    cred_mode = 'skip'
+                else:
+                    click.echo(click.style(f"✓ {len(filtered_pairs)} credential pairs selected", fg='green'))
+
+                    # Create temp file with username:password pairs
+                    temp_fd, temp_path = tempfile.mkstemp(prefix='menuscript_creds_', suffix='.txt', text=True)
+                    try:
+                        with os.fdopen(temp_fd, 'w') as f:
+                            for cred in filtered_pairs:
+                                username = cred.get('username')
+                                password = cred.get('password')
+                                if username and password:
+                                    # MSF userpass format: username password (space-separated)
+                                    f.write(f"{username} {password}\n")
+
+                        click.echo(f"Created temporary credential file: {temp_path}")
+                        click.echo(f"  Contains {len(filtered_pairs)} username:password pairs")
+                        args.append(f"USERPASS_FILE={temp_path}")
+
+                    except Exception as e:
+                        click.echo(click.style(f"✗ Error creating credential file: {e}", fg='red'))
+                        try:
+                            os.unlink(temp_path)
+                        except:
+                            pass
+                        cred_mode = 'skip'
+
+            elif cred_mode == 'use_db_user_as_pass':
+                # Use usernames AS passwords (username:username pairs)
+                import tempfile
+                import os
+
+                click.echo(click.style(f"✓ Testing {db_user_count} usernames AS passwords (user:user)", fg='green'))
+                click.echo()
+
+                # Filter options
+                click.echo("Filter credentials by:")
+                filter_service = click.prompt("  Service (ssh, smb, mysql, etc.) or leave blank for all", default="", type=str)
+                filter_host = click.prompt("  Host IP or leave blank for all", default="", type=str)
+
+                # Get filtered credentials
+                filtered_users = db_users
+                if filter_service or filter_host:
+                    filtered_users = []
+                    for c in db_users:
+                        if filter_service and c.get('service') != filter_service:
+                            continue
+                        if filter_host and c.get('ip_address') != filter_host:
+                            continue
+                        filtered_users.append(c)
+
+                if not filtered_users:
+                    click.echo(click.style("✗ No usernames match the filters", fg='red'))
+                    cred_mode = 'skip'
+                else:
+                    click.echo(click.style(f"✓ {len(filtered_users)} usernames selected", fg='green'))
+
+                    # Create temp file with username:username pairs
+                    temp_fd, temp_path = tempfile.mkstemp(prefix='menuscript_user_as_pass_', suffix='.txt', text=True)
+                    try:
+                        with os.fdopen(temp_fd, 'w') as f:
+                            for cred in filtered_users:
+                                username = cred.get('username')
+                                if username:
+                                    # MSF userpass format: username password (space-separated)
+                                    # Using username AS password: msfadmin msfadmin
+                                    f.write(f"{username} {username}\n")
+
+                        click.echo(f"Created temporary credential file: {temp_path}")
+                        click.echo(f"  Contains {len(filtered_users)} username:username pairs")
+                        click.echo()
+                        click.echo(click.style("Examples:", fg='cyan'))
+
+                        # Show first 5 examples
+                        shown = 0
+                        for cred in filtered_users[:5]:
+                            username = cred.get('username')
+                            if username:
+                                click.echo(f"  • {username}:{username}")
+                                shown += 1
+
+                        if len(filtered_users) > 5:
+                            click.echo(f"  ... and {len(filtered_users) - 5} more")
+
+                        args.append(f"USERPASS_FILE={temp_path}")
+
+                    except Exception as e:
+                        click.echo(click.style(f"✗ Error creating credential file: {e}", fg='red'))
+                        try:
+                            os.unlink(temp_path)
+                        except:
+                            pass
+                        cred_mode = 'skip'
+
+            elif cred_mode == 'use_db_users':
+                # Use discovered usernames from database for brute force
+                import tempfile
+                import os
+
+                click.echo(click.style(f"✓ Using {db_user_count} discovered usernames from database", fg='green'))
+                click.echo()
+
+                # Filter options
+                click.echo("Filter usernames by:")
+                filter_service = click.prompt("  Service (ssh, smb, mysql, etc.) or leave blank for all", default="", type=str)
+                filter_host = click.prompt("  Host IP or leave blank for all", default="", type=str)
+
+                # Get filtered credentials
+                if filter_service or filter_host:
+                    filtered_creds = []
+                    for c in db_users:
+                        if filter_service and c.get('service') != filter_service:
+                            continue
+                        if filter_host and c.get('ip_address') != filter_host:
+                            continue
+                        filtered_creds.append(c)
+                    db_users = filtered_creds
+
+                if not db_users:
+                    click.echo(click.style("✗ No usernames match the filters", fg='red'))
+                    cred_mode = 'skip'
+                else:
+                    click.echo(click.style(f"✓ {len(db_users)} usernames selected", fg='green'))
+
+                    # Create temp file with usernames
+                    temp_fd, temp_path = tempfile.mkstemp(prefix='menuscript_users_', suffix='.txt', text=True)
+                    try:
+                        with os.fdopen(temp_fd, 'w') as f:
+                            for cred in db_users:
+                                username = cred.get('username')
+                                if username:
+                                    f.write(username + '\n')
+
+                        click.echo(f"Created temporary user file: {temp_path}")
+                        click.echo(f"  Contains {len(db_users)} usernames")
+                        args.append(f"USER_FILE={temp_path}")
+
+                        # Ask for password file
+                        click.echo()
+                        click.echo("Now specify the password wordlist to test:")
+
+                        # Common password file locations
+                        default_pass_file = "/usr/share/wordlists/rockyou.txt"
+                        if not os.path.exists(default_pass_file):
+                            # Try alternative locations
+                            alt_locations = [
+                                "/usr/share/wordlists/metasploit/unix_passwords.txt",
+                                "/usr/share/metasploit-framework/data/wordlists/unix_passwords.txt",
+                                "/usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000.txt"
+                            ]
+                            for alt in alt_locations:
+                                if os.path.exists(alt):
+                                    default_pass_file = alt
+                                    break
+
+                        pass_file = click.prompt("PASS_FILE (path to password list)", default=default_pass_file, type=str, show_default=True)
+
+                        # Ensure we got a valid password file (not the username file)
+                        if not pass_file or pass_file.strip() == "":
+                            click.echo(click.style("⚠️  No password file specified", fg='red'))
+                            pass_file = default_pass_file
+
+                        # Make sure it's not the same as the username file
+                        if pass_file == temp_path:
+                            click.echo(click.style("⚠️  Password file cannot be the same as username file!", fg='red'))
+                            pass_file = default_pass_file
+
+                        if pass_file and os.path.exists(pass_file):
+                            args.append(f"PASS_FILE={pass_file}")
+                            click.echo(click.style(f"✓ Using password file: {pass_file}", fg='green'))
+                        elif pass_file:
+                            click.echo(click.style(f"⚠️  Warning: Password file not found: {pass_file}", fg='yellow'))
+                            if click.confirm("Continue anyway?", default=False):
+                                args.append(f"PASS_FILE={pass_file}")
+                            else:
+                                click.echo(click.style("Cancelled", fg='red'))
+                                cred_mode = 'skip'
+
+                    except Exception as e:
+                        click.echo(click.style(f"✗ Error creating user file: {e}", fg='red'))
+                        try:
+                            os.unlink(temp_path)
+                        except:
+                            pass
+                        cred_mode = 'skip'
+
+            elif cred_mode == 'single':
                 # Single username/password
                 username = click.prompt("USERNAME", default="", type=str)
                 if username:
@@ -1629,6 +1964,379 @@ def view_web_paths(engagement_id: int):
     click.pause("Press any key to return...")
 
 
+def import_data_menu():
+    """Interactive data import menu."""
+    from pathlib import Path
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("IMPORT DATA")
+        click.echo("=" * 70 + "\n")
+
+        click.echo("Import data from external sources into the current engagement.\n")
+
+        # Menu options
+        click.echo(click.style("IMPORT SOURCES:", bold=True))
+        click.echo("  [1] Metasploit Framework (XML export)")
+        click.echo("  [2] Nmap (XML export) - Coming soon")
+        click.echo("  [3] Nessus (.nessus file) - Coming soon")
+        click.echo("  [0] Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select import source", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                _import_msf_data()
+            elif choice in [2, 3]:
+                click.echo(click.style("\n  ⚠️  This import source is coming soon!", fg='yellow'))
+                click.pause("\nPress any key to continue...")
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _import_msf_data():
+    """Import Metasploit Framework data."""
+    from menuscript.importers.msf_importer import MSFImporter
+    from menuscript.storage.engagements import EngagementManager
+
+    click.echo()
+    click.echo(click.style("IMPORT METASPLOIT DATA", bold=True, fg='cyan'))
+    click.echo()
+    click.echo("Export from MSF console:")
+    click.echo("  msf6 > db_export -f xml /path/to/export.xml")
+    click.echo()
+
+    # Prompt for file path
+    xml_file = click.prompt("Enter path to MSF XML export file", type=str)
+
+    # Check if file exists
+    from pathlib import Path
+    if not Path(xml_file).exists():
+        click.echo(click.style(f"\n✗ File not found: {xml_file}", fg='red'))
+        click.pause("\nPress any key to continue...")
+        return
+
+    # Ask for verbose output
+    verbose = click.confirm("Show detailed import progress?", default=True)
+
+    click.echo()
+    click.echo(click.style("🔄 Starting import...", fg='cyan'))
+    click.echo()
+
+    # Get current engagement
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("✗ No engagement selected!", fg='red'))
+        click.pause("\nPress any key to continue...")
+        return
+
+    engagement_id = current_ws['id']
+
+    # Perform import
+    importer = MSFImporter(engagement_id)
+
+    try:
+        stats = importer.import_xml(xml_file, verbose=verbose)
+
+        click.echo()
+        click.echo(click.style("✓ Import completed successfully!", fg='green', bold=True))
+        click.echo()
+        click.echo("Import Summary:")
+        click.echo(f"  • Hosts:           {stats['hosts']}")
+        click.echo(f"  • Services:        {stats['services']}")
+        click.echo(f"  • Credentials:     {stats['credentials']}")
+        click.echo(f"  • Vulnerabilities: {stats['vulnerabilities']}")
+
+        if stats['skipped'] > 0:
+            click.echo(f"  • Skipped:         {stats['skipped']}")
+
+        click.echo()
+        click.pause("Press any key to continue...")
+
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f"✗ Import failed: {e}", fg='red'))
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        click.pause("\nPress any key to continue...")
+
+
+def manage_reports_menu():
+    """Interactive reports management menu."""
+    from pathlib import Path
+    import os
+    import subprocess
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("MANAGE REPORTS")
+        click.echo("=" * 70 + "\n")
+
+        # List existing reports
+        reports_dir = Path("reports")
+        reports = []
+
+        if reports_dir.exists():
+            reports = sorted(reports_dir.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+        if reports:
+            click.echo(click.style(f"Found {len(reports)} report(s):\n", fg='cyan'))
+
+            for idx, rpt in enumerate(reports[:10], 1):
+                size = rpt.stat().st_size
+                mtime = os.path.getmtime(rpt)
+                import datetime
+                mtime_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+                file_type = "HTML" if rpt.suffix == '.html' else "Markdown"
+
+                click.echo(f"  [{idx}] {rpt.name}")
+                click.echo(f"      Type: {file_type} | Size: {size:,} bytes | Modified: {mtime_str}")
+                click.echo()
+
+            if len(reports) > 10:
+                click.echo(f"  ... and {len(reports) - 10} more\n")
+        else:
+            click.echo(click.style("No reports found.\n", fg='yellow'))
+
+        # Menu options
+        click.echo(click.style("OPTIONS:", bold=True))
+        click.echo("  [1] Generate New Report")
+        click.echo("  [2] View Report (open in browser/editor)")
+        click.echo("  [3] Delete Report")
+        click.echo("  [4] List All Reports")
+        click.echo("  [0] Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                generate_report_menu()
+            elif choice == 2:
+                if not reports:
+                    click.echo(click.style("No reports available to view.", fg='yellow'))
+                    click.pause()
+                else:
+                    _view_report(reports)
+            elif choice == 3:
+                if not reports:
+                    click.echo(click.style("No reports available to delete.", fg='yellow'))
+                    click.pause()
+                else:
+                    _delete_report(reports)
+            elif choice == 4:
+                _list_all_reports()
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _view_report(reports: list):
+    """View a report by opening it."""
+    import subprocess
+
+    click.echo()
+    report_num = click.prompt("Enter report number to view (0 to cancel)", type=int, default=0)
+
+    if report_num == 0 or report_num > len(reports):
+        return
+
+    selected_report = reports[report_num - 1]
+
+    try:
+        if selected_report.suffix == '.html':
+            subprocess.run(['xdg-open', str(selected_report)], check=False)
+            click.echo(click.style(f"✓ Opening {selected_report.name} in browser...", fg='green'))
+        else:
+            # Try to open markdown in default editor
+            subprocess.run(['xdg-open', str(selected_report)], check=False)
+            click.echo(click.style(f"✓ Opening {selected_report.name} in editor...", fg='green'))
+
+        click.pause("\nPress any key to continue...")
+    except Exception as e:
+        click.echo(click.style(f"✗ Error opening report: {e}", fg='red'))
+        click.pause()
+
+
+def _delete_report(reports: list):
+    """Delete a report file."""
+    import os
+
+    click.echo()
+    report_num = click.prompt("Enter report number to delete (0 to cancel)", type=int, default=0)
+
+    if report_num == 0 or report_num > len(reports):
+        return
+
+    selected_report = reports[report_num - 1]
+
+    if click.confirm(f"Are you sure you want to delete '{selected_report.name}'?", default=False):
+        try:
+            os.remove(selected_report)
+            click.echo(click.style(f"✓ Deleted {selected_report.name}", fg='green'))
+        except Exception as e:
+            click.echo(click.style(f"✗ Error deleting report: {e}", fg='red'))
+    else:
+        click.echo("Cancelled.")
+
+    click.pause("\nPress any key to continue...")
+
+
+def _list_all_reports():
+    """List all reports with details."""
+    from pathlib import Path
+    import os
+    import datetime
+
+    click.clear()
+    click.echo("\n" + "=" * 70)
+    click.echo("ALL REPORTS")
+    click.echo("=" * 70 + "\n")
+
+    reports_dir = Path("reports")
+
+    if not reports_dir.exists():
+        click.echo("No reports directory found.")
+        click.pause()
+        return
+
+    reports = sorted(reports_dir.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    if not reports:
+        click.echo("No reports found.")
+    else:
+        for rpt in reports:
+            size = rpt.stat().st_size
+            mtime = datetime.datetime.fromtimestamp(rpt.stat().st_mtime)
+            file_type = "HTML" if rpt.suffix == '.html' else "Markdown"
+
+            click.echo(f"📄 {rpt.name}")
+            click.echo(f"   Type: {file_type}")
+            click.echo(f"   Size: {size:,} bytes")
+            click.echo(f"   Modified: {mtime.strftime('%Y-%m-%d %H:%M:%S')}")
+            click.echo()
+
+    click.pause("Press any key to continue...")
+
+
+def generate_report_menu():
+    """Interactive report generation menu."""
+    from menuscript.reporting.generator import ReportGenerator
+    from menuscript.storage.engagements import EngagementManager
+    import datetime
+
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    click.clear()
+    click.echo("\n" + "=" * 70)
+    click.echo(f"GENERATE REPORT - {current_ws['name']}")
+    click.echo("=" * 70 + "\n")
+
+    # Show engagement stats
+    stats = em.stats(current_ws['id'])
+    click.echo("Engagement summary:")
+    click.echo(f"  • Hosts:       {stats['hosts']}")
+    click.echo(f"  • Services:    {stats['services']}")
+    click.echo(f"  • Findings:    {stats['findings']}")
+    click.echo()
+
+    # Report format selection
+    click.echo("Select report format:")
+    click.echo("  [1] HTML (web browser)")
+    click.echo("  [2] Markdown")
+    click.echo("  [3] Both")
+    click.echo("  [0] Cancel")
+    click.echo()
+
+    try:
+        format_choice = click.prompt("Format", type=int, default=1)
+
+        if format_choice == 0:
+            return
+
+        if format_choice not in [1, 2, 3]:
+            click.echo(click.style("Invalid format selection", fg='red'))
+            click.pause()
+            return
+
+        # Generate report
+        click.echo()
+        click.echo(click.style("Generating report...", fg='cyan'))
+
+        rg = ReportGenerator(current_ws['id'])
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        engagement_name = current_ws['name']
+
+        generated_files = []
+
+        if format_choice in [1, 3]:  # HTML
+            html_filename = f"reports/{engagement_name}_{timestamp}.html"
+            rg.generate_html(html_filename)
+            generated_files.append(('HTML', html_filename))
+
+        if format_choice in [2, 3]:  # Markdown
+            md_filename = f"reports/{engagement_name}_{timestamp}.md"
+            rg.generate_markdown(md_filename)
+            generated_files.append(('Markdown', md_filename))
+
+        click.echo()
+        click.echo(click.style("✓ Report generated successfully!", fg='green', bold=True))
+        click.echo()
+
+        for fmt, filename in generated_files:
+            import os
+            file_size = os.path.getsize(filename)
+            click.echo(f"  {fmt} Report:")
+            click.echo(f"    File: {filename}")
+            click.echo(f"    Size: {file_size:,} bytes")
+
+        click.echo()
+
+        # Ask if user wants to open HTML report
+        if format_choice in [1, 3]:
+            if click.confirm("Open HTML report in browser?", default=True):
+                import subprocess
+                html_file = [f for fmt, f in generated_files if fmt == 'HTML'][0]
+                try:
+                    subprocess.run(['xdg-open', html_file], check=False)
+                    click.echo(click.style("✓ Opening report in browser...", fg='green'))
+                except Exception as e:
+                    click.echo(click.style(f"Could not open browser: {e}", fg='yellow'))
+
+        click.echo()
+        click.pause("Press any key to continue...")
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f"✗ Error generating report: {e}", fg='red'))
+        click.pause()
+
+
 def run_interactive_menu():
     """Main interactive menu loop."""
     # Set up terminal for proper line editing (backspace, arrows, history)
@@ -1657,6 +2365,12 @@ def run_interactive_menu():
         elif action == 'view_results':
             view_results_menu()
 
+        elif action == 'manage_reports':
+            manage_reports_menu()
+
+        elif action == 'import_data':
+            import_data_menu()
+
         elif action == 'manage_engagements':
             manage_engagements_menu()
 
@@ -1674,9 +2388,11 @@ def run_interactive_menu():
                 continue
 
             # Confirm before launching
-            click.echo("\n" + "=" * 70)
-            click.echo("CONFIRM JOB")
-            click.echo("=" * 70)
+            term_width = get_terminal_width()
+
+            click.echo("\n" + "=" * term_width)
+            click.echo("CONFIRM JOB".center(term_width))
+            click.echo("=" * term_width)
             click.echo(f"Tool:   {job_params['tool']}")
             click.echo(f"Target: {job_params['target']}")
             if job_params.get('args'):
