@@ -81,7 +81,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo("  manage engagements, review findings, and generate reports — all in one place.")
 
     click.echo()
-    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/f/r/i/t/e) or enter the tool number")
+    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/h/s/f/c/r/e/v) or enter the number")
     click.echo()
     click.echo("  " + "─" * (width - 4))
     click.echo()
@@ -136,37 +136,47 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
     dashboard_option = idx
     click.echo(f"      " + click.style("[d]", bold=True) + " or " +
-               f"[{idx}]" + "   Live Dashboard       - Real-time monitoring view")
+               f"[{idx}]" + "   Live Dashboard          - Real-time monitoring view")
     idx += 1
 
     job_option = idx
     click.echo(f"      " + click.style("[j]", bold=True) + " or " +
-               f"[{idx}]" + "  View Jobs            - Manage running scans")
+               f"[{idx}]" + "  View Jobs               - Manage running scans")
+    idx += 1
+
+    hosts_option = idx
+    click.echo(f"      " + click.style("[h]", bold=True) + " or " +
+               f"[{idx}]" + "  Host Management         - View and manage hosts")
+    idx += 1
+
+    services_option = idx
+    click.echo(f"      " + click.style("[s]", bold=True) + " or " +
+               f"[{idx}]" + "  Service Management      - View and manage services")
     idx += 1
 
     findings_option = idx
     click.echo(f"      " + click.style("[f]", bold=True) + " or " +
-               f"[{idx}]" + "  View Findings        - Browse scan findings")
+               f"[{idx}]" + "  Findings Management     - View, add, edit, delete findings")
+    idx += 1
+
+    credentials_option = idx
+    click.echo(f"      " + click.style("[c]", bold=True) + " or " +
+               f"[{idx}]" + "  Credential Management   - View, test, manage credentials")
     idx += 1
 
     reports_option = idx
     click.echo(f"      " + click.style("[r]", bold=True) + " or " +
-               f"[{idx}]" + "  Manage Reports       - View, generate, or delete reports")
-    idx += 1
-
-    import_option = idx
-    click.echo(f"      " + click.style("[i]", bold=True) + " or " +
-               f"[{idx}]" + "  Import Data          - Import from Metasploit or other sources")
-    idx += 1
-
-    creds_test_option = idx
-    click.echo(f"      " + click.style("[t]", bold=True) + " or " +
-               f"[{idx}]" + "  Test Credentials     - Validate discovered credentials")
+               f"[{idx}]" + "  Reports Management      - Generate, view, import data")
     idx += 1
 
     engagement_option = idx
     click.echo(f"      " + click.style("[e]", bold=True) + " or " +
-               f"[{idx}]" + "  Manage Engagements   - Switch, create, or delete engagements")
+               f"[{idx}]" + "  Engagement Management   - Switch, create, delete engagements")
+    idx += 1
+
+    additional_option = idx
+    click.echo(f"      " + click.style("[v]", bold=True) + " or " +
+               f"[{idx}]" + "  View Additional Data    - OSINT, Web Paths")
     idx += 1
 
     click.echo()
@@ -196,16 +206,20 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             return {'action': 'view_dashboard'}
         elif choice_input == 'j':
             return {'action': 'view_jobs'}
+        elif choice_input == 'h':
+            return {'action': 'manage_hosts'}
+        elif choice_input == 's':
+            return {'action': 'manage_services'}
         elif choice_input == 'f':
-            return {'action': 'view_results'}
+            return {'action': 'manage_findings'}
+        elif choice_input == 'c':
+            return {'action': 'manage_credentials'}
         elif choice_input == 'r':
             return {'action': 'manage_reports'}
-        elif choice_input == 'i':
-            return {'action': 'import_data'}
-        elif choice_input == 't':
-            return {'action': 'test_credentials'}
         elif choice_input == 'e':
             return {'action': 'manage_engagements'}
+        elif choice_input == 'v':
+            return {'action': 'view_additional_data'}
         elif choice_input in ('q', '0', ''):
             return None
 
@@ -226,26 +240,32 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == job_option:
             return {'action': 'view_jobs'}
 
+        if choice == hosts_option:
+            return {'action': 'manage_hosts'}
+
+        if choice == services_option:
+            return {'action': 'manage_services'}
+
         if choice == findings_option:
-            return {'action': 'view_results'}
+            return {'action': 'manage_findings'}
+
+        if choice == credentials_option:
+            return {'action': 'manage_credentials'}
 
         if choice == reports_option:
             return {'action': 'manage_reports'}
 
-        if choice == import_option:
-            return {'action': 'import_data'}
-
-        if choice == creds_test_option:
-            return {'action': 'test_credentials'}
-
         if choice == engagement_option:
             return {'action': 'manage_engagements'}
+
+        if choice == additional_option:
+            return {'action': 'view_additional_data'}
 
         if 1 <= choice <= len(tool_list):
             action_type, tool_name = tool_list[choice - 1]
             return {'action': action_type, 'tool': tool_name}
         else:
-            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 7} or use shortcuts.", fg='red'))
+            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 9} or use shortcuts.", fg='red'))
             click.pause()
             return {'action': 'retry'}
 
@@ -1070,6 +1090,94 @@ def manage_engagements_menu():
                 click.pause()
 
         except (KeyboardInterrupt, EOFError):
+            return
+
+
+def manage_hosts_menu():
+    """Host management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_hosts(engagement_id)
+
+
+def manage_services_menu():
+    """Service management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_services(engagement_id)
+
+
+def manage_credentials_menu():
+    """Credential management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+
+    # Show credentials management with option to test
+    while True:
+        view_credentials(engagement_id)
+        # Check if user wants to test credentials
+        break
+
+
+def view_additional_data_menu():
+    """Additional data viewing menu for OSINT and Web Paths."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("ADDITIONAL DATA")
+        click.echo("=" * 70 + "\n")
+
+        click.echo("  1. OSINT Data       - View and manage OSINT reconnaissance data")
+        click.echo("  2. Web Paths        - View and manage discovered web paths")
+        click.echo()
+        click.echo("  0. Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select data type", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                view_osint(engagement_id)
+            elif choice == 2:
+                view_web_paths(engagement_id)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
             return
 
 
@@ -2287,6 +2395,7 @@ def view_credentials(engagement_id: int):
         click.echo("  [6] Add New Credential")
         click.echo("  [7] Edit Credential")
         click.echo("  [8] Delete Credential")
+        click.echo("  [9] Test Credentials")
         click.echo()
         click.echo("  [0] Back to Main Menu")
         click.echo()
@@ -2314,6 +2423,8 @@ def view_credentials(engagement_id: int):
                 _edit_credential(engagement_id, cm)
             elif choice == 8:
                 _delete_credential(engagement_id, cm)
+            elif choice == 9:
+                test_credentials_menu()
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -3410,6 +3521,7 @@ def manage_reports_menu():
         click.echo("  [2] View Report (open in browser/editor)")
         click.echo("  [3] Delete Report")
         click.echo("  [4] List All Reports")
+        click.echo("  [5] Import Data (Metasploit, Nmap, etc.)")
         click.echo("  [0] Back to Main Menu")
         click.echo()
 
@@ -3434,6 +3546,8 @@ def manage_reports_menu():
                     _delete_report(reports)
             elif choice == 4:
                 _list_all_reports()
+            elif choice == 5:
+                import_data_menu()
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -3656,20 +3770,26 @@ def run_interactive_menu():
         elif action == 'view_jobs':
             view_jobs_menu()
 
-        elif action == 'view_results':
-            view_results_menu()
+        elif action == 'manage_hosts':
+            manage_hosts_menu()
+
+        elif action == 'manage_services':
+            manage_services_menu()
+
+        elif action == 'manage_findings':
+            view_findings(engagement_id)
+
+        elif action == 'manage_credentials':
+            manage_credentials_menu()
 
         elif action == 'manage_reports':
             manage_reports_menu()
 
-        elif action == 'import_data':
-            import_data_menu()
-
-        elif action == 'test_credentials':
-            test_credentials_menu()
-
         elif action == 'manage_engagements':
             manage_engagements_menu()
+
+        elif action == 'view_additional_data':
+            view_additional_data_menu()
 
         elif action == 'launch_tool':
             tool_name = result.get('tool')
