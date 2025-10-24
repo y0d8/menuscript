@@ -355,6 +355,8 @@ def run_job(jid: int) -> None:
                     _append_worker_log(f"job {jid} parse error: {parse_result['error']}")
                 else:
                     _append_worker_log(f"job {jid} parsed: {parse_result}")
+                    # Store parse result in job for dashboard display
+                    _update_job(jid, parse_result=parse_result)
         except Exception as e:
             _append_worker_log(f"job {jid} parse exception: {e}")
         

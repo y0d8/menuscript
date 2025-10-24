@@ -426,8 +426,13 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
         # Try to get parsed results summary
         try:
-            from menuscript.engine.result_handler import handle_job_result
-            result = handle_job_result(job)
+            # First check if parse_result is already stored in the job
+            result = job.get('parse_result')
+            
+            # If not stored, try to parse it now (for old jobs)
+            if not result:
+                from menuscript.engine.result_handler import handle_job_result
+                result = handle_job_result(job)
 
             if result and 'error' not in result:
                 lines.append(click.style("Results:", bold=True))
