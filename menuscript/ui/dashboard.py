@@ -894,6 +894,8 @@ def _show_dashboard_menu(engagement_id: int):
         elif choice_num == 8:
             from menuscript.ui.interactive import manage_reports_menu
             manage_reports_menu()
+    except (KeyboardInterrupt, EOFError):
+        pass
 
     click.clear()
 
