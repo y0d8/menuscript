@@ -31,7 +31,7 @@ JOBS_DIR = os.path.join(DATA_DIR, "jobs")
 LOGS_DIR = os.path.join(DATA_DIR, "logs")
 JOBS_FILE = os.path.join(JOBS_DIR, "jobs.json")
 WORKER_LOG = os.path.join(LOGS_DIR, "worker.log")
-JOB_TIMEOUT_SECONDS = 300
+JOB_TIMEOUT_SECONDS = 3600  # 1 hour (changed from 300s/5min)
 
 _lock = threading.Lock()
 
@@ -126,48 +126,62 @@ def get_job(jid:int) -> Optional[Dict[str,Any]]:
 
 def kill_job(jid: int) -> bool:
     """
-    Kill a running job by sending SIGTERM to its process.
+    Kill a job by removing it from queue or sending SIGTERM to its process.
 
     Args:
         jid: Job ID to kill
 
     Returns:
-        True if job was killed, False if not running or not found
+        True if job was killed/removed, False if not found
     """
     job = get_job(jid)
     if not job:
         return False
 
     status = job.get('status')
-    if status != 'running':
-        return False
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    pid = job.get('pid')
-    if not pid:
-        return False
-
-    try:
-        import signal
-        # Try SIGTERM first (graceful)
-        os.kill(pid, signal.SIGTERM)
-        _append_worker_log(f"job {jid}: sent SIGTERM to PID {pid}")
-
-        # Update job status
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        _update_job(jid, status="killed", finished_at=now, pid=None)
-
+    # Handle queued jobs - just mark as killed
+    if status == 'queued':
+        _update_job(jid, status="killed", finished_at=now)
+        _append_worker_log(f"job {jid}: removed from queue")
         return True
-    except ProcessLookupError:
-        # Process already dead
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        _update_job(jid, status="error", error="Process not found", finished_at=now, pid=None)
-        return False
-    except PermissionError:
-        _append_worker_log(f"job {jid}: permission denied to kill PID {pid}")
-        return False
-    except Exception as e:
-        _append_worker_log(f"job {jid}: error killing process: {e}")
-        return False
+    
+    # Handle error jobs - mark as killed
+    if status == 'error':
+        _update_job(jid, status="killed", finished_at=now)
+        _append_worker_log(f"job {jid}: marked as killed")
+        return True
+
+    # Handle running jobs - send signal
+    if status == 'running':
+        pid = job.get('pid')
+        if not pid:
+            _update_job(jid, status="killed", finished_at=now)
+            return True
+
+        try:
+            import signal
+            # Try SIGTERM first (graceful)
+            os.kill(pid, signal.SIGTERM)
+            _append_worker_log(f"job {jid}: sent SIGTERM to PID {pid}")
+
+            # Update job status
+            _update_job(jid, status="killed", finished_at=now, pid=None)
+            return True
+        except ProcessLookupError:
+            # Process already dead
+            _update_job(jid, status="killed", finished_at=now, pid=None)
+            return True
+        except PermissionError:
+            _append_worker_log(f"job {jid}: permission denied to kill PID {pid}")
+            return False
+        except Exception as e:
+            _append_worker_log(f"job {jid}: error killing process: {e}")
+            return False
+
+    # Job is in some other state (done, killed, etc.)
+    return False
 
 def _update_job(jid:int, **fields):
     with _lock:
