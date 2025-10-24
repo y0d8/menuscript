@@ -131,7 +131,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo()
 
     # Data & Management options with shortcuts
-    click.echo(click.style("  DATA & MANAGEMENT", bold=True))
+    click.echo(click.style("  COMMAND & CONTROL HUB", bold=True))
     click.echo()
 
     dashboard_option = idx
@@ -141,7 +141,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
     job_option = idx
     click.echo(f"      " + click.style("[j]", bold=True) + " or " +
-               f"[{idx}]" + "  View Jobs               - Manage running scans")
+               f"[{idx}]" + "  Job Management          - Manage running scans")
     idx += 1
 
     hosts_option = idx
@@ -1262,7 +1262,9 @@ def view_hosts(engagement_id: int):
         click.echo("  [5] Select Host(s)  [6] Deselect All")
         click.echo("\nActions:")
         click.echo("  [7] Tag Selected Hosts  [8] Remove Tag from Selected  [9] View Host Details")
-        click.echo("\n  [0] Back to Results Menu")
+        click.echo("\nManagement:")
+        click.echo("  [10] Add New Host  [11] Edit Host  [12] Delete Host(s)")
+        click.echo("\n  [0] Back to Main Menu")
         click.echo()
 
         try:
@@ -1299,6 +1301,17 @@ def view_hosts(engagement_id: int):
             elif choice == 9:
                 if hosts:
                     _hosts_view_details(hosts, hm)
+            elif choice == 10:
+                _add_new_host(engagement_id, hm)
+            elif choice == 11:
+                _edit_host(engagement_id, hm)
+            elif choice == 12:
+                if selected_hosts:
+                    _delete_hosts(selected_hosts, hm)
+                    selected_hosts.clear()
+                else:
+                    click.echo(click.style("No hosts selected for deletion", fg='yellow'))
+                    click.pause()
 
         except (KeyboardInterrupt, click.Abort):
             return
@@ -1481,6 +1494,200 @@ def _hosts_view_details(hosts: list, hm: 'HostManager'):
         pass
 
 
+def _add_new_host(engagement_id: int, hm: 'HostManager'):
+    """Add a new host manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW HOST")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # IP Address (required)
+        ip_address = click.prompt("IP Address", type=str)
+        if not ip_address.strip():
+            click.echo(click.style("\n✗ IP Address is required!", fg='red'))
+            click.pause()
+            return
+
+        # Hostname (optional)
+        hostname = click.prompt("Hostname (press Enter to skip)", type=str, default="")
+
+        # OS Name (optional)
+        os_name = click.prompt("OS Name (press Enter to skip)", type=str, default="")
+
+        # MAC Address (optional)
+        mac_address = click.prompt("MAC Address (press Enter to skip)", type=str, default="")
+
+        # Status
+        click.echo("\nStatus:")
+        click.echo("  [1] Up")
+        click.echo("  [2] Down")
+        click.echo("  [3] Unknown")
+        status_choice = click.prompt("Select status", type=int, default=1)
+        status_map = {1: 'up', 2: 'down', 3: 'unknown'}
+        status = status_map.get(status_choice, 'up')
+
+        # Tags (optional)
+        tags = click.prompt("Tags (comma-separated, press Enter to skip)", type=str, default="")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"IP Address: {ip_address}")
+        click.echo(f"Hostname: {hostname or 'N/A'}")
+        click.echo(f"OS: {os_name or 'N/A'}")
+        click.echo(f"MAC Address: {mac_address or 'N/A'}")
+        click.echo(f"Status: {status}")
+        click.echo(f"Tags: {tags or 'None'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this host?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        host_data = {
+            'ip': ip_address,
+            'hostname': hostname or None,
+            'os': os_name or None,
+            'mac': mac_address or None,
+            'status': status,
+            'tags': tags or None
+        }
+
+        host_id = hm.add_or_update_host(engagement_id, host_data)
+        click.echo(click.style(f"\n✓ Host added successfully! (ID: {host_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _edit_host(engagement_id: int, hm: 'HostManager'):
+    """Edit an existing host."""
+    try:
+        host_id = click.prompt("\nEnter Host ID to edit", type=int)
+        host = hm.get_host(host_id)
+
+        if not host or host.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Host not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT HOST #{host_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Hostname
+        current_hostname = host.get('hostname', '')
+        hostname = click.prompt(f"Hostname [{current_hostname}]", type=str, default=current_hostname or "")
+
+        # OS Name
+        current_os = host.get('os_name', '')
+        os_name = click.prompt(f"OS Name [{current_os}]", type=str, default=current_os or "")
+
+        # MAC Address
+        current_mac = host.get('mac_address', '')
+        mac_address = click.prompt(f"MAC Address [{current_mac}]", type=str, default=current_mac or "")
+
+        # Status
+        current_status = host.get('status', 'up')
+        click.echo(f"\nCurrent Status: {current_status}")
+        click.echo("  [1] Up")
+        click.echo("  [2] Down")
+        click.echo("  [3] Unknown")
+        click.echo("  [0] Keep current")
+        status_choice = click.prompt("Select status", type=int, default=0)
+        status_map = {1: 'up', 2: 'down', 3: 'unknown'}
+        status = status_map.get(status_choice, current_status)
+
+        # Tags
+        current_tags = host.get('tags', '')
+        tags = click.prompt(f"Tags [{current_tags}]", type=str, default=current_tags or "")
+
+        # Build update dict
+        updates = {}
+        if hostname != host.get('hostname'):
+            updates['hostname'] = hostname or None
+        if os_name != host.get('os_name'):
+            updates['os_name'] = os_name or None
+        if mac_address != host.get('mac_address'):
+            updates['mac_address'] = mac_address or None
+        if status != host.get('status'):
+            updates['status'] = status
+        if tags != host.get('tags'):
+            updates['tags'] = tags or None
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        hm.update_host(host_id, **updates)
+        click.echo(click.style("\n✓ Host updated successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Host ID!", fg='red'))
+        click.pause()
+
+
+def _delete_hosts(selected_host_ids: set, hm: 'HostManager'):
+    """Delete selected hosts."""
+    if not selected_host_ids:
+        return
+
+    try:
+        # Show hosts to be deleted
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style(f"HOSTS TO DELETE ({len(selected_host_ids)}):", bold=True))
+        for host_id in list(selected_host_ids)[:10]:
+            host = hm.get_host(host_id)
+            if host:
+                click.echo(f"  ID {host_id}: {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        if len(selected_host_ids) > 10:
+            click.echo(f"  ... and {len(selected_host_ids) - 10} more")
+
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style(f"\nAre you sure you want to delete {len(selected_host_ids)} host(s)?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        deleted_count = 0
+        for host_id in selected_host_ids:
+            if hm.delete_host(host_id):
+                deleted_count += 1
+
+        click.echo(click.style(f"\n✓ Deleted {deleted_count} host(s) successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+
+
 def view_services(engagement_id: int):
     """Display services - choose between grouped by host or all services view."""
     while True:
@@ -1655,12 +1862,16 @@ def view_all_services_filtered(engagement_id: int):
 
         # Menu options
         click.echo("\n" + "-" * 80)
-        click.echo("Options:")
+        click.echo("Filters:")
         click.echo("  [1] Filter by Service Name")
         click.echo("  [2] Filter by Port Range")
         click.echo("  [3] Filter by Protocol")
         click.echo("  [4] Sort by (port/service/protocol)")
         click.echo("  [5] Clear All Filters")
+        click.echo("\nManagement:")
+        click.echo("  [6] Add New Service")
+        click.echo("  [7] Edit Service")
+        click.echo("  [8] Delete Service")
         click.echo("  [0] Back to Services View")
         click.echo()
 
@@ -1683,6 +1894,12 @@ def view_all_services_filtered(engagement_id: int):
                 filters = {k: None if k != 'sort_by' else 'port' for k, v in filters.items()}
                 click.echo(click.style("✓ All filters cleared", fg='green'))
                 click.pause()
+            elif choice == 6:
+                _add_new_service(engagement_id, hm)
+            elif choice == 7:
+                _edit_service(engagement_id, hm)
+            elif choice == 8:
+                _delete_service(engagement_id, hm)
 
         except (KeyboardInterrupt, click.Abort):
             return
@@ -1752,6 +1969,217 @@ def _select_sort_order():
         return 'port'
     except (KeyboardInterrupt, click.Abort):
         return 'port'
+
+
+def _add_new_service(engagement_id: int, hm: 'HostManager'):
+    """Add a new service manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW SERVICE")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Host selection
+        hosts = hm.list_hosts(engagement_id)
+
+        if not hosts:
+            click.echo(click.style("✗ No hosts found. Please add hosts first!", fg='red'))
+            click.pause()
+            return
+
+        click.echo("Select host:")
+        for idx, host in enumerate(hosts[:20], 1):
+            click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        host_choice = click.prompt("Select host", type=int)
+        if not (1 <= host_choice <= len(hosts)):
+            click.echo(click.style("✗ Invalid host selection!", fg='red'))
+            click.pause()
+            return
+
+        host_id = hosts[host_choice - 1]['id']
+
+        # Port (required)
+        port = click.prompt("\nPort", type=int)
+
+        # Service name
+        service_name = click.prompt("Service name (e.g., ssh, http, mysql)", type=str, default="")
+
+        # Protocol
+        click.echo("\nProtocol:")
+        click.echo("  [1] TCP")
+        click.echo("  [2] UDP")
+        proto_choice = click.prompt("Select protocol", type=int, default=1)
+        protocol = 'tcp' if proto_choice == 1 else 'udp'
+
+        # State
+        click.echo("\nState:")
+        click.echo("  [1] Open")
+        click.echo("  [2] Closed")
+        click.echo("  [3] Filtered")
+        state_choice = click.prompt("Select state", type=int, default=1)
+        state_map = {1: 'open', 2: 'closed', 3: 'filtered'}
+        state = state_map.get(state_choice, 'open')
+
+        # Version (optional)
+        version = click.prompt("\nService version (press Enter to skip)", type=str, default="")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Host: {hosts[host_choice - 1].get('ip_address')}")
+        click.echo(f"Port: {port}")
+        click.echo(f"Protocol: {protocol}")
+        click.echo(f"Service: {service_name or 'unknown'}")
+        click.echo(f"State: {state}")
+        click.echo(f"Version: {version or 'N/A'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this service?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        service_data = {
+            'port': port,
+            'protocol': protocol,
+            'service': service_name or 'unknown',
+            'state': state,
+            'version': version or None
+        }
+
+        service_id = hm.add_service(host_id, service_data)
+        click.echo(click.style(f"\n✓ Service added successfully! (ID: {service_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+    except ValueError as e:
+        click.echo(click.style(f"\n✗ Invalid input: {e}", fg='red'))
+        click.pause()
+
+
+def _edit_service(engagement_id: int, hm: 'HostManager'):
+    """Edit an existing service."""
+    try:
+        service_id = click.prompt("\nEnter Service ID to edit", type=int)
+
+        # Get service - need to search through all services
+        all_services = hm.get_all_services(engagement_id)
+        service = next((s for s in all_services if s.get('id') == service_id), None)
+
+        if not service:
+            click.echo(click.style("\n✗ Service not found!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT SERVICE #{service_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Service name
+        current_service = service.get('service_name', '')
+        service_name = click.prompt(f"Service name [{current_service}]", type=str, default=current_service or "")
+
+        # State
+        current_state = service.get('state', 'open')
+        click.echo(f"\nCurrent State: {current_state}")
+        click.echo("  [1] Open")
+        click.echo("  [2] Closed")
+        click.echo("  [3] Filtered")
+        click.echo("  [0] Keep current")
+        state_choice = click.prompt("Select state", type=int, default=0)
+        state_map = {1: 'open', 2: 'closed', 3: 'filtered'}
+        state = state_map.get(state_choice, current_state)
+
+        # Version
+        current_version = service.get('service_version', '')
+        version = click.prompt(f"\nVersion [{current_version}]", type=str, default=current_version or "")
+
+        # Build update dict
+        updates = {}
+        if service_name != service.get('service_name'):
+            updates['service_name'] = service_name or None
+        if state != service.get('state'):
+            updates['state'] = state
+        if version != service.get('service_version'):
+            updates['service_version'] = version or None
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        hm.update_service(service_id, **updates)
+        click.echo(click.style("\n✓ Service updated successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Service ID!", fg='red'))
+        click.pause()
+
+
+def _delete_service(engagement_id: int, hm: 'HostManager'):
+    """Delete a service."""
+    try:
+        service_id = click.prompt("\nEnter Service ID to delete", type=int)
+
+        # Get service
+        all_services = hm.get_all_services(engagement_id)
+        service = next((s for s in all_services if s.get('id') == service_id), None)
+
+        if not service:
+            click.echo(click.style("\n✗ Service not found!", fg='red'))
+            click.pause()
+            return
+
+        # Show service details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SERVICE TO DELETE:", bold=True))
+        click.echo(f"ID: {service.get('id')}")
+        click.echo(f"Host: {service.get('ip_address')}")
+        click.echo(f"Port: {service.get('port')}")
+        click.echo(f"Protocol: {service.get('protocol')}")
+        click.echo(f"Service: {service.get('service_name')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this service?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if hm.delete_service(service_id):
+            click.echo(click.style("\n✓ Service deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete service!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Service ID!", fg='red'))
+        click.pause()
 
 
 def view_host_services(host: dict, hm: HostManager):
