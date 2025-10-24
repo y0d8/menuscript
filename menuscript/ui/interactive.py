@@ -383,17 +383,65 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     click.echo(click.style("🎯 TARGET SELECTION", fg='yellow', bold=True))
     click.echo(click.style("━" * width, fg='yellow', bold=True))
     click.echo()
-    target = click.prompt(click.style("Enter target (IP, hostname, URL, or CIDR)", fg='yellow', bold=True) + " [or 'back' to return]", type=str)
+    
+    # Offer to use hosts from current engagement
+    from menuscript.storage.engagements import EngagementManager
+    from menuscript.storage.hosts import HostManager
+    
+    em = EngagementManager()
+    current_eng = em.get_current()
+    
+    target = None
+    if current_eng:
+        hm = HostManager()
+        all_hosts = hm.list_hosts(current_eng['id'])
+        if all_hosts:
+            # Count active hosts (status = 'up')
+            active_hosts = [h for h in all_hosts if h.get('status') == 'up']
+            
+            click.echo(f"Found {len(all_hosts)} total host(s), {len(active_hosts)} active.")
+            click.echo()
+            click.echo("  1. Use all hosts from engagement")
+            click.echo("  2. Use only active hosts (status: up)")
+            click.echo("  3. Enter custom target")
+            click.echo()
+            
+            choice = click.prompt(click.style("Select option", fg='yellow', bold=True), type=int, default=3)
+            
+            if choice == 1:
+                # Get IPs from all hosts
+                ips = [h['ip_address'] for h in all_hosts if h.get('ip_address')]
+                if ips:
+                    target = ' '.join(ips)
+                    click.echo(click.style(f"✓ Using all {len(ips)} host(s): {target[:80]}{'...' if len(target) > 80 else ''}", fg='green'))
+                    click.echo()
+                else:
+                    click.echo(click.style("No IP addresses found in hosts!", fg='red'))
+                    return None
+            elif choice == 2:
+                # Get IPs from active hosts only
+                ips = [h['ip_address'] for h in active_hosts if h.get('ip_address')]
+                if ips:
+                    target = ' '.join(ips)
+                    click.echo(click.style(f"✓ Using {len(ips)} active host(s): {target[:80]}{'...' if len(target) > 80 else ''}", fg='green'))
+                    click.echo()
+                else:
+                    click.echo(click.style("No active hosts found!", fg='yellow'))
+                    return None
+    
+    # If no target set yet, prompt for it
+    if not target:
+        target = click.prompt(click.style("Enter target (IP, hostname, URL, or CIDR)", fg='yellow', bold=True) + " [or 'back' to return]", type=str)
+        
+        if not target or target.strip() == "":
+            click.echo(click.style("Target required!", fg='red'))
+            return None
 
-    if not target or target.strip() == "":
-        click.echo(click.style("Target required!", fg='red'))
-        return None
+        target = target.strip()
 
-    target = target.strip()
-
-    # Check if user wants to go back
-    if target.lower() in ['back', 'b', 'exit', 'q']:
-        return {'action': 'back'}
+        # Check if user wants to go back
+        if target.lower() in ['back', 'b', 'exit', 'q']:
+            return {'action': 'back'}
 
     # Now show presets and let user choose
     args = []

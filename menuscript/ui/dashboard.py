@@ -647,15 +647,30 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
 
     last_followed_job_id = None
     job_completed = False
+    last_seen_job_id = None  # Track the last job we've seen to detect new jobs
+    auto_follow_job_id = follow_job_id  # Local variable we can modify
 
     try:
         while True:
             # Check if there are any active jobs
             jobs = list_jobs(limit=50)
             active_jobs = [j for j in jobs if j.get('status') in ('pending', 'running')]
+            
+            # Detect if a new job was created (auto-follow it)
+            if jobs:
+                latest_job = jobs[0]  # Most recent job
+                latest_job_id = latest_job.get('id')
+                # If this is a new job we haven't seen, and it's active, follow it
+                if latest_job_id != last_seen_job_id:
+                    if latest_job.get('status') in ('pending', 'running'):
+                        # Auto-follow new jobs unless user specified a specific job
+                        if not follow_job_id:  # Only auto-follow if user didn't specify -f
+                            auto_follow_job_id = latest_job_id
+                            last_followed_job_id = latest_job_id
+                    last_seen_job_id = latest_job_id
 
             # If no active jobs and not following a specific job, show static dashboard
-            if not active_jobs and not follow_job_id:
+            if not active_jobs and not auto_follow_job_id:
                 render_dashboard(engagement_id, engagement_name, None, refresh_interval)
                 click.echo()
                 click.echo(click.style("  ℹ️  No active scans running. Dashboard is in static mode.", fg='yellow', bold=True))
@@ -699,7 +714,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                 continue
 
             # Track which job we're following
-            current_follow_id = follow_job_id
+            current_follow_id = auto_follow_job_id
 
             # Auto-follow most recent running job if not explicitly set
             if not current_follow_id:
@@ -727,6 +742,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                     input()
                     job_completed = False
                     last_followed_job_id = None
+                    auto_follow_job_id = None  # Reset to allow auto-follow of next job
                     clear_screen()
                 except KeyboardInterrupt:
                     raise
