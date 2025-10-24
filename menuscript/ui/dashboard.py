@@ -888,6 +888,7 @@ def view_credentials(engagement_id: int):
 
     cm = CredentialsManager()
     creds = cm.list_credentials(engagement_id)
+    untested_creds = []  # Initialize to avoid UnboundLocalError
 
     if not creds:
         click.echo(click.style("  No credentials found yet.", fg='yellow'))
