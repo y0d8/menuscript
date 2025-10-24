@@ -25,6 +25,7 @@ HELP = {
         "- Start with a simple discovery sweep to limit your attack surface before deeper scans.\n"
         "- Save XML/grepable output so parsers and the Findings manager can ingest results easily.\n"
         "- UDP and OS detection are powerful but slower and noisier — use them judiciously.\n"
+        "- Use --host-timeout to skip unresponsive hosts (e.g., --host-timeout 10m).\n"
         "- Combine Nmap output with service-specific checks (banner grabs, vuln scanners) for richer context.\n"
         "- Always scan with permission — loud scans get noticed.\n"
     ),
@@ -58,19 +59,19 @@ HELP = {
             },
             {
                 "name": "Fast Scan",
-                "args": ["-v", "-PS", "-F"],
+                "args": ["-v", "-PS", "-F", "-T4"],
                 "desc": "Fast port scan (top 100 ports)"
             },
             {
                 "name": "Full Scan",
-                "args": ["-vv", "-sV", "-O", "-p1-65535"],
-                "desc": "Deep scan (all ports, version, OS)"
+                "args": ["-vv", "-sV", "-O", "-p1-65535", "-T4", "--host-timeout", "5m"],
+                "desc": "Deep scan (all ports, version, OS) with per-host timeout"
             }
         ],
         "service_detection": [
             {
                 "name": "Service Detection",
-                "args": ["-sV", "-sC", "--open"],
+                "args": ["-sV", "-sC", "--open", "-T4"],
                 "desc": "Service detection + safe NSE scripts"
             },
             {
