@@ -11,7 +11,20 @@ from .plugin_base import PluginBase
 
 HELP = {
     "name": "MSF Auxiliary (Metasploit)",
-    "description": "Metasploit Framework auxiliary scanners (non-interactive)",
+    "description": (
+        "Want Metasploit to do the poking while you do the thinking?\n\n"
+        "Use the MSF Auxiliary tool to run Metasploit Framework's auxiliary modules in non-interactive mode. "
+        "It will scan services, pull banners, run protocol probes, and even try username/password checks — "
+        "but it won't spawn meterpreter shells or run post-exploitation antics. Results are saved to the job log "
+        "so you can convert them into Findings, build reports, or flex them in standups.\n\n"
+        "Play nice: some modules are noisy, so stick to your rules of engagement. 😅\n\n"
+        "Quick tips:\n"
+        "- Non-interactive only — no sessions will be created.\n"
+        "- Ideal for recon, banner grabs, protocol probes, and credential checks.\n"
+        "- Capture results to the job log for later triage and reporting.\n"
+        "- Beware noisy modules: run noisy checks only with explicit permission.\n"
+        "- Convert interesting output into Findings so nothing gets lost.\n"
+    ),
     "usage": "menuscript jobs enqueue msf_auxiliary <target> --args \"<module_path>\"",
     "examples": [
         "menuscript jobs enqueue msf_auxiliary 10.0.0.82 --args \"auxiliary/scanner/ssh/ssh_enumusers\"",

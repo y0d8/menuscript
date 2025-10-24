@@ -307,29 +307,65 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     category = getattr(plugin, 'category', 'other')
     icon = category_icons.get(category, '🔧')
 
-    # Top border
-    click.echo("\n" + click.style("╭" + "─" * (width - 2) + "╮", fg='cyan', bold=True))
-    # Empty line for padding
-    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
+    # Header with horizontal line styling (similar to presets)
+    click.echo("\n" + click.style("─" * width, fg='cyan', bold=True))
     # Tool title with icon centered
     title_with_icon = f"{icon}  {tool_title}"
-    padding = (width - 2 - len(title_with_icon)) // 2
-    title_line = "│" + " " * padding + title_with_icon + " " * (width - 2 - padding - len(title_with_icon)) + "│"
+    padding = (width - len(title_with_icon)) // 2
+    title_line = " " * padding + title_with_icon
     click.echo(click.style(title_line, fg='cyan', bold=True))
-    # Empty line for padding
-    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
-    # Bottom border
-    click.echo(click.style("╰" + "─" * (width - 2) + "╯", fg='cyan', bold=True))
+    click.echo(click.style("─" * width, fg='cyan', bold=True))
     click.echo()
 
-    # Wrap description to match terminal width
+    # Wrap description to match terminal width, preserving paragraph structure
+    # Display in a bordered box for better visibility
     if description:
-        wrapped_desc = textwrap.fill(description, width=width)
-        click.echo(wrapped_desc)
+        # Split by double newlines to preserve paragraphs
+        paragraphs = description.split('\n\n')
+        formatted_lines = []
+        
+        for para in paragraphs:
+            # Check if this paragraph contains bullet points
+            if '\n-' in para or para.strip().startswith('-'):
+                # This is a bulleted list - process each line separately
+                lines = para.split('\n')
+                for line in lines:
+                    if line.strip():
+                        # Wrap long bullet lines
+                        wrapped = textwrap.fill(line, width=width - 4)
+                        for wrapped_line in wrapped.split('\n'):
+                            formatted_lines.append(wrapped_line)
+                formatted_lines.append('')  # Add blank line after bullet section
+            else:
+                # Regular paragraph - wrap it and split into individual lines
+                wrapped_para = textwrap.fill(para, width=width - 4)  # Leave room for box borders
+                for line in wrapped_para.split('\n'):
+                    formatted_lines.append(line)
+                formatted_lines.append('')  # Add blank line after paragraph
+        
+        # Remove trailing blank line
+        if formatted_lines and formatted_lines[-1] == '':
+            formatted_lines.pop()
+        
+        # Draw the box around the description
+        click.echo(click.style("┌" + "─" * (width - 2) + "┐", fg='blue'))
+        for line in formatted_lines:
+            if line:
+                # Pad line to width and add borders
+                padded_line = line + " " * (width - 4 - len(line))
+                click.echo(click.style("│ ", fg='blue') + padded_line + click.style(" │", fg='blue'))
+            else:
+                # Empty line
+                click.echo(click.style("│" + " " * (width - 2) + "│", fg='blue'))
+        click.echo(click.style("└" + "─" * (width - 2) + "┘", fg='blue'))
     click.echo()
 
-    # Get target FIRST (more logical workflow)
-    target = click.prompt("Target (IP, hostname, URL, or CIDR) [or 'back' to return]", type=str)
+    # Get target FIRST (more logical workflow) - Make it prominent
+    click.echo(click.style("━" * width, fg='yellow', bold=True))
+    click.echo(click.style("🎯 TARGET SELECTION", fg='yellow', bold=True))
+    click.echo(click.style("━" * width, fg='yellow', bold=True))
+    click.echo()
+    target = click.prompt(click.style("Enter target (IP, hostname, URL, or CIDR)", fg='yellow', bold=True) + " [or 'back' to return]", type=str)
 
     if not target or target.strip() == "":
         click.echo(click.style("Target required!", fg='red'))
@@ -347,9 +383,9 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
 
     if presets:
         click.echo()
-        click.echo(click.style("─" * width, fg='green'))
-        click.echo(click.style("📋 Available Presets", bold=True, fg='green'))
-        click.echo(click.style("─" * width, fg='green'))
+        click.echo(click.style("━" * width, fg='green', bold=True))
+        click.echo(click.style("📋 AVAILABLE PRESETS", bold=True, fg='green'))
+        click.echo(click.style("━" * width, fg='green', bold=True))
         click.echo()
 
         # Check if tool has categorized presets
@@ -377,7 +413,7 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         click.echo()
 
         try:
-            choice = click.prompt("Select preset", type=int, default=1)
+            choice = click.prompt(click.style("Select preset", fg='green', bold=True), type=int, default=1)
 
             if choice == 0:
                 return {'action': 'back'}
