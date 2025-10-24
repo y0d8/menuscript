@@ -132,11 +132,23 @@ def parse_enum4linux_output(output: str, target: str = "") -> Dict[str, Any]:
         elif 'Groups on' in line or 'group(s) returned' in line:
             current_section = 'groups'
 
-        # Parse user lines (simplified - would need more context)
-        elif current_section == 'users' and line and not line.startswith('[') and not line.startswith('='):
-            # User lines typically start with username or have specific format
-            # This is simplified and may need refinement based on actual output
-            pass
+        # Parse user lines from RID cycling output (Local User or Domain User)
+        elif current_section == 'users' and line and not line.startswith('='):
+            # Format: "S-1-5-21-...-RID DOMAIN\username (Local User)"
+            user_match = re.match(r'S-1-5-21-[0-9-]+ \S+\\(\S+) \((Local User|Domain User)\)', line)
+            if user_match:
+                username = user_match.group(1)
+                if username not in result['users']:
+                    result['users'].append(username)
+        
+        # Also parse group lines from RID cycling (Domain Group)
+        elif current_section == 'groups' and line and not line.startswith('='):
+            # Format: "S-1-5-21-...-RID DOMAIN\groupname (Domain Group)"
+            group_match = re.match(r'S-1-5-21-[0-9-]+ \S+\\(\S+) \(Domain Group\)', line)
+            if group_match:
+                groupname = group_match.group(1)
+                if groupname not in result['groups']:
+                    result['groups'].append(groupname)
 
     return result
 

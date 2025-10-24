@@ -356,6 +356,24 @@ def parse_enum4linux_job(engagement_id: int, log_path: str, job: Dict[str, Any])
                         'status': 'up'
                     })
 
+        # Store discovered users as credentials
+        from menuscript.storage.credentials import CredentialManager
+        cm = CredentialManager()
+        credentials_added = 0
+
+        for username in parsed['users']:
+            # Store each discovered user as a credential
+            cm.add_credential(
+                engagement_id=engagement_id,
+                host_id=host_id,
+                username=username,
+                password='',  # Unknown password
+                credential_type='smb',
+                source='enum4linux',
+                notes='Discovered via RID cycling'
+            )
+            credentials_added += 1
+
         # Store SMB shares as findings
         fm = FindingsManager()
         findings_added = 0
@@ -404,6 +422,8 @@ def parse_enum4linux_job(engagement_id: int, log_path: str, job: Dict[str, Any])
         return {
             'tool': 'enum4linux',
             'findings_added': findings_added,
+            'credentials_added': credentials_added,
+            'users_found': len(parsed['users']),
             'shares_found': stats['total_shares'],
             'accessible_shares': stats['accessible_shares'],
             'writable_shares': stats['writable_shares'],
