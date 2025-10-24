@@ -9,19 +9,32 @@ from typing import Optional, Dict, Any
 def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Process completed job and parse results into database.
-    
+
     Args:
         job: Job dict from background system
-        
+
     Returns:
         Parse results or None if not applicable
     """
     tool = job.get('tool', '').lower()
     log_path = job.get('log')
     status = job.get('status')
-    
-    # Only process successful jobs
-    if status != 'done' or not log_path or not os.path.exists(log_path):
+
+    # Some tools return non-zero exit codes even on success (nikto returns 1 when findings found)
+    # Parse 'done' jobs and 'error' jobs for certain tools
+    tools_with_nonzero_success = ['nikto']
+
+    if status == 'done':
+        # Always parse successful jobs
+        pass
+    elif status == 'error' and tool in tools_with_nonzero_success:
+        # Parse error jobs for tools that can succeed with non-zero exit codes
+        pass
+    else:
+        # Skip other error/failed jobs
+        return None
+
+    if not log_path or not os.path.exists(log_path):
         return None
     
     # Get current engagement

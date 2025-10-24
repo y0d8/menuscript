@@ -51,9 +51,9 @@ HELP = {
         ],
         "subdomain_enum": [
             {
-                "name": "Subdomain Scan",
-                "args": ["dns", "-d", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
-                "desc": "Top 5000 subdomains (fast)"
+                "name": "Subdomain Scan (manual domain)",
+                "args": ["dns", "-d", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
+                "desc": "Top 5000 subdomains - EDIT example.com to your domain"
             }
         ],
         "vhost_discovery": [
@@ -69,7 +69,7 @@ HELP = {
         {"name": "Quick Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"], "desc": "Common wordlist (4600 entries)"},
         {"name": "Standard Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/big.txt", "-t", "20"], "desc": "Big wordlist (20,000 entries)"},
         {"name": "PHP Extensions", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,phps,php3,php4,php5,phtml", "-t", "15"], "desc": "Common paths + PHP extensions"},
-        {"name": "Subdomain Scan", "args": ["dns", "-d", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains (fast)"},
+        {"name": "Subdomain Scan (manual domain)", "args": ["dns", "-d", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains - EDIT example.com to your domain"},
         {"name": "Virtual Hosts", "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Virtual host discovery (top 5000)"}
     ]
 }
