@@ -59,13 +59,13 @@ HELP = {
             },
             {
                 "name": "Fast Scan",
-                "args": ["-v", "-PS", "-F", "-T4"],
-                "desc": "Fast port scan (top 100 ports)"
+                "args": ["-v", "-PS", "-F", "-T4", "--host-timeout", "90s"],
+                "desc": "Fast port scan (top 100 ports, 90s timeout)"
             },
             {
                 "name": "Full Scan",
                 "args": ["-vv", "-sV", "-O", "-p1-65535", "-T4", "--host-timeout", "5m"],
-                "desc": "Deep scan (all ports, version, OS) with per-host timeout"
+                "desc": "Deep scan (all ports, version, OS) with 5min timeout"
             }
         ],
         "service_detection": [
