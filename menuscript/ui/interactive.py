@@ -318,8 +318,11 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     click.echo()
 
     # Wrap description to match terminal width, preserving paragraph structure
-    # Display in a bordered box for better visibility
+    # Display in a bordered box for better visibility (centered, 75% of terminal width)
     if description:
+        box_width = int(width * 0.75)  # Box is 75% of terminal width
+        left_margin = (width - box_width) // 2
+        
         # Split by double newlines to preserve paragraphs
         paragraphs = description.split('\n\n')
         formatted_lines = []
@@ -332,13 +335,13 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
                 for line in lines:
                     if line.strip():
                         # Wrap long bullet lines
-                        wrapped = textwrap.fill(line, width=width - 4)
+                        wrapped = textwrap.fill(line, width=box_width - 4)
                         for wrapped_line in wrapped.split('\n'):
                             formatted_lines.append(wrapped_line)
                 formatted_lines.append('')  # Add blank line after bullet section
             else:
                 # Regular paragraph - wrap it and split into individual lines
-                wrapped_para = textwrap.fill(para, width=width - 4)  # Leave room for box borders
+                wrapped_para = textwrap.fill(para, width=box_width - 4)  # Leave room for box borders
                 for line in wrapped_para.split('\n'):
                     formatted_lines.append(line)
                 formatted_lines.append('')  # Add blank line after paragraph
@@ -347,17 +350,32 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         if formatted_lines and formatted_lines[-1] == '':
             formatted_lines.pop()
         
-        # Draw the box around the description
-        click.echo(click.style("┌" + "─" * (width - 2) + "┐", fg='blue'))
+        # Draw the box around the description (centered)
+        margin = " " * left_margin
+        click.echo(margin + click.style("┌" + "─" * (box_width - 2) + "┐", fg='blue'))
         for line in formatted_lines:
             if line:
-                # Pad line to width and add borders
-                padded_line = line + " " * (width - 4 - len(line))
-                click.echo(click.style("│ ", fg='blue') + padded_line + click.style(" │", fg='blue'))
+                # Calculate actual display length (accounting for emojis which take 2 display columns)
+                # Count emojis in the line
+                import unicodedata
+                display_len = 0
+                for char in line:
+                    # Emojis and some special chars have East Asian Width 'W' (wide) or 'F' (fullwidth)
+                    if unicodedata.east_asian_width(char) in ('W', 'F'):
+                        display_len += 2
+                    else:
+                        display_len += 1
+                
+                # Pad line to exact width and add borders
+                padding_needed = box_width - 4 - display_len
+                if padding_needed < 0:
+                    padding_needed = 0
+                padded_line = line + " " * padding_needed
+                click.echo(margin + click.style("│ ", fg='blue') + padded_line + click.style(" │", fg='blue'))
             else:
                 # Empty line
-                click.echo(click.style("│" + " " * (width - 2) + "│", fg='blue'))
-        click.echo(click.style("└" + "─" * (width - 2) + "┘", fg='blue'))
+                click.echo(margin + click.style("│" + " " * (box_width - 2) + "│", fg='blue'))
+        click.echo(margin + click.style("└" + "─" * (box_width - 2) + "┘", fg='blue'))
     click.echo()
 
     # Get target FIRST (more logical workflow) - Make it prominent

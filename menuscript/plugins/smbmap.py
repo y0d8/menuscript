@@ -9,11 +9,22 @@ from typing import List
 from .plugin_base import PluginBase
 
 HELP = {
-    "name": "SMBMap - SMB Share Enumerator",
-    "description": """SMBMap enumerates SMB shares and checks permissions (READ, WRITE, etc.). Unlike other
-SMB tools, it excels at showing what you can actually do with each share - read files, write files, or
-no access. Perfect for quickly identifying writable shares that could be security risks. Works great with
-legacy SMB/Samba versions where other tools fail.""",
+    "name": "SMBMap — SMB Share Enumerator",
+    "description": (
+        "Want a quick way to see what's readable, writable, or locked down on SMB shares?\n\n"
+        "SMBMap enumerates SMB shares and checks permissions (READ, WRITE, etc.). Unlike other SMB tools, it excels at showing what you "
+        "can actually do with each share — read files, write files, or no access. Perfect for quickly identifying writable shares that "
+        "could be security risks. Works great with legacy SMB/Samba versions where other tools fail.\n\n"
+        "Use it for reconnaissance: find open shares, test credentials, and map out file-level access before diving into manual enumeration "
+        "or exploitation. Results are captured in the job log so you can convert interesting shares into Findings or follow-up tasks.\n\n"
+        "Play nice: authenticated scans that list or read files can be noisy and may trigger alerts. Always run with authorization. 🔒\n\n"
+        "Quick tips:\n"
+        "- Start with anonymous scans to find publicly accessible shares, then move to authenticated scans if you have credentials.\n"
+        "- Use the recursive flag (-R) carefully — it can generate lots of traffic and take time on large shares.\n"
+        "- Writable shares are high-risk — flag them as Findings for remediation or exploitation (with permission).\n"
+        "- Combine SMBMap output with enum4linux, smbclient, or Bloodhound for a complete SMB assessment.\n"
+        "- Capture share names, permissions, and file listings to the job log for reporting and follow-up analysis.\n"
+    ),
     "usage": "menuscript jobs enqueue smbmap <target>",
     "examples": [
         "menuscript jobs enqueue smbmap 10.0.0.82",

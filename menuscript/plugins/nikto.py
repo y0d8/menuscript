@@ -11,8 +11,23 @@ from typing import List, Optional
 from .plugin_base import PluginBase
 
 HELP = {
-    "name": "Nikto",
-    "description": "Nikto web server scanner - comprehensive web vulnerability assessment",
+    "name": "Nikto — Web Server Scanner",
+    "description": (
+        "Want a blunt, thorough web server inspector that tells you what's probably misconfigured or out-of-date?\n\n"
+        "Nikto is a classic web scanner that probes web servers for known issues: outdated server software, dangerous headers, insecure "
+        "defaults, CGI problems, and common misconfigurations. It's built for breadth, not stealth — it runs lots of checks fast and "
+        "loudly so you can get a broad picture of likely web-facing problems before you dive deeper.\n\n"
+        "Nikto doesn't exploit vulnerabilities — it reports potential issues and evidence to follow up on. Results are captured in the "
+        "job log so you can turn noisy but useful findings into formal Findings, remediation tickets, or detailed reports.\n\n"
+        "Play nice: Nikto is noisy and can generate many requests. Always run it with permission and match its verbosity to your rules "
+        "of engagement. 🛡️\n\n"
+        "Quick tips:\n"
+        "- Use Nikto for broad, first-pass web assessments to find obvious misconfigs, outdated components, and dangerous defaults.\n"
+        "- It's noisy by design — prefer scoped runs against approved targets and avoid wide, aggressive scans without authorization.\n"
+        "- Save output in structured formats (XML/JSON) so parsers or your Findings manager can ingest results.\n"
+        "- Follow up Nikto findings with targeted verification (manual review, Burp, or focused scanners) — Nikto flags candidates, not confirmed exploits.\n"
+        "- Tune scan options (e.g., disable 404 fuzzing, limit host header checks) to reduce false positives and traffic when needed.\n"
+    ),
     "usage": "menuscript jobs enqueue nikto <target> --args \"-h <host>\"",
     "examples": [
         "menuscript jobs enqueue nikto http://example.com --args \"-h http://example.com\"",
