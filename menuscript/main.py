@@ -356,12 +356,19 @@ def jobs_kill(job_id, force):
         return
 
     status = job.get('status')
-    if status != 'running':
-        click.echo(f"✗ Job {job_id} is not running (status: {status})", err=True)
+    
+    # Allow killing queued, running, and error jobs
+    if status not in ['queued', 'running', 'error']:
+        click.echo(f"✗ Job {job_id} cannot be killed (status: {status})", err=True)
         return
 
     if kill_job(job_id):
-        click.echo(f"✓ Job {job_id} killed successfully", fg='green')
+        if status == 'queued':
+            click.secho(f"✓ Job {job_id} removed from queue", fg='green')
+        elif status == 'error':
+            click.secho(f"✓ Job {job_id} marked as killed", fg='green')
+        else:
+            click.secho(f"✓ Job {job_id} killed successfully", fg='green')
     else:
         click.echo(f"✗ Failed to kill job {job_id}", err=True)
 
