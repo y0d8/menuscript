@@ -337,28 +337,37 @@ def render_identified_users(engagement_id: int, width: int):
     fm = FindingsManager()
     findings = fm.list_findings(engagement_id)
 
-    # Filter to user/credential related findings
+    # Filter to credential/authentication related findings
     # Include: valid credentials, user enumeration, account discoveries
-    user_keywords = ['credential', 'user', 'username', 'login', 'account', 'valid', 'password']
+    # Use more specific patterns to avoid false positives like "user agent"
+    credential_keywords = ['credential', 'password', 'login', 'ssh_login', 'rdp_login', 'smb_login']
+    user_enum_keywords = ['username', 'user enumeration', 'account found', 'valid user']
 
     user_findings = []
     for f in findings:
         title = (f.get('title', '') or '').lower()
         desc = (f.get('description', '') or '').lower()
+        finding_type = (f.get('finding_type', '') or '').lower()
 
-        # Check if title or description contains user-related keywords
-        if any(keyword in title or keyword in desc for keyword in user_keywords):
+        # Check for credential-specific finding types
+        if 'credential' in finding_type or 'authentication' in finding_type:
+            user_findings.append(f)
+            continue
+
+        # Check for credential/user keywords (more specific matching)
+        text = title + ' ' + desc
+        if any(keyword in text for keyword in credential_keywords + user_enum_keywords):
             user_findings.append(f)
 
     recent_users = sorted(user_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
 
     lines = []
     lines.append("")
-    lines.append(click.style("🔓 IDENTIFIED USERS & CREDENTIALS", bold=True, fg='red'))
+    lines.append(click.style("🔐 CREDENTIALS & AUTHENTICATION", bold=True, fg='red'))
     lines.append("─" * width)
 
     if not recent_users:
-        lines.append("No users or credentials identified yet")
+        lines.append("No credentials or authentication findings yet")
     else:
         for finding in recent_users:
             fid = finding.get('id', '?')
@@ -378,8 +387,8 @@ def render_identified_users(engagement_id: int, width: int):
             else:
                 sev_color = 'white'
 
-            # Truncate title if too long
-            display_title = title[:50] + "..." if len(title) > 50 else title
+            # Don't truncate - show full title (dashboard has width for it)
+            display_title = title
 
             # Show IP, tool, and title
             finding_line = f"  [{fid:>3}] {ip:<15} {tool:<12} {click.style(display_title, fg=sev_color)}"

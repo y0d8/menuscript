@@ -1121,6 +1121,20 @@ def manage_services_menu():
     view_services(engagement_id)
 
 
+def manage_findings_menu():
+    """Findings management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_findings(engagement_id)
+
+
 def manage_credentials_menu():
     """Credential management menu wrapper."""
     em = EngagementManager()
@@ -4205,7 +4219,7 @@ def run_interactive_menu():
             manage_services_menu()
 
         elif action == 'manage_findings':
-            view_findings(engagement_id)
+            manage_findings_menu()
 
         elif action == 'manage_credentials':
             manage_credentials_menu()
