@@ -895,6 +895,91 @@ def _show_dashboard_menu(engagement_id: int):
             from menuscript.ui.interactive import manage_reports_menu
             manage_reports_menu()
 
+    click.clear()
+
+    # Header
+    click.echo("\n┌" + "─" * 138 + "┐")
+    click.echo("│" + click.style(f" CREDENTIALS - Engagement: {engagement_name} ".center(138), bold=True, fg='green') + "│")
+    click.echo("└" + "─" * 138 + "┘")
+    click.echo()
+
+    cm = CredentialsManager()
+    creds = cm.list_credentials(engagement_id)
+
+    if not creds:
+        click.echo(click.style("  No credentials found yet.", fg='yellow'))
+        click.echo()
+        click.echo("  💡 Credentials will appear here when discovered by:")
+        click.echo("     • MSF auxiliary modules (ssh_enumusers, ssh_login, etc.)")
+        click.echo("     • Brute force scans")
+        click.echo("     • User enumeration modules")
+        click.echo()
+    else:
+        # Show stats first - compact format
+        stats = cm.get_stats(engagement_id)
+        click.echo()
+        click.echo(click.style("  📊 SUMMARY", bold=True, fg='cyan'))
+        click.echo(f"     Total: {stats['total']}  |  " +
+                   click.style(f"Valid: {stats['valid']}", fg='green', bold=True) +
+                   f"  |  Usernames: {stats['users_only']}  |  Pairs: {stats['pairs']}")
+        click.echo()
+
+        # Separate valid and untested credentials
+        valid_creds = [c for c in creds if c.get('status') == 'valid']
+        untested_creds = [c for c in creds if c.get('status') != 'valid']
+
+        # Show valid credentials prominently
+        if valid_creds:
+            click.echo(click.style("  🔓 VALID CREDENTIALS (Confirmed Working)", bold=True, fg='green'))
+            click.echo("  " + "─" * 100)
+            click.echo(f"     {'Username':<20} {'Password':<20} {'Service':<10} {'Host':<18} {'Tool':<15}")
+            click.echo("  " + "─" * 100)
+
+            for cred in valid_creds:
+                username = cred.get('username', '')[:19]
+                password = cred.get('password', '')[:19]
+                service = cred.get('service', 'N/A')[:9]
+                host = cred.get('ip_address', 'N/A')[:17]
+                tool = cred.get('tool', 'N/A')[:14]
+
+                click.echo(
+                    "  " + click.style("✓", fg='green', bold=True) + " " +
+                    click.style(f"{username:<20} {password:<20}", fg='green', bold=True) +
+                    f" {service:<10} {host:<18} {tool:<15}"
+                )
+
+            click.echo("  " + "─" * 100)
+            click.echo()
+
+        # Show discovered usernames (untested) - minimal view
+        if untested_creds:
+            click.echo(click.style(f"  🔍 DISCOVERED USERNAMES ({len(untested_creds)} untested)", bold=True, fg='cyan'))
+            click.echo("  " + "─" * 80)
+
+            # Group by service
+            by_service = {}
+            for cred in untested_creds:
+                service = cred.get('service', 'unknown')
+                if service not in by_service:
+                    by_service[service] = []
+                by_service[service].append(cred.get('username', ''))
+
+            # Show count only
+            for service, usernames in sorted(by_service.items()):
+                click.echo(f"     {service.upper():<8} ({len(usernames)} users)")
+
+            click.echo("  " + "─" * 80)
+            click.echo()
+            click.echo(click.style("     💡 Press 'u' to view/manage untested usernames", fg='yellow'))
+            click.echo()
+
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  [u] View Untested  [ENTER] Return to dashboard", fg='cyan'), nl=False)
+
+    try:
+        choice = input().strip().lower()
+        if choice == 'u' and untested_creds:
+            view_untested_usernames(engagement_id)
     except (KeyboardInterrupt, EOFError):
         pass
 

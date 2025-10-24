@@ -255,6 +255,12 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == reports_option:
             return {'action': 'manage_reports'}
 
+        if choice == reports_option:
+            return {'action': 'manage_reports'}
+
+        if choice == import_option:
+            return {'action': 'import_data'}
+
         if choice == engagement_option:
             return {'action': 'manage_engagements'}
 
