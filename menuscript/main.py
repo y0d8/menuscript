@@ -356,12 +356,19 @@ def jobs_kill(job_id, force):
         return
 
     status = job.get('status')
-    if status != 'running':
-        click.echo(f"✗ Job {job_id} is not running (status: {status})", err=True)
+    
+    # Allow killing queued, running, and error jobs
+    if status not in ['queued', 'running', 'error']:
+        click.echo(f"✗ Job {job_id} cannot be killed (status: {status})", err=True)
         return
 
     if kill_job(job_id):
-        click.echo(f"✓ Job {job_id} killed successfully", fg='green')
+        if status == 'queued':
+            click.secho(f"✓ Job {job_id} removed from queue", fg='green')
+        elif status == 'error':
+            click.secho(f"✓ Job {job_id} marked as killed", fg='green')
+        else:
+            click.secho(f"✓ Job {job_id} killed successfully", fg='green')
     else:
         click.echo(f"✗ Failed to kill job {job_id}", err=True)
 
@@ -394,20 +401,42 @@ def worker_status():
     import subprocess
     
     try:
-        result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
+        # Use pgrep to find worker_loop processes (more reliable than ps + grep)
+        result = subprocess.run(
+            ["pgrep", "-f", "worker_loop"],
+            capture_output=True,
+            text=True
+        )
         
-        worker_procs = []
-        for line in result.stdout.split('\n'):
-            if 'menuscript' in line and 'worker' in line and 'grep' not in line:
-                worker_procs.append(line)
-        
-        if worker_procs:
-            click.echo("✓ Worker is running:")
-            for proc in worker_procs:
-                click.echo(f"  {proc}")
+        if result.returncode == 0 and result.stdout.strip():
+            # Found worker processes
+            pids = result.stdout.strip().split('\n')
+            click.secho(f"✓ Worker is running ({len(pids)} process{'es' if len(pids) > 1 else ''}):", fg='green')
+            for pid in pids:
+                click.echo(f"  PID {pid}: background worker")
         else:
             click.echo("✗ Worker is not running")
             click.echo("  Start with: menuscript worker start")
+    except FileNotFoundError:
+        # pgrep not available, fall back to ps
+        try:
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
+            worker_procs = []
+            for line in result.stdout.split('\n'):
+                if 'worker_loop' in line and 'grep' not in line:
+                    worker_procs.append(line)
+            
+            if worker_procs:
+                click.secho("✓ Worker is running:", fg='green')
+                for proc in worker_procs:
+                    parts = proc.split()
+                    if len(parts) >= 2:
+                        click.echo(f"  PID {parts[1]}: background worker")
+            else:
+                click.echo("✗ Worker is not running")
+                click.echo("  Start with: menuscript worker start")
+        except Exception as e:
+            click.echo(f"✗ Error checking status: {e}", err=True)
     except Exception as e:
         click.echo(f"✗ Error checking status: {e}", err=True)
 

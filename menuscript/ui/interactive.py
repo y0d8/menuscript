@@ -81,7 +81,7 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo("  manage engagements, review findings, and generate reports — all in one place.")
 
     click.echo()
-    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/f/r/i/e) or enter the tool number")
+    click.echo("  " + click.style("TIP:", bold=True) + " Use letter shortcuts (d/j/h/s/f/c/r/e/v) or enter the number")
     click.echo()
     click.echo("  " + "─" * (width - 4))
     click.echo()
@@ -131,37 +131,52 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
     click.echo()
 
     # Data & Management options with shortcuts
-    click.echo(click.style("  DATA & MANAGEMENT", bold=True))
+    click.echo(click.style("  COMMAND & CONTROL HUB", bold=True))
     click.echo()
 
     dashboard_option = idx
     click.echo(f"      " + click.style("[d]", bold=True) + " or " +
-               f"[{idx}]" + "   Live Dashboard       - Real-time monitoring view")
+               f"[{idx}]" + "   Live Dashboard          - Real-time monitoring view")
     idx += 1
 
     job_option = idx
     click.echo(f"      " + click.style("[j]", bold=True) + " or " +
-               f"[{idx}]" + "  View Jobs            - Manage running scans")
+               f"[{idx}]" + "  Job Management          - Manage running scans")
+    idx += 1
+
+    hosts_option = idx
+    click.echo(f"      " + click.style("[h]", bold=True) + " or " +
+               f"[{idx}]" + "  Host Management         - View and manage hosts")
+    idx += 1
+
+    services_option = idx
+    click.echo(f"      " + click.style("[s]", bold=True) + " or " +
+               f"[{idx}]" + "  Service Management      - View and manage services")
     idx += 1
 
     findings_option = idx
     click.echo(f"      " + click.style("[f]", bold=True) + " or " +
-               f"[{idx}]" + "  View Findings        - Browse scan findings")
+               f"[{idx}]" + "  Findings Management     - View, add, edit, delete findings")
+    idx += 1
+
+    credentials_option = idx
+    click.echo(f"      " + click.style("[c]", bold=True) + " or " +
+               f"[{idx}]" + "  Credential Management   - View, test, manage credentials")
     idx += 1
 
     reports_option = idx
     click.echo(f"      " + click.style("[r]", bold=True) + " or " +
-               f"[{idx}]" + "  Manage Reports       - View, generate, or delete reports")
-    idx += 1
-
-    import_option = idx
-    click.echo(f"      " + click.style("[i]", bold=True) + " or " +
-               f"[{idx}]" + "  Import Data          - Import from Metasploit or other sources")
+               f"[{idx}]" + "  Reports Management      - Generate, view, import data")
     idx += 1
 
     engagement_option = idx
     click.echo(f"      " + click.style("[e]", bold=True) + " or " +
-               f"[{idx}]" + "  Manage Engagements   - Switch, create, or delete engagements")
+               f"[{idx}]" + "  Engagement Management   - Switch, create, delete engagements")
+    idx += 1
+
+    additional_option = idx
+    click.echo(f"      " + click.style("[v]", bold=True) + " or " +
+               f"[{idx}]" + "  View Additional Data    - OSINT, Web Paths")
     idx += 1
 
     click.echo()
@@ -191,14 +206,20 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             return {'action': 'view_dashboard'}
         elif choice_input == 'j':
             return {'action': 'view_jobs'}
+        elif choice_input == 'h':
+            return {'action': 'manage_hosts'}
+        elif choice_input == 's':
+            return {'action': 'manage_services'}
         elif choice_input == 'f':
-            return {'action': 'view_results'}
+            return {'action': 'manage_findings'}
+        elif choice_input == 'c':
+            return {'action': 'manage_credentials'}
         elif choice_input == 'r':
             return {'action': 'manage_reports'}
-        elif choice_input == 'i':
-            return {'action': 'import_data'}
         elif choice_input == 'e':
             return {'action': 'manage_engagements'}
+        elif choice_input == 'v':
+            return {'action': 'view_additional_data'}
         elif choice_input in ('q', '0', ''):
             return None
 
@@ -219,8 +240,20 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == job_option:
             return {'action': 'view_jobs'}
 
+        if choice == hosts_option:
+            return {'action': 'manage_hosts'}
+
+        if choice == services_option:
+            return {'action': 'manage_services'}
+
         if choice == findings_option:
-            return {'action': 'view_results'}
+            return {'action': 'manage_findings'}
+
+        if choice == credentials_option:
+            return {'action': 'manage_credentials'}
+
+        if choice == reports_option:
+            return {'action': 'manage_reports'}
 
         if choice == reports_option:
             return {'action': 'manage_reports'}
@@ -231,11 +264,14 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
         if choice == engagement_option:
             return {'action': 'manage_engagements'}
 
+        if choice == additional_option:
+            return {'action': 'view_additional_data'}
+
         if 1 <= choice <= len(tool_list):
             action_type, tool_name = tool_list[choice - 1]
             return {'action': action_type, 'tool': tool_name}
         else:
-            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 6} or use shortcuts.", fg='red'))
+            click.echo(click.style(f"\n  ✗ Invalid selection! Please choose 1-{len(tool_list) + 9} or use shortcuts.", fg='red'))
             click.pause()
             return {'action': 'retry'}
 
@@ -277,39 +313,141 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     category = getattr(plugin, 'category', 'other')
     icon = category_icons.get(category, '🔧')
 
-    # Top border
-    click.echo("\n" + click.style("╭" + "─" * (width - 2) + "╮", fg='cyan', bold=True))
-    # Empty line for padding
-    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
+    # Header with horizontal line styling (similar to presets)
+    click.echo("\n" + click.style("─" * width, fg='cyan', bold=True))
     # Tool title with icon centered
     title_with_icon = f"{icon}  {tool_title}"
-    padding = (width - 2 - len(title_with_icon)) // 2
-    title_line = "│" + " " * padding + title_with_icon + " " * (width - 2 - padding - len(title_with_icon)) + "│"
+    padding = (width - len(title_with_icon)) // 2
+    title_line = " " * padding + title_with_icon
     click.echo(click.style(title_line, fg='cyan', bold=True))
-    # Empty line for padding
-    click.echo(click.style("│" + " " * (width - 2) + "│", fg='cyan', bold=True))
-    # Bottom border
-    click.echo(click.style("╰" + "─" * (width - 2) + "╯", fg='cyan', bold=True))
+    click.echo(click.style("─" * width, fg='cyan', bold=True))
     click.echo()
 
-    # Wrap description to match terminal width
+    # Wrap description to match terminal width, preserving paragraph structure
+    # Display in a bordered box for better visibility (centered, 75% of terminal width)
     if description:
-        wrapped_desc = textwrap.fill(description, width=width)
-        click.echo(wrapped_desc)
+        box_width = int(width * 0.75)  # Box is 75% of terminal width
+        left_margin = (width - box_width) // 2
+        
+        # Split by double newlines to preserve paragraphs
+        paragraphs = description.split('\n\n')
+        formatted_lines = []
+        
+        for para in paragraphs:
+            # Check if this paragraph contains bullet points
+            if '\n-' in para or para.strip().startswith('-'):
+                # This is a bulleted list - process each line separately
+                lines = para.split('\n')
+                for line in lines:
+                    if line.strip():
+                        # Wrap long bullet lines
+                        wrapped = textwrap.fill(line, width=box_width - 4)
+                        for wrapped_line in wrapped.split('\n'):
+                            formatted_lines.append(wrapped_line)
+                formatted_lines.append('')  # Add blank line after bullet section
+            else:
+                # Regular paragraph - wrap it and split into individual lines
+                wrapped_para = textwrap.fill(para, width=box_width - 4)  # Leave room for box borders
+                for line in wrapped_para.split('\n'):
+                    formatted_lines.append(line)
+                formatted_lines.append('')  # Add blank line after paragraph
+        
+        # Remove trailing blank line
+        if formatted_lines and formatted_lines[-1] == '':
+            formatted_lines.pop()
+        
+        # Draw the box around the description (centered)
+        margin = " " * left_margin
+        click.echo(margin + click.style("┌" + "─" * (box_width - 2) + "┐", fg='blue'))
+        for line in formatted_lines:
+            if line:
+                # Calculate actual display length (accounting for emojis which take 2 display columns)
+                # Count emojis in the line
+                import unicodedata
+                display_len = 0
+                for char in line:
+                    # Emojis and some special chars have East Asian Width 'W' (wide) or 'F' (fullwidth)
+                    if unicodedata.east_asian_width(char) in ('W', 'F'):
+                        display_len += 2
+                    else:
+                        display_len += 1
+                
+                # Pad line to exact width and add borders
+                padding_needed = box_width - 4 - display_len
+                if padding_needed < 0:
+                    padding_needed = 0
+                padded_line = line + " " * padding_needed
+                click.echo(margin + click.style("│ ", fg='blue') + padded_line + click.style(" │", fg='blue'))
+            else:
+                # Empty line
+                click.echo(margin + click.style("│" + " " * (box_width - 2) + "│", fg='blue'))
+        click.echo(margin + click.style("└" + "─" * (box_width - 2) + "┘", fg='blue'))
     click.echo()
 
-    # Get target FIRST (more logical workflow)
-    target = click.prompt("Target (IP, hostname, URL, or CIDR) [or 'back' to return]", type=str)
+    # Get target FIRST (more logical workflow) - Make it prominent
+    click.echo(click.style("━" * width, fg='yellow', bold=True))
+    click.echo(click.style("🎯 TARGET SELECTION", fg='yellow', bold=True))
+    click.echo(click.style("━" * width, fg='yellow', bold=True))
+    click.echo()
+    
+    # Offer to use hosts from current engagement
+    from menuscript.storage.engagements import EngagementManager
+    from menuscript.storage.hosts import HostManager
+    
+    em = EngagementManager()
+    current_eng = em.get_current()
+    
+    target = None
+    if current_eng:
+        hm = HostManager()
+        all_hosts = hm.list_hosts(current_eng['id'])
+        if all_hosts:
+            # Count active hosts (status = 'up')
+            active_hosts = [h for h in all_hosts if h.get('status') == 'up']
+            
+            click.echo(f"Found {len(all_hosts)} total host(s), {len(active_hosts)} active.")
+            click.echo()
+            click.echo("  1. Use all hosts from engagement")
+            click.echo("  2. Use only active hosts (status: up)")
+            click.echo("  3. Enter custom target")
+            click.echo()
+            
+            choice = click.prompt(click.style("Select option", fg='yellow', bold=True), type=int, default=3)
+            
+            if choice == 1:
+                # Get IPs from all hosts
+                ips = [h['ip_address'] for h in all_hosts if h.get('ip_address')]
+                if ips:
+                    target = ' '.join(ips)
+                    click.echo(click.style(f"✓ Using all {len(ips)} host(s): {target[:80]}{'...' if len(target) > 80 else ''}", fg='green'))
+                    click.echo()
+                else:
+                    click.echo(click.style("No IP addresses found in hosts!", fg='red'))
+                    return None
+            elif choice == 2:
+                # Get IPs from active hosts only
+                ips = [h['ip_address'] for h in active_hosts if h.get('ip_address')]
+                if ips:
+                    target = ' '.join(ips)
+                    click.echo(click.style(f"✓ Using {len(ips)} active host(s): {target[:80]}{'...' if len(target) > 80 else ''}", fg='green'))
+                    click.echo()
+                else:
+                    click.echo(click.style("No active hosts found!", fg='yellow'))
+                    return None
+    
+    # If no target set yet, prompt for it
+    if not target:
+        target = click.prompt(click.style("Enter target (IP, hostname, URL, or CIDR)", fg='yellow', bold=True) + " [or 'back' to return]", type=str)
+        
+        if not target or target.strip() == "":
+            click.echo(click.style("Target required!", fg='red'))
+            return None
 
-    if not target or target.strip() == "":
-        click.echo(click.style("Target required!", fg='red'))
-        return None
+        target = target.strip()
 
-    target = target.strip()
-
-    # Check if user wants to go back
-    if target.lower() in ['back', 'b', 'exit', 'q']:
-        return {'action': 'back'}
+        # Check if user wants to go back
+        if target.lower() in ['back', 'b', 'exit', 'q']:
+            return {'action': 'back'}
 
     # Now show presets and let user choose
     args = []
@@ -317,9 +455,9 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
 
     if presets:
         click.echo()
-        click.echo(click.style("─" * width, fg='green'))
-        click.echo(click.style("📋 Available Presets", bold=True, fg='green'))
-        click.echo(click.style("─" * width, fg='green'))
+        click.echo(click.style("━" * width, fg='green', bold=True))
+        click.echo(click.style("📋 AVAILABLE PRESETS", bold=True, fg='green'))
+        click.echo(click.style("━" * width, fg='green', bold=True))
         click.echo()
 
         # Check if tool has categorized presets
@@ -347,7 +485,7 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         click.echo()
 
         try:
-            choice = click.prompt("Select preset", type=int, default=1)
+            choice = click.prompt(click.style("Select preset", fg='green', bold=True), type=int, default=1)
 
             if choice == 0:
                 return {'action': 'back'}
@@ -902,6 +1040,15 @@ def view_results_menu():
         click.echo("  2. Services     ({:3} total)".format(stats['services']))
         click.echo("  3. Findings     ({:3} total)".format(stats['findings']))
 
+        # Get credentials count
+        try:
+            from menuscript.storage.credentials import CredentialsManager
+            cm = CredentialsManager()
+            creds_stats = cm.get_stats(engagement_id)
+            creds_count = creds_stats['total']
+        except:
+            creds_count = 0
+
         # Get OSINT and paths counts
         try:
             om = OsintManager()
@@ -919,8 +1066,9 @@ def view_results_menu():
         except:
             paths_count = 0
 
-        click.echo("  4. OSINT Data   ({:3} total)".format(osint_count))
-        click.echo("  5. Web Paths    ({:3} total)".format(paths_count))
+        click.echo("  4. Credentials  ({:3} total)".format(creds_count))
+        click.echo("  5. OSINT Data   ({:3} total)".format(osint_count))
+        click.echo("  6. Web Paths    ({:3} total)".format(paths_count))
         click.echo()
         click.echo("  0. Back to Main Menu")
         click.echo()
@@ -937,8 +1085,10 @@ def view_results_menu():
             elif choice == 3:
                 view_findings(engagement_id)
             elif choice == 4:
-                view_osint(engagement_id)
+                view_credentials(engagement_id)
             elif choice == 5:
+                view_osint(engagement_id)
+            elif choice == 6:
                 view_web_paths(engagement_id)
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
@@ -1051,6 +1201,108 @@ def manage_engagements_menu():
             return
 
 
+def manage_hosts_menu():
+    """Host management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_hosts(engagement_id)
+
+
+def manage_services_menu():
+    """Service management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_services(engagement_id)
+
+
+def manage_findings_menu():
+    """Findings management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    view_findings(engagement_id)
+
+
+def manage_credentials_menu():
+    """Credential management menu wrapper."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+
+    # Show credentials management with option to test
+    while True:
+        view_credentials(engagement_id)
+        # Check if user wants to test credentials
+        break
+
+
+def view_additional_data_menu():
+    """Additional data viewing menu for OSINT and Web Paths."""
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("ADDITIONAL DATA")
+        click.echo("=" * 70 + "\n")
+
+        click.echo("  1. OSINT Data       - View and manage OSINT reconnaissance data")
+        click.echo("  2. Web Paths        - View and manage discovered web paths")
+        click.echo()
+        click.echo("  0. Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select data type", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                view_osint(engagement_id)
+            elif choice == 2:
+                view_web_paths(engagement_id)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
 def view_hosts(engagement_id: int):
     """Display hosts with search, filtering, and tagging capabilities."""
     hm = HostManager()
@@ -1132,7 +1384,9 @@ def view_hosts(engagement_id: int):
         click.echo("  [5] Select Host(s)  [6] Deselect All")
         click.echo("\nActions:")
         click.echo("  [7] Tag Selected Hosts  [8] Remove Tag from Selected  [9] View Host Details")
-        click.echo("\n  [0] Back to Results Menu")
+        click.echo("\nManagement:")
+        click.echo("  [10] Add New Host  [11] Edit Host  [12] Delete Host(s)")
+        click.echo("\n  [0] Back to Main Menu")
         click.echo()
 
         try:
@@ -1169,6 +1423,17 @@ def view_hosts(engagement_id: int):
             elif choice == 9:
                 if hosts:
                     _hosts_view_details(hosts, hm)
+            elif choice == 10:
+                _add_new_host(engagement_id, hm)
+            elif choice == 11:
+                _edit_host(engagement_id, hm)
+            elif choice == 12:
+                if selected_hosts:
+                    _delete_hosts(selected_hosts, hm)
+                    selected_hosts.clear()
+                else:
+                    click.echo(click.style("No hosts selected for deletion", fg='yellow'))
+                    click.pause()
 
         except (KeyboardInterrupt, click.Abort):
             return
@@ -1351,6 +1616,200 @@ def _hosts_view_details(hosts: list, hm: 'HostManager'):
         pass
 
 
+def _add_new_host(engagement_id: int, hm: 'HostManager'):
+    """Add a new host manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW HOST")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # IP Address (required)
+        ip_address = click.prompt("IP Address", type=str)
+        if not ip_address.strip():
+            click.echo(click.style("\n✗ IP Address is required!", fg='red'))
+            click.pause()
+            return
+
+        # Hostname (optional)
+        hostname = click.prompt("Hostname (press Enter to skip)", type=str, default="")
+
+        # OS Name (optional)
+        os_name = click.prompt("OS Name (press Enter to skip)", type=str, default="")
+
+        # MAC Address (optional)
+        mac_address = click.prompt("MAC Address (press Enter to skip)", type=str, default="")
+
+        # Status
+        click.echo("\nStatus:")
+        click.echo("  [1] Up")
+        click.echo("  [2] Down")
+        click.echo("  [3] Unknown")
+        status_choice = click.prompt("Select status", type=int, default=1)
+        status_map = {1: 'up', 2: 'down', 3: 'unknown'}
+        status = status_map.get(status_choice, 'up')
+
+        # Tags (optional)
+        tags = click.prompt("Tags (comma-separated, press Enter to skip)", type=str, default="")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"IP Address: {ip_address}")
+        click.echo(f"Hostname: {hostname or 'N/A'}")
+        click.echo(f"OS: {os_name or 'N/A'}")
+        click.echo(f"MAC Address: {mac_address or 'N/A'}")
+        click.echo(f"Status: {status}")
+        click.echo(f"Tags: {tags or 'None'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this host?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        host_data = {
+            'ip': ip_address,
+            'hostname': hostname or None,
+            'os': os_name or None,
+            'mac': mac_address or None,
+            'status': status,
+            'tags': tags or None
+        }
+
+        host_id = hm.add_or_update_host(engagement_id, host_data)
+        click.echo(click.style(f"\n✓ Host added successfully! (ID: {host_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _edit_host(engagement_id: int, hm: 'HostManager'):
+    """Edit an existing host."""
+    try:
+        host_id = click.prompt("\nEnter Host ID to edit", type=int)
+        host = hm.get_host(host_id)
+
+        if not host or host.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Host not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT HOST #{host_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Hostname
+        current_hostname = host.get('hostname', '')
+        hostname = click.prompt(f"Hostname [{current_hostname}]", type=str, default=current_hostname or "")
+
+        # OS Name
+        current_os = host.get('os_name', '')
+        os_name = click.prompt(f"OS Name [{current_os}]", type=str, default=current_os or "")
+
+        # MAC Address
+        current_mac = host.get('mac_address', '')
+        mac_address = click.prompt(f"MAC Address [{current_mac}]", type=str, default=current_mac or "")
+
+        # Status
+        current_status = host.get('status', 'up')
+        click.echo(f"\nCurrent Status: {current_status}")
+        click.echo("  [1] Up")
+        click.echo("  [2] Down")
+        click.echo("  [3] Unknown")
+        click.echo("  [0] Keep current")
+        status_choice = click.prompt("Select status", type=int, default=0)
+        status_map = {1: 'up', 2: 'down', 3: 'unknown'}
+        status = status_map.get(status_choice, current_status)
+
+        # Tags
+        current_tags = host.get('tags', '')
+        tags = click.prompt(f"Tags [{current_tags}]", type=str, default=current_tags or "")
+
+        # Build update dict
+        updates = {}
+        if hostname != host.get('hostname'):
+            updates['hostname'] = hostname or None
+        if os_name != host.get('os_name'):
+            updates['os_name'] = os_name or None
+        if mac_address != host.get('mac_address'):
+            updates['mac_address'] = mac_address or None
+        if status != host.get('status'):
+            updates['status'] = status
+        if tags != host.get('tags'):
+            updates['tags'] = tags or None
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        hm.update_host(host_id, **updates)
+        click.echo(click.style("\n✓ Host updated successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Host ID!", fg='red'))
+        click.pause()
+
+
+def _delete_hosts(selected_host_ids: set, hm: 'HostManager'):
+    """Delete selected hosts."""
+    if not selected_host_ids:
+        return
+
+    try:
+        # Show hosts to be deleted
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style(f"HOSTS TO DELETE ({len(selected_host_ids)}):", bold=True))
+        for host_id in list(selected_host_ids)[:10]:
+            host = hm.get_host(host_id)
+            if host:
+                click.echo(f"  ID {host_id}: {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        if len(selected_host_ids) > 10:
+            click.echo(f"  ... and {len(selected_host_ids) - 10} more")
+
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style(f"\nAre you sure you want to delete {len(selected_host_ids)} host(s)?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        deleted_count = 0
+        for host_id in selected_host_ids:
+            if hm.delete_host(host_id):
+                deleted_count += 1
+
+        click.echo(click.style(f"\n✓ Deleted {deleted_count} host(s) successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+
+
 def view_services(engagement_id: int):
     """Display services - choose between grouped by host or all services view."""
     while True:
@@ -1525,12 +1984,16 @@ def view_all_services_filtered(engagement_id: int):
 
         # Menu options
         click.echo("\n" + "-" * 80)
-        click.echo("Options:")
+        click.echo("Filters:")
         click.echo("  [1] Filter by Service Name")
         click.echo("  [2] Filter by Port Range")
         click.echo("  [3] Filter by Protocol")
         click.echo("  [4] Sort by (port/service/protocol)")
         click.echo("  [5] Clear All Filters")
+        click.echo("\nManagement:")
+        click.echo("  [6] Add New Service")
+        click.echo("  [7] Edit Service")
+        click.echo("  [8] Delete Service")
         click.echo("  [0] Back to Services View")
         click.echo()
 
@@ -1553,6 +2016,12 @@ def view_all_services_filtered(engagement_id: int):
                 filters = {k: None if k != 'sort_by' else 'port' for k, v in filters.items()}
                 click.echo(click.style("✓ All filters cleared", fg='green'))
                 click.pause()
+            elif choice == 6:
+                _add_new_service(engagement_id, hm)
+            elif choice == 7:
+                _edit_service(engagement_id, hm)
+            elif choice == 8:
+                _delete_service(engagement_id, hm)
 
         except (KeyboardInterrupt, click.Abort):
             return
@@ -1622,6 +2091,217 @@ def _select_sort_order():
         return 'port'
     except (KeyboardInterrupt, click.Abort):
         return 'port'
+
+
+def _add_new_service(engagement_id: int, hm: 'HostManager'):
+    """Add a new service manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW SERVICE")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Host selection
+        hosts = hm.list_hosts(engagement_id)
+
+        if not hosts:
+            click.echo(click.style("✗ No hosts found. Please add hosts first!", fg='red'))
+            click.pause()
+            return
+
+        click.echo("Select host:")
+        for idx, host in enumerate(hosts[:20], 1):
+            click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        host_choice = click.prompt("Select host", type=int)
+        if not (1 <= host_choice <= len(hosts)):
+            click.echo(click.style("✗ Invalid host selection!", fg='red'))
+            click.pause()
+            return
+
+        host_id = hosts[host_choice - 1]['id']
+
+        # Port (required)
+        port = click.prompt("\nPort", type=int)
+
+        # Service name
+        service_name = click.prompt("Service name (e.g., ssh, http, mysql)", type=str, default="")
+
+        # Protocol
+        click.echo("\nProtocol:")
+        click.echo("  [1] TCP")
+        click.echo("  [2] UDP")
+        proto_choice = click.prompt("Select protocol", type=int, default=1)
+        protocol = 'tcp' if proto_choice == 1 else 'udp'
+
+        # State
+        click.echo("\nState:")
+        click.echo("  [1] Open")
+        click.echo("  [2] Closed")
+        click.echo("  [3] Filtered")
+        state_choice = click.prompt("Select state", type=int, default=1)
+        state_map = {1: 'open', 2: 'closed', 3: 'filtered'}
+        state = state_map.get(state_choice, 'open')
+
+        # Version (optional)
+        version = click.prompt("\nService version (press Enter to skip)", type=str, default="")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Host: {hosts[host_choice - 1].get('ip_address')}")
+        click.echo(f"Port: {port}")
+        click.echo(f"Protocol: {protocol}")
+        click.echo(f"Service: {service_name or 'unknown'}")
+        click.echo(f"State: {state}")
+        click.echo(f"Version: {version or 'N/A'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this service?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        service_data = {
+            'port': port,
+            'protocol': protocol,
+            'service': service_name or 'unknown',
+            'state': state,
+            'version': version or None
+        }
+
+        service_id = hm.add_service(host_id, service_data)
+        click.echo(click.style(f"\n✓ Service added successfully! (ID: {service_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+    except ValueError as e:
+        click.echo(click.style(f"\n✗ Invalid input: {e}", fg='red'))
+        click.pause()
+
+
+def _edit_service(engagement_id: int, hm: 'HostManager'):
+    """Edit an existing service."""
+    try:
+        service_id = click.prompt("\nEnter Service ID to edit", type=int)
+
+        # Get service - need to search through all services
+        all_services = hm.get_all_services(engagement_id)
+        service = next((s for s in all_services if s.get('id') == service_id), None)
+
+        if not service:
+            click.echo(click.style("\n✗ Service not found!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT SERVICE #{service_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Service name
+        current_service = service.get('service_name', '')
+        service_name = click.prompt(f"Service name [{current_service}]", type=str, default=current_service or "")
+
+        # State
+        current_state = service.get('state', 'open')
+        click.echo(f"\nCurrent State: {current_state}")
+        click.echo("  [1] Open")
+        click.echo("  [2] Closed")
+        click.echo("  [3] Filtered")
+        click.echo("  [0] Keep current")
+        state_choice = click.prompt("Select state", type=int, default=0)
+        state_map = {1: 'open', 2: 'closed', 3: 'filtered'}
+        state = state_map.get(state_choice, current_state)
+
+        # Version
+        current_version = service.get('service_version', '')
+        version = click.prompt(f"\nVersion [{current_version}]", type=str, default=current_version or "")
+
+        # Build update dict
+        updates = {}
+        if service_name != service.get('service_name'):
+            updates['service_name'] = service_name or None
+        if state != service.get('state'):
+            updates['state'] = state
+        if version != service.get('service_version'):
+            updates['service_version'] = version or None
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        hm.update_service(service_id, **updates)
+        click.echo(click.style("\n✓ Service updated successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Service ID!", fg='red'))
+        click.pause()
+
+
+def _delete_service(engagement_id: int, hm: 'HostManager'):
+    """Delete a service."""
+    try:
+        service_id = click.prompt("\nEnter Service ID to delete", type=int)
+
+        # Get service
+        all_services = hm.get_all_services(engagement_id)
+        service = next((s for s in all_services if s.get('id') == service_id), None)
+
+        if not service:
+            click.echo(click.style("\n✗ Service not found!", fg='red'))
+            click.pause()
+            return
+
+        # Show service details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SERVICE TO DELETE:", bold=True))
+        click.echo(f"ID: {service.get('id')}")
+        click.echo(f"Host: {service.get('ip_address')}")
+        click.echo(f"Port: {service.get('port')}")
+        click.echo(f"Protocol: {service.get('protocol')}")
+        click.echo(f"Service: {service.get('service_name')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this service?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if hm.delete_service(service_id):
+            click.echo(click.style("\n✓ Service deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete service!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Service ID!", fg='red'))
+        click.pause()
 
 
 def view_host_services(host: dict, hm: HostManager):
@@ -1760,13 +2440,20 @@ def view_findings(engagement_id: int):
 
         # Menu options
         click.echo("\n" + "-" * 80)
-        click.echo("Options:")
+        click.echo("Filter Options:")
         click.echo("  [1] Filter by Severity")
         click.echo("  [2] Filter by Type")
         click.echo("  [3] Filter by Tool")
         click.echo("  [4] Search (title/description)")
         click.echo("  [5] Filter by IP Address")
         click.echo("  [6] Clear All Filters")
+        click.echo()
+        click.echo("Management Options:")
+        click.echo("  [7] View Finding Details")
+        click.echo("  [8] Add New Finding")
+        click.echo("  [9] Edit Finding")
+        click.echo("  [10] Delete Finding")
+        click.echo()
         click.echo("  [0] Back to Main Menu")
         click.echo()
 
@@ -1788,6 +2475,17 @@ def view_findings(engagement_id: int):
             elif choice == 6:
                 filters = {k: None for k in filters}
                 click.echo(click.style("✓ All filters cleared", fg='green'))
+                click.pause()
+            elif choice == 7:
+                _view_finding_details(engagement_id, fm)
+            elif choice == 8:
+                _add_new_finding(engagement_id, fm)
+            elif choice == 9:
+                _edit_finding(engagement_id, fm)
+            elif choice == 10:
+                _delete_finding(engagement_id, fm)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
 
         except (KeyboardInterrupt, click.Abort):
@@ -1876,92 +2574,1349 @@ def _filter_by_ip():
         return None
 
 
-def view_osint(engagement_id: int):
-    """Display OSINT data in engagement."""
-    om = OsintManager()
-    data = om.list_osint_data(engagement_id)
+def _view_finding_details(engagement_id: int, fm: 'FindingsManager'):
+    """View detailed information about a specific finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to view", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("FINDING DETAILS")
+        click.echo("=" * 80 + "\n")
+
+        # Display all fields
+        click.echo(click.style(f"ID: ", bold=True) + str(finding.get('id')))
+
+        severity = finding.get('severity', 'info')
+        sev_color = {'critical': 'red', 'high': 'red', 'medium': 'yellow', 'low': 'blue', 'info': 'white'}.get(severity, 'white')
+        click.echo(click.style(f"Severity: ", bold=True) + click.style(severity.upper(), fg=sev_color))
+
+        click.echo(click.style(f"Title: ", bold=True) + (finding.get('title') or 'N/A'))
+        click.echo(click.style(f"Type: ", bold=True) + (finding.get('finding_type') or 'N/A'))
+        click.echo(click.style(f"Tool: ", bold=True) + (finding.get('tool') or 'N/A'))
+        click.echo(click.style(f"Host: ", bold=True) + (finding.get('ip_address') or 'N/A'))
+
+        if finding.get('hostname'):
+            click.echo(click.style(f"Hostname: ", bold=True) + finding['hostname'])
+        if finding.get('port'):
+            click.echo(click.style(f"Port: ", bold=True) + str(finding['port']))
+        if finding.get('path'):
+            click.echo(click.style(f"Path: ", bold=True) + finding['path'])
+        if finding.get('refs'):
+            click.echo(click.style(f"References: ", bold=True) + finding['refs'])
+
+        click.echo(click.style(f"\nDescription:", bold=True))
+        click.echo(finding.get('description') or 'No description provided.')
+
+        click.echo(click.style(f"\nCreated: ", bold=True) + (finding.get('created_at') or 'N/A'))
+
+        click.pause("\n\nPress any key to continue...")
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
+
+
+def _add_new_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Add a new finding manually."""
+    from menuscript.storage.hosts import HostManager
 
     click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo("OSINT DATA")
-    click.echo("=" * 70 + "\n")
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW FINDING")
+    click.echo("=" * 80 + "\n")
 
-    if not data:
-        click.echo("No OSINT data found.")
-    else:
-        # Group by type
-        by_type = {}
-        for item in data:
-            dtype = item.get('data_type', 'unknown')
-            if dtype not in by_type:
-                by_type[dtype] = []
-            by_type[dtype].append(item)
+    try:
+        # Title (required)
+        title = click.prompt("Title", type=str)
+        if not title.strip():
+            click.echo(click.style("\n✗ Title is required!", fg='red'))
+            click.pause()
+            return
 
-        for dtype in sorted(by_type.keys()):
-            items = by_type[dtype]
-            click.echo(click.style(f"{dtype.upper()} ({len(items)})", bold=True, fg='cyan'))
-            click.echo("-" * 70)
+        # Severity
+        click.echo("\nSeverity:")
+        click.echo("  [1] Critical")
+        click.echo("  [2] High")
+        click.echo("  [3] Medium")
+        click.echo("  [4] Low")
+        click.echo("  [5] Info")
+        sev_choice = click.prompt("Select severity", type=int, default=5)
+        severity_map = {1: 'critical', 2: 'high', 3: 'medium', 4: 'low', 5: 'info'}
+        severity = severity_map.get(sev_choice, 'info')
 
-            for item in items[:20]:  # Limit to 20 per type
-                value = item.get('value', 'N/A')
-                source = item.get('source', 'unknown')
-                click.echo(f"  {value:<50} (from {source})")
+        # Finding type
+        finding_type = click.prompt("\nFinding Type (e.g., web_vulnerability, misconfiguration)", type=str, default="")
 
-            if len(items) > 20:
-                click.echo(f"  ... and {len(items) - 20} more")
+        # Description
+        description = click.prompt("\nDescription (press Enter to skip)", type=str, default="")
 
+        # Host selection
+        hm = HostManager()
+        hosts = hm.list_hosts(engagement_id)
+
+        host_id = None
+        if hosts:
+            click.echo("\nSelect host (or press Enter to skip):")
+            click.echo("  [0] No host")
+            for idx, host in enumerate(hosts[:20], 1):
+                click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+            host_choice = click.prompt("Select host", type=int, default=0)
+            if 1 <= host_choice <= len(hosts):
+                host_id = hosts[host_choice - 1]['id']
+
+        # Port
+        port_str = click.prompt("\nPort (press Enter to skip)", type=str, default="")
+        port = int(port_str) if port_str.isdigit() else None
+
+        # Path
+        path = click.prompt("\nPath/URL (press Enter to skip)", type=str, default="")
+
+        # References
+        refs = click.prompt("\nReferences/CVE (press Enter to skip)", type=str, default="")
+
+        # Tool
+        tool = click.prompt("\nTool (press Enter to skip)", type=str, default="manual")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Title: {title}")
+        click.echo(f"Severity: {severity}")
+        click.echo(f"Type: {finding_type or 'N/A'}")
+        click.echo(f"Description: {description[:50] + '...' if len(description) > 50 else description}")
+        click.echo(f"Host: {host_id or 'N/A'}")
+        click.echo(f"Port: {port or 'N/A'}")
+        click.echo(f"Path: {path or 'N/A'}")
+        click.echo(f"References: {refs or 'N/A'}")
+        click.echo(f"Tool: {tool or 'manual'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this finding?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        finding_id = fm.add_finding(
+            engagement_id=engagement_id,
+            title=title,
+            finding_type=finding_type or None,
+            severity=severity,
+            description=description or None,
+            host_id=host_id,
+            tool=tool or 'manual',
+            refs=refs or None,
+            port=port,
+            path=path or None
+        )
+
+        click.echo(click.style(f"\n✓ Finding added successfully! (ID: {finding_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _edit_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Edit an existing finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to edit", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT FINDING #{finding_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Title
+        current_title = finding.get('title', '')
+        title = click.prompt(f"Title [{current_title}]", type=str, default=current_title)
+
+        # Severity
+        current_severity = finding.get('severity', 'info')
+        click.echo(f"\nCurrent Severity: {current_severity}")
+        click.echo("  [1] Critical")
+        click.echo("  [2] High")
+        click.echo("  [3] Medium")
+        click.echo("  [4] Low")
+        click.echo("  [5] Info")
+        click.echo("  [0] Keep current")
+        sev_choice = click.prompt("Select severity", type=int, default=0)
+        severity_map = {1: 'critical', 2: 'high', 3: 'medium', 4: 'low', 5: 'info'}
+        severity = severity_map.get(sev_choice, current_severity)
+
+        # Finding type
+        current_type = finding.get('finding_type', '')
+        finding_type = click.prompt(f"\nFinding Type [{current_type}]", type=str, default=current_type)
+
+        # Description
+        current_desc = finding.get('description', '')
+        description = click.prompt(f"\nDescription [{current_desc[:30]}...]", type=str, default=current_desc)
+
+        # Build update dict
+        updates = {}
+        if title != finding.get('title'):
+            updates['title'] = title
+        if severity != finding.get('severity'):
+            updates['severity'] = severity
+        if finding_type != finding.get('finding_type'):
+            updates['finding_type'] = finding_type
+        if description != finding.get('description'):
+            updates['description'] = description
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database
+        if fm.update_finding(finding_id, **updates):
+            click.echo(click.style("\n✓ Finding updated successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to update finding!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
+
+
+def _delete_finding(engagement_id: int, fm: 'FindingsManager'):
+    """Delete a finding."""
+    try:
+        finding_id = click.prompt("\nEnter Finding ID to delete", type=int)
+        finding = fm.get_finding(finding_id)
+
+        if not finding or finding.get('engagement_id') != engagement_id:
+            click.echo(click.style("\n✗ Finding not found or not in current engagement!", fg='red'))
+            click.pause()
+            return
+
+        # Show finding details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("FINDING TO DELETE:", bold=True))
+        click.echo(f"ID: {finding.get('id')}")
+        click.echo(f"Title: {finding.get('title')}")
+        click.echo(f"Severity: {finding.get('severity')}")
+        click.echo(f"Type: {finding.get('finding_type', 'N/A')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this finding?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if fm.delete_finding(finding_id):
+            click.echo(click.style("\n✓ Finding deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete finding!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Finding ID!", fg='red'))
+        click.pause()
+
+
+def view_credentials(engagement_id: int):
+    """Display and manage credentials in engagement."""
+    from menuscript.storage.credentials import CredentialsManager
+
+    cm = CredentialsManager()
+
+    # Active filters
+    filters = {
+        'service': None,
+        'status': None,
+        'host_id': None
+    }
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("CREDENTIALS")
+        click.echo("=" * 80 + "\n")
+
+        # Show active filters
+        active_filters = [f"{k}: {v}" for k, v in filters.items() if v]
+        if active_filters:
+            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
             click.echo()
 
-    click.pause("Press any key to return...")
+        # Get credentials with filters
+        credentials = cm.list_credentials(
+            engagement_id,
+            host_id=filters['host_id'],
+            service=filters['service'],
+            status=filters['status']
+        )
+
+        if not credentials:
+            click.echo("No credentials found with current filters.")
+        else:
+            # Show summary
+            stats = cm.get_stats(engagement_id)
+            click.echo("Summary:")
+            click.echo(f"  Total:         {stats['total']}")
+            click.echo(f"  Valid:         " + click.style(str(stats['valid']), fg='green'))
+            click.echo(f"  Username only: {stats['users_only']}")
+            click.echo(f"  Password only: {stats['passwords_only']}")
+            click.echo(f"  Full pairs:    {stats['pairs']}")
+            click.echo()
+
+            # Table header
+            click.echo("  ┌" + "─" * 6 + "┬" + "─" * 17 + "┬" + "─" * 12 + "┬" + "─" * 22 + "┬" + "─" * 22 + "┬" + "─" * 10 + "┐")
+            header = f"  │ {'ID':<4} │ {'Host':<15} │ {'Service':<10} │ {'Username':<20} │ {'Password':<20} │ {'Status':<8} │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├" + "─" * 6 + "┼" + "─" * 17 + "┼" + "─" * 12 + "┼" + "─" * 22 + "┼" + "─" * 22 + "┼" + "─" * 10 + "┤")
+
+            for cred in credentials[:30]:  # Limit to 30
+                cid = cred.get('id', '?')
+                host = (cred.get('ip_address') or 'N/A')[:15]
+                service = (cred.get('service') or 'N/A')[:10]
+                username = (cred.get('username') or '-')[:20]
+                password = (cred.get('password') or '-')[:20]
+                status = cred.get('status', 'unknown')[:8]
+
+                # Color code status
+                status_color = {
+                    'valid': 'green',
+                    'invalid': 'red',
+                    'untested': 'yellow',
+                    'discovered': 'cyan'
+                }.get(status, 'white')
+
+                status_colored = click.style(f"{status:<8}", fg=status_color)
+
+                row = f"  │ {cid:<4} │ {host:<15} │ {service:<10} │ {username:<20} │ {password:<20} │ {status_colored} │"
+                click.echo(row)
+
+            # Bottom border
+            click.echo("  └" + "─" * 6 + "┴" + "─" * 17 + "┴" + "─" * 12 + "┴" + "─" * 22 + "┴" + "─" * 22 + "┴" + "─" * 10 + "┘")
+
+            if len(credentials) > 30:
+                click.echo(f"\n  ... and {len(credentials) - 30} more (use filters to narrow results)")
+
+        # Menu options
+        click.echo("\n" + "-" * 80)
+        click.echo("Filter Options:")
+        click.echo("  [1] Filter by Service")
+        click.echo("  [2] Filter by Status")
+        click.echo("  [3] Filter by Host")
+        click.echo("  [4] Clear All Filters")
+        click.echo()
+        click.echo("Management Options:")
+        click.echo("  [5] View Credential Details")
+        click.echo("  [6] Add New Credential")
+        click.echo("  [7] Edit Credential")
+        click.echo("  [8] Delete Credential")
+        click.echo("  [9] Test Credentials")
+        click.echo()
+        click.echo("  [0] Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                filters['service'] = _filter_credential_by_service(engagement_id, cm)
+            elif choice == 2:
+                filters['status'] = _filter_credential_by_status()
+            elif choice == 3:
+                filters['host_id'] = _filter_credential_by_host(engagement_id)
+            elif choice == 4:
+                filters = {k: None for k in filters}
+                click.echo(click.style("✓ All filters cleared", fg='green'))
+                click.pause()
+            elif choice == 5:
+                _view_credential_details(engagement_id, cm)
+            elif choice == 6:
+                _add_new_credential(engagement_id, cm)
+            elif choice == 7:
+                _edit_credential(engagement_id, cm)
+            elif choice == 8:
+                _delete_credential(engagement_id, cm)
+            elif choice == 9:
+                test_credentials_menu()
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _filter_credential_by_service(engagement_id: int, cm: 'CredentialsManager'):
+    """Prompt for service filter."""
+    credentials = cm.list_credentials(engagement_id)
+    services = sorted(set([c.get('service') for c in credentials if c.get('service')]))
+
+    if not services:
+        click.echo(click.style("\nNo services found in credentials.", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nAvailable services:")
+    click.echo("  [0] Clear filter")
+    for idx, svc in enumerate(services, 1):
+        click.echo(f"  [{idx}] {svc}")
+
+    try:
+        choice = click.prompt("Select service", type=int, default=0)
+        if 1 <= choice <= len(services):
+            return services[choice - 1]
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_credential_by_status():
+    """Prompt for status filter."""
+    click.echo("\nSelect status:")
+    click.echo("  [1] Valid")
+    click.echo("  [2] Invalid")
+    click.echo("  [3] Untested")
+    click.echo("  [4] Discovered")
+    click.echo("  [0] Clear filter")
+
+    try:
+        choice = click.prompt("Status", type=int, default=0)
+        status_map = {1: 'valid', 2: 'invalid', 3: 'untested', 4: 'discovered'}
+        return status_map.get(choice)
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _filter_credential_by_host(engagement_id: int):
+    """Prompt for host filter."""
+    from menuscript.storage.hosts import HostManager
+    hm = HostManager()
+    hosts = hm.list_hosts(engagement_id)
+
+    if not hosts:
+        click.echo(click.style("\nNo hosts found.", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nSelect host:")
+    click.echo("  [0] Clear filter")
+    for idx, host in enumerate(hosts[:20], 1):
+        click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+    try:
+        choice = click.prompt("Host", type=int, default=0)
+        if 1 <= choice <= len(hosts):
+            return hosts[choice - 1]['id']
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _view_credential_details(engagement_id: int, cm: 'CredentialsManager'):
+    """View detailed information about a specific credential."""
+    try:
+        cred_id = click.prompt("\nEnter Credential ID to view", type=int)
+        credentials = cm.list_credentials(engagement_id)
+        credential = next((c for c in credentials if c.get('id') == cred_id), None)
+
+        if not credential:
+            click.echo(click.style("\n✗ Credential not found!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("CREDENTIAL DETAILS")
+        click.echo("=" * 80 + "\n")
+
+        # Display all fields
+        click.echo(click.style(f"ID: ", bold=True) + str(credential.get('id')))
+        click.echo(click.style(f"Host: ", bold=True) + (credential.get('ip_address') or 'N/A'))
+
+        if credential.get('hostname'):
+            click.echo(click.style(f"Hostname: ", bold=True) + credential['hostname'])
+
+        click.echo(click.style(f"Service: ", bold=True) + (credential.get('service') or 'N/A'))
+        click.echo(click.style(f"Port: ", bold=True) + str(credential.get('port') or 'N/A'))
+        click.echo(click.style(f"Protocol: ", bold=True) + (credential.get('protocol') or 'tcp'))
+        click.echo(click.style(f"Username: ", bold=True) + (credential.get('username') or 'N/A'))
+        click.echo(click.style(f"Password: ", bold=True) + (credential.get('password') or 'N/A'))
+
+        status = credential.get('status', 'unknown')
+        status_color = {'valid': 'green', 'invalid': 'red', 'untested': 'yellow'}.get(status, 'white')
+        click.echo(click.style(f"Status: ", bold=True) + click.style(status, fg=status_color))
+
+        click.echo(click.style(f"Type: ", bold=True) + (credential.get('credential_type') or 'user'))
+        click.echo(click.style(f"Tool: ", bold=True) + (credential.get('tool') or 'N/A'))
+        click.echo(click.style(f"Created: ", bold=True) + (credential.get('created_at') or 'N/A'))
+
+        click.pause("\n\nPress any key to continue...")
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Credential ID!", fg='red'))
+        click.pause()
+
+
+def _add_new_credential(engagement_id: int, cm: 'CredentialsManager'):
+    """Add a new credential manually."""
+    from menuscript.storage.hosts import HostManager
+
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW CREDENTIAL")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Host selection
+        hm = HostManager()
+        hosts = hm.list_hosts(engagement_id)
+
+        if not hosts:
+            click.echo(click.style("✗ No hosts found. Please add hosts first!", fg='red'))
+            click.pause()
+            return
+
+        click.echo("Select host:")
+        for idx, host in enumerate(hosts[:20], 1):
+            click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        host_choice = click.prompt("Select host", type=int)
+        if not (1 <= host_choice <= len(hosts)):
+            click.echo(click.style("✗ Invalid host selection!", fg='red'))
+            click.pause()
+            return
+
+        host_id = hosts[host_choice - 1]['id']
+
+        # Service
+        service = click.prompt("\nService (e.g., ssh, smb, mysql)", type=str)
+
+        # Port
+        port = click.prompt("Port", type=int)
+
+        # Username
+        username = click.prompt("Username", type=str, default="")
+
+        # Password
+        password = click.prompt("Password", type=str, default="")
+
+        if not username and not password:
+            click.echo(click.style("\n✗ Must provide at least username or password!", fg='red'))
+            click.pause()
+            return
+
+        # Protocol
+        protocol = click.prompt("Protocol (tcp/udp)", type=str, default="tcp")
+
+        # Status
+        click.echo("\nStatus:")
+        click.echo("  [1] Untested")
+        click.echo("  [2] Valid")
+        click.echo("  [3] Invalid")
+        status_choice = click.prompt("Select status", type=int, default=1)
+        status_map = {1: 'untested', 2: 'valid', 3: 'invalid'}
+        status = status_map.get(status_choice, 'untested')
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Host: {hosts[host_choice - 1].get('ip_address')}")
+        click.echo(f"Service: {service}")
+        click.echo(f"Port: {port}")
+        click.echo(f"Username: {username or 'N/A'}")
+        click.echo(f"Password: {password or 'N/A'}")
+        click.echo(f"Protocol: {protocol}")
+        click.echo(f"Status: {status}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this credential?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        cred_id = cm.add_credential(
+            engagement_id=engagement_id,
+            host_id=host_id,
+            username=username or None,
+            password=password or None,
+            service=service,
+            port=port,
+            protocol=protocol,
+            status=status,
+            tool='manual'
+        )
+
+        click.echo(click.style(f"\n✓ Credential added successfully! (ID: {cred_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _edit_credential(engagement_id: int, cm: 'CredentialsManager'):
+    """Edit an existing credential."""
+    try:
+        cred_id = click.prompt("\nEnter Credential ID to edit", type=int)
+        credentials = cm.list_credentials(engagement_id)
+        credential = next((c for c in credentials if c.get('id') == cred_id), None)
+
+        if not credential:
+            click.echo(click.style("\n✗ Credential not found!", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo(f"EDIT CREDENTIAL #{cred_id}")
+        click.echo("=" * 80 + "\n")
+        click.echo("Press Enter to keep current value\n")
+
+        # Username
+        current_username = credential.get('username', '')
+        username = click.prompt(f"Username [{current_username}]", type=str, default=current_username or "")
+
+        # Password
+        current_password = credential.get('password', '')
+        password = click.prompt(f"Password [{current_password}]", type=str, default=current_password or "")
+
+        # Status
+        current_status = credential.get('status', 'untested')
+        click.echo(f"\nCurrent Status: {current_status}")
+        click.echo("  [1] Untested")
+        click.echo("  [2] Valid")
+        click.echo("  [3] Invalid")
+        click.echo("  [0] Keep current")
+        status_choice = click.prompt("Select status", type=int, default=0)
+        status_map = {1: 'untested', 2: 'valid', 3: 'invalid'}
+        status = status_map.get(status_choice, current_status)
+
+        # Build update
+        updates = {}
+        if username != credential.get('username'):
+            updates['username'] = username or None
+        if password != credential.get('password'):
+            updates['password'] = password or None
+        if status != credential.get('status'):
+            updates['status'] = status
+
+        if not updates:
+            click.echo(click.style("\nNo changes made.", fg='yellow'))
+            click.pause()
+            return
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CHANGES:", bold=True))
+        for key, value in updates.items():
+            click.echo(f"  {key}: {value}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nSave changes?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Update database using the private method
+        cm._update_credential(cred_id, **updates)
+        click.echo(click.style("\n✓ Credential updated successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Credential ID!", fg='red'))
+        click.pause()
+
+
+def _delete_credential(engagement_id: int, cm: 'CredentialsManager'):
+    """Delete a credential."""
+    try:
+        cred_id = click.prompt("\nEnter Credential ID to delete", type=int)
+        credentials = cm.list_credentials(engagement_id)
+        credential = next((c for c in credentials if c.get('id') == cred_id), None)
+
+        if not credential:
+            click.echo(click.style("\n✗ Credential not found!", fg='red'))
+            click.pause()
+            return
+
+        # Show credential details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("CREDENTIAL TO DELETE:", bold=True))
+        click.echo(f"ID: {credential.get('id')}")
+        click.echo(f"Host: {credential.get('ip_address')}")
+        click.echo(f"Service: {credential.get('service')}")
+        click.echo(f"Username: {credential.get('username') or 'N/A'}")
+        click.echo(f"Password: {credential.get('password') or 'N/A'}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this credential?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        conn = cm.db.get_connection()
+        conn.execute("DELETE FROM credentials WHERE id = ?", (cred_id,))
+        conn.commit()
+        conn.close()
+
+        click.echo(click.style("\n✓ Credential deleted successfully!", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Credential ID!", fg='red'))
+        click.pause()
+
+
+def view_osint(engagement_id: int):
+    """Display and manage OSINT data in engagement."""
+    om = OsintManager()
+
+    # Active filter
+    filter_type = None
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("OSINT DATA")
+        click.echo("=" * 80 + "\n")
+
+        # Show active filter
+        if filter_type:
+            click.echo(click.style(f"Active Filter: Type = {filter_type}", bold=True))
+            click.echo()
+
+        # Get data with filter
+        all_data = om.list_osint_data(engagement_id, data_type=filter_type)
+
+        if not all_data:
+            click.echo("No OSINT data found with current filters.")
+        else:
+            # Group by type
+            by_type = {}
+            for item in all_data:
+                dtype = item.get('data_type', 'unknown')
+                if dtype not in by_type:
+                    by_type[dtype] = []
+                by_type[dtype].append(item)
+
+            click.echo(f"Total records: {len(all_data)}\n")
+
+            for dtype in sorted(by_type.keys()):
+                items = by_type[dtype]
+                click.echo(click.style(f"{dtype.upper()} ({len(items)})", bold=True, fg='cyan'))
+                click.echo("-" * 80)
+
+                # Table header
+                click.echo(f"  {'ID':<6} {'Value':<50} {'Source':<20}")
+                click.echo("  " + "-" * 78)
+
+                for item in items[:20]:  # Limit to 20 per type
+                    item_id = item.get('id', '?')
+                    value = (item.get('value', 'N/A'))[:50]
+                    source = (item.get('source', 'unknown'))[:20]
+                    click.echo(f"  {item_id:<6} {value:<50} {source:<20}")
+
+                if len(items) > 20:
+                    click.echo(f"  ... and {len(items) - 20} more")
+
+                click.echo()
+
+        # Menu options
+        click.echo("-" * 80)
+        click.echo("Options:")
+        click.echo("  [1] Filter by Type")
+        click.echo("  [2] Clear Filter")
+        click.echo("  [3] Add New OSINT Data")
+        click.echo("  [4] Delete OSINT Data")
+        click.echo("  [0] Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                filter_type = _filter_osint_by_type(engagement_id, om)
+            elif choice == 2:
+                filter_type = None
+                click.echo(click.style("✓ Filter cleared", fg='green'))
+                click.pause()
+            elif choice == 3:
+                _add_new_osint_data(engagement_id, om)
+            elif choice == 4:
+                _delete_osint_data(engagement_id, om)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _filter_osint_by_type(engagement_id: int, om: 'OsintManager'):
+    """Prompt for OSINT data type filter."""
+    all_data = om.list_osint_data(engagement_id)
+    types = sorted(set([item.get('data_type') for item in all_data if item.get('data_type')]))
+
+    if not types:
+        click.echo(click.style("\nNo data types found.", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nAvailable types:")
+    click.echo("  [0] Clear filter")
+    for idx, dtype in enumerate(types, 1):
+        click.echo(f"  [{idx}] {dtype}")
+
+    try:
+        choice = click.prompt("Select type", type=int, default=0)
+        if 1 <= choice <= len(types):
+            return types[choice - 1]
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _add_new_osint_data(engagement_id: int, om: 'OsintManager'):
+    """Add new OSINT data manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW OSINT DATA")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Data type
+        click.echo("Common types: email, domain, subdomain, username, ip, phone, leak")
+        data_type = click.prompt("\nData Type", type=str)
+
+        # Value
+        value = click.prompt("Value (e.g., user@example.com, example.com)", type=str)
+
+        # Source
+        source = click.prompt("Source (e.g., theHarvester, manual, leak-site)", type=str, default="manual")
+
+        # Additional info (optional)
+        additional_info = click.prompt("Additional Info (press Enter to skip)", type=str, default="")
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Type: {data_type}")
+        click.echo(f"Value: {value}")
+        click.echo(f"Source: {source}")
+        click.echo(f"Additional Info: {additional_info or 'N/A'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this OSINT data?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        osint_id = om.add_osint_data(
+            engagement_id=engagement_id,
+            data_type=data_type,
+            value=value,
+            source=source,
+            additional_info=additional_info or None
+        )
+
+        click.echo(click.style(f"\n✓ OSINT data added successfully! (ID: {osint_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _delete_osint_data(engagement_id: int, om: 'OsintManager'):
+    """Delete OSINT data."""
+    try:
+        osint_id = click.prompt("\nEnter OSINT Data ID to delete", type=int)
+
+        # Get the data
+        all_data = om.list_osint_data(engagement_id)
+        osint = next((item for item in all_data if item.get('id') == osint_id), None)
+
+        if not osint:
+            click.echo(click.style("\n✗ OSINT data not found!", fg='red'))
+            click.pause()
+            return
+
+        # Show details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("OSINT DATA TO DELETE:", bold=True))
+        click.echo(f"ID: {osint.get('id')}")
+        click.echo(f"Type: {osint.get('data_type')}")
+        click.echo(f"Value: {osint.get('value')}")
+        click.echo(f"Source: {osint.get('source')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this OSINT data?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if om.delete_osint_data(osint_id):
+            click.echo(click.style("\n✓ OSINT data deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete OSINT data!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid OSINT Data ID!", fg='red'))
+        click.pause()
 
 
 def view_web_paths(engagement_id: int):
-    """Display web paths in engagement."""
+    """Display and manage web paths in engagement."""
     hm = HostManager()
     wpm = WebPathsManager()
 
+    # Active filter
+    filter_host_id = None
+
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 80)
+        click.echo("WEB PATHS")
+        click.echo("=" * 80 + "\n")
+
+        # Show active filter
+        if filter_host_id:
+            filter_host = next((h for h in hm.list_hosts(engagement_id) if h['id'] == filter_host_id), None)
+            if filter_host:
+                click.echo(click.style(f"Active Filter: Host {filter_host.get('ip_address')}", bold=True))
+                click.echo()
+
+        # Get paths
+        if filter_host_id:
+            all_paths = wpm.list_web_paths(host_id=filter_host_id)
+        else:
+            all_paths = wpm.list_web_paths(engagement_id=engagement_id)
+
+        if not all_paths:
+            click.echo("No web paths found.")
+        else:
+            # Group by host
+            paths_by_host = {}
+            for path in all_paths:
+                host_id = path.get('host_id')
+                if host_id not in paths_by_host:
+                    paths_by_host[host_id] = []
+                paths_by_host[host_id].append(path)
+
+            click.echo(f"Total paths: {len(all_paths)}\n")
+
+            # Display paths grouped by host
+            for host_id, paths in paths_by_host.items():
+                host_info = next((h for h in hm.list_hosts(engagement_id) if h['id'] == host_id), None)
+                host_ip = host_info.get('ip_address', 'Unknown') if host_info else 'Unknown'
+
+                click.echo(click.style(f"Host: {host_ip} ({len(paths)} paths)", bold=True, fg='cyan'))
+                click.echo("-" * 80)
+
+                # Table header
+                click.echo(f"  {'ID':<6} {'Status':<8} {'URL':<50} {'Size':<10}")
+                click.echo("  " + "-" * 78)
+
+                for path in paths[:20]:  # Limit per host
+                    path_id = path.get('id', '?')
+                    path_url = path.get('url', '/')[:50]
+                    status = path.get('status_code', '?')
+                    size = path.get('content_length', '?')
+
+                    # Color code status
+                    if str(status).startswith('2'):
+                        status_colored = click.style(f"{status:<8}", fg='green')
+                    elif str(status).startswith('3'):
+                        status_colored = click.style(f"{status:<8}", fg='yellow')
+                    elif str(status).startswith('4'):
+                        status_colored = click.style(f"{status:<8}", fg='red')
+                    elif str(status).startswith('5'):
+                        status_colored = click.style(f"{status:<8}", fg='magenta')
+                    else:
+                        status_colored = f"{status:<8}"
+
+                    click.echo(f"  {path_id:<6} {status_colored} {path_url:<50} {size:<10}")
+
+                if len(paths) > 20:
+                    click.echo(f"  ... and {len(paths) - 20} more")
+
+                click.echo()
+
+        # Menu options
+        click.echo("-" * 80)
+        click.echo("Options:")
+        click.echo("  [1] Filter by Host")
+        click.echo("  [2] Clear Filter")
+        click.echo("  [3] Add New Web Path")
+        click.echo("  [4] Delete Web Path")
+        click.echo("  [0] Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                filter_host_id = _filter_webpath_by_host(engagement_id, hm)
+            elif choice == 2:
+                filter_host_id = None
+                click.echo(click.style("✓ Filter cleared", fg='green'))
+                click.pause()
+            elif choice == 3:
+                _add_new_web_path(engagement_id, hm, wpm)
+            elif choice == 4:
+                _delete_web_path(engagement_id, wpm)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _filter_webpath_by_host(engagement_id: int, hm: 'HostManager'):
+    """Prompt for host filter for web paths."""
+    hosts = hm.list_hosts(engagement_id)
+
+    if not hosts:
+        click.echo(click.style("\nNo hosts found.", fg='yellow'))
+        click.pause()
+        return None
+
+    click.echo("\nSelect host:")
+    click.echo("  [0] Clear filter")
+    for idx, host in enumerate(hosts[:20], 1):
+        click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+    try:
+        choice = click.prompt("Host", type=int, default=0)
+        if 1 <= choice <= len(hosts):
+            return hosts[choice - 1]['id']
+        return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _add_new_web_path(engagement_id: int, hm: 'HostManager', wpm: 'WebPathsManager'):
+    """Add a new web path manually."""
+    click.clear()
+    click.echo("\n" + "=" * 80)
+    click.echo("ADD NEW WEB PATH")
+    click.echo("=" * 80 + "\n")
+
+    try:
+        # Host selection
+        hosts = hm.list_hosts(engagement_id)
+
+        if not hosts:
+            click.echo(click.style("✗ No hosts found. Please add hosts first!", fg='red'))
+            click.pause()
+            return
+
+        click.echo("Select host:")
+        for idx, host in enumerate(hosts[:20], 1):
+            click.echo(f"  [{idx}] {host.get('ip_address')} - {host.get('hostname', 'N/A')}")
+
+        host_choice = click.prompt("Select host", type=int)
+        if not (1 <= host_choice <= len(hosts)):
+            click.echo(click.style("✗ Invalid host selection!", fg='red'))
+            click.pause()
+            return
+
+        host_id = hosts[host_choice - 1]['id']
+
+        # URL/Path
+        url = click.prompt("\nURL or Path (e.g., /admin, https://example.com/api)", type=str)
+
+        # Status code (optional)
+        status_str = click.prompt("HTTP Status Code (press Enter to skip)", type=str, default="")
+        status_code = int(status_str) if status_str.isdigit() else None
+
+        # Content length (optional)
+        size_str = click.prompt("Content Length in bytes (press Enter to skip)", type=str, default="")
+        content_length = int(size_str) if size_str.isdigit() else None
+
+        # Confirmation
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("SUMMARY:", bold=True))
+        click.echo(f"Host: {hosts[host_choice - 1].get('ip_address')}")
+        click.echo(f"URL: {url}")
+        click.echo(f"Status Code: {status_code or 'N/A'}")
+        click.echo(f"Content Length: {content_length or 'N/A'}")
+        click.echo("-" * 80)
+
+        if not click.confirm("\nAdd this web path?", default=True):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Add to database
+        path_id = wpm.add_web_path(
+            host_id=host_id,
+            url=url,
+            status_code=status_code,
+            content_length=content_length
+        )
+
+        click.echo(click.style(f"\n✓ Web path added successfully! (ID: {path_id})", fg='green'))
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        click.echo(click.style("\nCancelled.", fg='yellow'))
+        click.pause()
+
+
+def _delete_web_path(engagement_id: int, wpm: 'WebPathsManager'):
+    """Delete a web path."""
+    try:
+        path_id = click.prompt("\nEnter Web Path ID to delete", type=int)
+        path = wpm.get_web_path(path_id)
+
+        if not path:
+            click.echo(click.style("\n✗ Web path not found!", fg='red'))
+            click.pause()
+            return
+
+        # Show path details
+        click.echo("\n" + "-" * 80)
+        click.echo(click.style("WEB PATH TO DELETE:", bold=True))
+        click.echo(f"ID: {path.get('id')}")
+        click.echo(f"URL: {path.get('url')}")
+        click.echo(f"Status: {path.get('status_code', 'N/A')}")
+        click.echo(f"Size: {path.get('content_length', 'N/A')}")
+        click.echo("-" * 80)
+
+        if not click.confirm(click.style("\nAre you sure you want to delete this web path?", fg='red'), default=False):
+            click.echo(click.style("Cancelled.", fg='yellow'))
+            click.pause()
+            return
+
+        # Delete from database
+        if wpm.delete_web_path(path_id):
+            click.echo(click.style("\n✓ Web path deleted successfully!", fg='green'))
+        else:
+            click.echo(click.style("\n✗ Failed to delete web path!", fg='red'))
+
+        click.pause()
+
+    except (KeyboardInterrupt, click.Abort):
+        return
+    except ValueError:
+        click.echo(click.style("\n✗ Invalid Web Path ID!", fg='red'))
+        click.pause()
+
+
+def test_credentials_menu():
+    """Interactive credential testing menu."""
+    from menuscript.testing.credential_tester import CredentialTester
+    from menuscript.storage.credentials import CredentialsManager
+    from menuscript.storage.hosts import HostManager
+    from menuscript.storage.engagements import EngagementManager
+
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("✗ No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+
     click.clear()
     click.echo("\n" + "=" * 70)
-    click.echo("WEB PATHS")
+    click.echo("TEST CREDENTIALS")
     click.echo("=" * 70 + "\n")
 
-    hosts = hm.list_hosts(engagement_id)
-    total_paths = 0
+    cm = CredentialsManager()
+    hm = HostManager()
 
-    for host in hosts:
-        paths = wpm.list_web_paths(host['id'])
+    # Get all credentials
+    all_creds = cm.list_credentials(engagement_id)
 
-        if paths:
-            click.echo(click.style(f"Host: {host.get('ip_address', 'N/A')}", bold=True, fg='cyan'))
-            click.echo("-" * 70)
+    # Count by status
+    untested = [c for c in all_creds if c.get('status') in ['untested', 'discovered'] and c.get('password')]
+    valid = [c for c in all_creds if c.get('status') == 'valid']
+    invalid = [c for c in all_creds if c.get('status') == 'invalid']
 
-            for path in paths[:15]:  # Limit per host
-                path_str = path.get('path', '/')
-                status = path.get('status_code', '?')
-                size = path.get('content_length', '?')
+    click.echo(f"Credentials Summary:")
+    click.echo(f"  • Total:     {len(all_creds)}")
+    click.echo(f"  • Untested:  {len(untested)}")
+    click.echo(f"  • Valid:     {len(valid)}")
+    click.echo(f"  • Invalid:   {len(invalid)}")
+    click.echo()
 
-                # Color code status
-                if str(status).startswith('2'):
-                    status_colored = click.style(str(status), fg='green')
-                elif str(status).startswith('3'):
-                    status_colored = click.style(str(status), fg='yellow')
-                elif str(status).startswith('4'):
-                    status_colored = click.style(str(status), fg='red')
-                else:
-                    status_colored = str(status)
+    if not untested:
+        click.echo(click.style("No untested credentials found.", fg='yellow'))
+        click.pause("\nPress any key to continue...")
+        return
 
-                click.echo(f"  {status_colored:<10} {path_str:<45} ({size} bytes)")
+    # Menu options
+    click.echo(click.style("TEST OPTIONS:", bold=True))
+    click.echo("  [1] Test All Untested Credentials")
+    click.echo("  [2] Test SSH Credentials Only")
+    click.echo("  [3] Test SMB Credentials Only")
+    click.echo("  [4] Test MySQL Credentials Only")
+    click.echo("  [0] Back to Main Menu")
+    click.echo()
 
-            if len(paths) > 15:
-                click.echo(f"  ... and {len(paths) - 15} more")
+    try:
+        choice = click.prompt("Select option", type=int, default=0)
 
-            total_paths += len(paths)
-            click.echo()
+        if choice == 0:
+            return
 
-    if total_paths == 0:
-        click.echo("No web paths found.")
+        service_filter = None
+        if choice == 2:
+            service_filter = 'ssh'
+        elif choice == 3:
+            service_filter = 'smb'
+        elif choice == 4:
+            service_filter = 'mysql'
+        elif choice != 1:
+            click.echo(click.style("Invalid selection!", fg='red'))
+            click.pause()
+            return
 
-    click.pause("Press any key to return...")
+        # Build test list
+        test_creds = []
+        for cred in untested:
+            if service_filter and cred.get('service', '').lower() != service_filter:
+                continue
+
+            host_id = cred.get('host_id')
+            if not host_id:
+                continue
+
+            host_info = hm.get_host(host_id)
+            if not host_info:
+                continue
+
+            cred_service = cred.get('service')
+            cred_port = cred.get('port')
+
+            if cred_service and cred_port:
+                test_creds.append({
+                    'credential_id': cred['id'],
+                    'username': cred['username'],
+                    'password': cred['password'],
+                    'host': host_info['ip_address'],
+                    'port': cred_port,
+                    'service': cred_service
+                })
+
+        if not test_creds:
+            click.echo(click.style(f"\nNo credentials found for {service_filter or 'testing'}.", fg='yellow'))
+            click.pause("\nPress any key to continue...")
+            return
+
+        click.echo()
+        click.echo(f"Found {len(test_creds)} credential(s) to test")
+        click.echo()
+
+        if not click.confirm("Proceed with testing?", default=True):
+            return
+
+        # Test credentials
+        click.echo()
+        tester = CredentialTester(timeout=5)
+        valid_count = 0
+        invalid_count = 0
+        error_count = 0
+
+        for idx, cred in enumerate(test_creds, 1):
+            click.echo(f"[{idx}/{len(test_creds)}] Testing {cred['username']} @ {cred['host']}:{cred['port']} ({cred['service']})")
+
+            result = tester.test_credential(
+                cred['host'],
+                cred['port'],
+                cred['service'],
+                cred['username'],
+                cred['password']
+            )
+
+            # Update database
+            new_status = result['status']
+            if new_status == 'valid':
+                valid_count += 1
+                cm.update_credential_status(cred['credential_id'], 'valid')
+                click.echo(click.style(f"  ✓ Valid!", fg='green'))
+            elif new_status == 'invalid':
+                invalid_count += 1
+                cm.update_credential_status(cred['credential_id'], 'invalid')
+                click.echo(click.style(f"  ✗ Invalid", fg='red'))
+            else:
+                error_count += 1
+                click.echo(click.style(f"  ⚠ {new_status}: {result.get('message', 'Unknown')}", fg='yellow'))
+
+        # Summary
+        click.echo()
+        click.echo(click.style("=" * 50, fg='cyan'))
+        click.echo(click.style("TESTING COMPLETE", bold=True))
+        click.echo(click.style("=" * 50, fg='cyan'))
+        click.echo(f"Tested:  {len(test_creds)}")
+        click.echo(click.style(f"Valid:   {valid_count}", fg='green'))
+        click.echo(click.style(f"Invalid: {invalid_count}", fg='red'))
+        click.echo(click.style(f"Errors:  {error_count}", fg='yellow'))
+        click.echo()
+        click.pause("Press any key to continue...")
+
+    except (KeyboardInterrupt, click.Abort):
+        return
 
 
 def import_data_menu():
@@ -2116,6 +4071,7 @@ def manage_reports_menu():
         click.echo("  [2] View Report (open in browser/editor)")
         click.echo("  [3] Delete Report")
         click.echo("  [4] List All Reports")
+        click.echo("  [5] Import Data (Metasploit, Nmap, etc.)")
         click.echo("  [0] Back to Main Menu")
         click.echo()
 
@@ -2140,6 +4096,8 @@ def manage_reports_menu():
                     _delete_report(reports)
             elif choice == 4:
                 _list_all_reports()
+            elif choice == 5:
+                import_data_menu()
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -2362,17 +4320,26 @@ def run_interactive_menu():
         elif action == 'view_jobs':
             view_jobs_menu()
 
-        elif action == 'view_results':
-            view_results_menu()
+        elif action == 'manage_hosts':
+            manage_hosts_menu()
+
+        elif action == 'manage_services':
+            manage_services_menu()
+
+        elif action == 'manage_findings':
+            manage_findings_menu()
+
+        elif action == 'manage_credentials':
+            manage_credentials_menu()
 
         elif action == 'manage_reports':
             manage_reports_menu()
 
-        elif action == 'import_data':
-            import_data_menu()
-
         elif action == 'manage_engagements':
             manage_engagements_menu()
+
+        elif action == 'view_additional_data':
+            view_additional_data_menu()
 
         elif action == 'launch_tool':
             tool_name = result.get('tool')

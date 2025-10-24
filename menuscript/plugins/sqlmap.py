@@ -11,8 +11,25 @@ from typing import List, Optional
 from .plugin_base import PluginBase
 
 HELP = {
-    "name": "SQLMap",
-    "description": "SQLMap - automatic SQL injection detection and exploitation tool",
+    "name": "SQLMap — Automated SQL Injection Detection & Exploitation Tool",
+    "description": (
+        "Want a sharp-eyed script kiddie that knows SQL like a bartender knows cocktails?\n\n"
+        "SQLMap is an automated tool that detects and (when authorized) exploits SQL injection flaws in web applications. It identifies "
+        "injectable parameters, fingerprints the database engine, extracts data (tables, columns, rows), and can even test fingerprinting, "
+        "file read/write, and limited command execution where permitted. Think of it as an advanced reconnaissance and verification tool for "
+        "database-backed issues — powerful, efficient, and definitely not something to use without permission. 🚨\n\n"
+        "Use cases: confirm suspected SQLi findings, extract schema metadata for vulnerability triage, validate fix effectiveness, or power a "
+        "controlled penetration test where database-level checks are in-scope.\n\n"
+        "Play nice & legalese: SQLMap can be destructive and noisy. Only run it against targets you own or have explicit authorization to test. "
+        "Misuse can break systems and may be illegal.\n\n"
+        "Quick tips:\n"
+        "- Start in detection-only mode (--batch + --risk/--level tuned low) to identify probable injections before extracting data.\n"
+        "- Fingerprint the DB (--dbs, --current-db) to understand impact and plan safe verification steps.\n"
+        "- Use safe extraction flags and limits (e.g., --limit, --threads) to avoid overwhelming the target.\n"
+        "- Prefer time-based or blind techniques only when safer options aren't available; they are slower and can be heavier on resources.\n"
+        "- Capture output to a job log and convert confirmed issues into Findings — include proof-of-concept details and remediation guidance.\n"
+        "- Always follow rules of engagement and consider getting explicit written permission for DB-level testing.\n"
+    ),
     "usage": "menuscript jobs enqueue sqlmap <target_url> --args \"--batch\"",
     "examples": [
         "menuscript jobs enqueue sqlmap \"http://example.com/page.php?id=1\" --args \"--batch\"",

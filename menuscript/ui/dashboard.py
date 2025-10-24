@@ -337,28 +337,37 @@ def render_identified_users(engagement_id: int, width: int):
     fm = FindingsManager()
     findings = fm.list_findings(engagement_id)
 
-    # Filter to user/credential related findings
+    # Filter to credential/authentication related findings
     # Include: valid credentials, user enumeration, account discoveries
-    user_keywords = ['credential', 'user', 'username', 'login', 'account', 'valid', 'password']
+    # Use more specific patterns to avoid false positives like "user agent"
+    credential_keywords = ['credential', 'password', 'login', 'ssh_login', 'rdp_login', 'smb_login']
+    user_enum_keywords = ['username', 'user enumeration', 'account found', 'valid user']
 
     user_findings = []
     for f in findings:
         title = (f.get('title', '') or '').lower()
         desc = (f.get('description', '') or '').lower()
+        finding_type = (f.get('finding_type', '') or '').lower()
 
-        # Check if title or description contains user-related keywords
-        if any(keyword in title or keyword in desc for keyword in user_keywords):
+        # Check for credential-specific finding types
+        if 'credential' in finding_type or 'authentication' in finding_type:
+            user_findings.append(f)
+            continue
+
+        # Check for credential/user keywords (more specific matching)
+        text = title + ' ' + desc
+        if any(keyword in text for keyword in credential_keywords + user_enum_keywords):
             user_findings.append(f)
 
     recent_users = sorted(user_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
 
     lines = []
     lines.append("")
-    lines.append(click.style("🔓 IDENTIFIED USERS & CREDENTIALS", bold=True, fg='red'))
+    lines.append(click.style("🔐 CREDENTIALS & AUTHENTICATION", bold=True, fg='red'))
     lines.append("─" * width)
 
     if not recent_users:
-        lines.append("No users or credentials identified yet")
+        lines.append("No credentials or authentication findings yet")
     else:
         for finding in recent_users:
             fid = finding.get('id', '?')
@@ -378,8 +387,8 @@ def render_identified_users(engagement_id: int, width: int):
             else:
                 sev_color = 'white'
 
-            # Truncate title if too long
-            display_title = title[:50] + "..." if len(title) > 50 else title
+            # Don't truncate - show full title (dashboard has width for it)
+            display_title = title
 
             # Show IP, tool, and title
             finding_line = f"  [{fid:>3}] {ip:<15} {tool:<12} {click.style(display_title, fg=sev_color)}"
@@ -417,8 +426,13 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
         # Try to get parsed results summary
         try:
-            from menuscript.engine.result_handler import handle_job_result
-            result = handle_job_result(job)
+            # First check if parse_result is already stored in the job
+            result = job.get('parse_result')
+            
+            # If not stored, try to parse it now (for old jobs)
+            if not result:
+                from menuscript.engine.result_handler import handle_job_result
+                result = handle_job_result(job)
 
             if result and 'error' not in result:
                 lines.append(click.style("Results:", bold=True))
@@ -633,15 +647,30 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
 
     last_followed_job_id = None
     job_completed = False
+    last_seen_job_id = None  # Track the last job we've seen to detect new jobs
+    auto_follow_job_id = follow_job_id  # Local variable we can modify
 
     try:
         while True:
             # Check if there are any active jobs
             jobs = list_jobs(limit=50)
             active_jobs = [j for j in jobs if j.get('status') in ('pending', 'running')]
+            
+            # Detect if a new job was created (auto-follow it)
+            if jobs:
+                latest_job = jobs[0]  # Most recent job
+                latest_job_id = latest_job.get('id')
+                # If this is a new job we haven't seen, and it's active, follow it
+                if latest_job_id != last_seen_job_id:
+                    if latest_job.get('status') in ('pending', 'running'):
+                        # Auto-follow new jobs unless user specified a specific job
+                        if not follow_job_id:  # Only auto-follow if user didn't specify -f
+                            auto_follow_job_id = latest_job_id
+                            last_followed_job_id = latest_job_id
+                    last_seen_job_id = latest_job_id
 
             # If no active jobs and not following a specific job, show static dashboard
-            if not active_jobs and not follow_job_id:
+            if not active_jobs and not auto_follow_job_id:
                 render_dashboard(engagement_id, engagement_name, None, refresh_interval)
                 click.echo()
                 click.echo(click.style("  ℹ️  No active scans running. Dashboard is in static mode.", fg='yellow', bold=True))
@@ -685,7 +714,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                 continue
 
             # Track which job we're following
-            current_follow_id = follow_job_id
+            current_follow_id = auto_follow_job_id
 
             # Auto-follow most recent running job if not explicitly set
             if not current_follow_id:
@@ -713,6 +742,7 @@ def run_dashboard(follow_job_id: Optional[int] = None, refresh_interval: int = 5
                     input()
                     job_completed = False
                     last_followed_job_id = None
+                    auto_follow_job_id = None  # Reset to allow auto-follow of next job
                     clear_screen()
                 except KeyboardInterrupt:
                     raise
@@ -865,6 +895,91 @@ def _show_dashboard_menu(engagement_id: int):
             from menuscript.ui.interactive import manage_reports_menu
             manage_reports_menu()
 
+    click.clear()
+
+    # Header
+    click.echo("\n┌" + "─" * 138 + "┐")
+    click.echo("│" + click.style(f" CREDENTIALS - Engagement: {engagement_name} ".center(138), bold=True, fg='green') + "│")
+    click.echo("└" + "─" * 138 + "┘")
+    click.echo()
+
+    cm = CredentialsManager()
+    creds = cm.list_credentials(engagement_id)
+
+    if not creds:
+        click.echo(click.style("  No credentials found yet.", fg='yellow'))
+        click.echo()
+        click.echo("  💡 Credentials will appear here when discovered by:")
+        click.echo("     • MSF auxiliary modules (ssh_enumusers, ssh_login, etc.)")
+        click.echo("     • Brute force scans")
+        click.echo("     • User enumeration modules")
+        click.echo()
+    else:
+        # Show stats first - compact format
+        stats = cm.get_stats(engagement_id)
+        click.echo()
+        click.echo(click.style("  📊 SUMMARY", bold=True, fg='cyan'))
+        click.echo(f"     Total: {stats['total']}  |  " +
+                   click.style(f"Valid: {stats['valid']}", fg='green', bold=True) +
+                   f"  |  Usernames: {stats['users_only']}  |  Pairs: {stats['pairs']}")
+        click.echo()
+
+        # Separate valid and untested credentials
+        valid_creds = [c for c in creds if c.get('status') == 'valid']
+        untested_creds = [c for c in creds if c.get('status') != 'valid']
+
+        # Show valid credentials prominently
+        if valid_creds:
+            click.echo(click.style("  🔓 VALID CREDENTIALS (Confirmed Working)", bold=True, fg='green'))
+            click.echo("  " + "─" * 100)
+            click.echo(f"     {'Username':<20} {'Password':<20} {'Service':<10} {'Host':<18} {'Tool':<15}")
+            click.echo("  " + "─" * 100)
+
+            for cred in valid_creds:
+                username = cred.get('username', '')[:19]
+                password = cred.get('password', '')[:19]
+                service = cred.get('service', 'N/A')[:9]
+                host = cred.get('ip_address', 'N/A')[:17]
+                tool = cred.get('tool', 'N/A')[:14]
+
+                click.echo(
+                    "  " + click.style("✓", fg='green', bold=True) + " " +
+                    click.style(f"{username:<20} {password:<20}", fg='green', bold=True) +
+                    f" {service:<10} {host:<18} {tool:<15}"
+                )
+
+            click.echo("  " + "─" * 100)
+            click.echo()
+
+        # Show discovered usernames (untested) - minimal view
+        if untested_creds:
+            click.echo(click.style(f"  🔍 DISCOVERED USERNAMES ({len(untested_creds)} untested)", bold=True, fg='cyan'))
+            click.echo("  " + "─" * 80)
+
+            # Group by service
+            by_service = {}
+            for cred in untested_creds:
+                service = cred.get('service', 'unknown')
+                if service not in by_service:
+                    by_service[service] = []
+                by_service[service].append(cred.get('username', ''))
+
+            # Show count only
+            for service, usernames in sorted(by_service.items()):
+                click.echo(f"     {service.upper():<8} ({len(usernames)} users)")
+
+            click.echo("  " + "─" * 80)
+            click.echo()
+            click.echo(click.style("     💡 Press 'u' to view/manage untested usernames", fg='yellow'))
+            click.echo()
+
+    click.echo("  " + "─" * 76)
+    click.echo(click.style("  [u] View Untested  [ENTER] Return to dashboard", fg='cyan'), nl=False)
+
+    try:
+        choice = input().strip().lower()
+        if choice == 'u' and untested_creds:
+            view_untested_usernames(engagement_id)
     except (KeyboardInterrupt, EOFError):
         pass
 
@@ -888,6 +1003,7 @@ def view_credentials(engagement_id: int):
 
     cm = CredentialsManager()
     creds = cm.list_credentials(engagement_id)
+    untested_creds = []  # Initialize to avoid UnboundLocalError
 
     if not creds:
         click.echo(click.style("  No credentials found yet.", fg='yellow'))

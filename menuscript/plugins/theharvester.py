@@ -11,8 +11,23 @@ from typing import List, Optional
 from .plugin_base import PluginBase
 
 HELP = {
-    "name": "theHarvester (OSINT)",
-    "description": "theHarvester - gather emails, subdomains, hosts, employee names from public sources",
+    "name": "theHarvester — Public Recon & Harvesting Tool",
+    "description": (
+        "Want a nosy little drone that quietly snoops the public web so you don't have to?\n\n"
+        "theHarvester pulls together email addresses, subdomains, hostnames, and employee names from public sources (search engines, "
+        "public DNS, certificate transparency, social media, and more) to give you a fast reconnaissance snapshot.\n\n"
+        "It's perfect for building an external attack surface map and collecting leads before deeper testing — think of it as the "
+        "first-pass for OSINT that points you where to probe next. theHarvester doesn't exploit anything; it aggregates publicly "
+        "available artifacts so you can triage, add to the job log, and convert useful results into Findings.\n\n"
+        "Play nice: gathering lots of public data can trigger rate limits or alerts on some services, so use respectful query rates "
+        "and follow your engagement rules. 😇\n\n"
+        "Quick tips:\n"
+        "- Great for initial external recon: email harvesting, subdomain discovery, host collection, and employee name gathering.\n"
+        "- Combine its output with DNS, CT logs, and certificate data for better coverage.\n"
+        "- Save results (CSV/JSON) to the job log so you can import them into Findings, asset lists, or follow-up scans.\n"
+        "- Respect rate limits and API terms for the public sources you query.\n"
+        "- Use findings from theHarvester to feed targeted scans (subdomain -> Nmap -> service checks) or social-engineering risk assessments.\n"
+    ),
     "usage": "menuscript jobs enqueue theharvester <domain> --args \"-b google\"",
     "examples": [
         "menuscript jobs enqueue theharvester example.com --args \"-b google\"",

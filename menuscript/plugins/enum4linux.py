@@ -12,7 +12,22 @@ from .plugin_base import PluginBase
 
 HELP = {
     "name": "enum4linux (SMB)",
-    "description": "Enum4linux - SMB/CIFS share enumeration tool for Windows/Samba systems",
+    "description": (
+        "Want a polite but nosy assistant for Windows and Samba shares?\n\n"
+        "Enum4linux is a focused SMB/CIFS enumeration tool for Windows and Samba systems. It automates common recon tasks "
+        "like listing shares, enumerating users and groups, pulling OS and domain info, and checking for null/anonymous access. "
+        "Think of it as the first-pass investigator that maps file shares, permissions, and exposed services so you know where "
+        "to look next — without exploiting anything.\n\n"
+        "Results are collected so you can add the interesting bits to your job log, convert them into Findings, or fold them "
+        "into reports and dashboards. Play nice: some techniques (user enumeration, RID cycling, etc.) can be noisy and may "
+        "trigger alerts — always run with authorization and follow your rules of engagement. 😇\n\n"
+        "Quick tips:\n"
+        "- Best used for SMB reconnaissance: shares, users/groups, OS and domain metadata, and anonymous access checks.\n"
+        "- Ideal for spotting anonymous or misconfigured shares and weak permissions.\n"
+        "- Capture output to the job log so nothing gets lost during triage and reporting.\n"
+        "- Be cautious with noisy probes (userenum / RID cycling); run them only with explicit permission.\n"
+        "- Correlate Enum4linux output with other SMB checks (smbclient, smbmap, bloodhound, etc.) for a fuller risk picture.\n"
+    ),
     "usage": "menuscript jobs enqueue enum4linux <target> --args \"-a\"",
     "examples": [
         "menuscript jobs enqueue enum4linux 10.0.0.5 --args \"-a\"",

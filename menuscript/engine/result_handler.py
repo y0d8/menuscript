@@ -9,19 +9,32 @@ from typing import Optional, Dict, Any
 def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Process completed job and parse results into database.
-    
+
     Args:
         job: Job dict from background system
-        
+
     Returns:
         Parse results or None if not applicable
     """
     tool = job.get('tool', '').lower()
     log_path = job.get('log')
     status = job.get('status')
-    
-    # Only process successful jobs
-    if status != 'done' or not log_path or not os.path.exists(log_path):
+
+    # Some tools return non-zero exit codes even on success (nikto returns 1 when findings found)
+    # Parse 'done' jobs and 'error' jobs for certain tools
+    tools_with_nonzero_success = ['nikto']
+
+    if status == 'done':
+        # Always parse successful jobs
+        pass
+    elif status == 'error' and tool in tools_with_nonzero_success:
+        # Parse error jobs for tools that can succeed with non-zero exit codes
+        pass
+    else:
+        # Skip other error/failed jobs
+        return None
+
+    if not log_path or not os.path.exists(log_path):
         return None
     
     # Get current engagement
@@ -343,6 +356,25 @@ def parse_enum4linux_job(engagement_id: int, log_path: str, job: Dict[str, Any])
                         'status': 'up'
                     })
 
+        # Store discovered users as credentials
+        from menuscript.storage.credentials import CredentialsManager
+        cm = CredentialsManager()
+        credentials_added = 0
+
+        for username in parsed['users']:
+            # Store each discovered user as a credential
+            cm.add_credential(
+                engagement_id=engagement_id,
+                host_id=host_id,
+                username=username,
+                password='',  # Unknown password
+                credential_type='smb',
+                service='smb',
+                port=445,
+                tool='enum4linux'
+            )
+            credentials_added += 1
+
         # Store SMB shares as findings
         fm = FindingsManager()
         findings_added = 0
@@ -391,6 +423,8 @@ def parse_enum4linux_job(engagement_id: int, log_path: str, job: Dict[str, Any])
         return {
             'tool': 'enum4linux',
             'findings_added': findings_added,
+            'credentials_added': credentials_added,
+            'users_found': len(parsed['users']),
             'shares_found': stats['total_shares'],
             'accessible_shares': stats['accessible_shares'],
             'writable_shares': stats['writable_shares'],

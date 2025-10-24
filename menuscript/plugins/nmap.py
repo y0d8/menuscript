@@ -10,8 +10,24 @@ import time
 from .plugin_base import PluginBase
 
 HELP = {
-    "name": "Nmap (core)",
-    "description": "Nmap network scanner (wrapped for help/presets).",
+    "name": "Nmap — Network Scanner",
+    "description": (
+        "Nmap is your trusty network prober — fast host discovery, port/service scanning, and fingerprinting wrapped in a "
+        "friendly interface so you can scan like a pro with a single command.\n\n"
+        "Let Nmap do the heavy lifting: discover live hosts, map open ports, identify running services and versions, and "
+        "fingerprint operating systems and network stacks. This wrapped Nmap tool makes common scan types easy to run without "
+        "memorizing flags, and captures results in the job log for later triage, correlation, and conversion into Findings — "
+        "perfect for building a reconnaissance baseline before you dig deeper.\n\n"
+        "Nmap is wildly flexible: run a quick sweep to see what's alive, do a targeted service/version scan for a handful of "
+        "hosts, or launch a thorough TCP/UDP probe to find everything that answers. Heads up — deeper scans (UDP, full port "
+        "ranges, OS detection) can be slow and noisy, so match your scan intensity to your rules of engagement.\n\n"
+        "Quick tips:\n"
+        "- Start with a simple discovery sweep to limit your attack surface before deeper scans.\n"
+        "- Save XML/grepable output so parsers and the Findings manager can ingest results easily.\n"
+        "- UDP and OS detection are powerful but slower and noisier — use them judiciously.\n"
+        "- Combine Nmap output with service-specific checks (banner grabs, vuln scanners) for richer context.\n"
+        "- Always scan with permission — loud scans get noticed.\n"
+    ),
     "usage": "menuscript jobs enqueue nmap <target> --args \"<nmap flags>\"",
     "examples": [
         "menuscript jobs enqueue nmap 10.0.0.0/24 --args \"-vv -sn\"",
