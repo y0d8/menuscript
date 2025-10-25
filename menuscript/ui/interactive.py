@@ -3921,11 +3921,11 @@ def view_web_paths(engagement_id: int):
 
                         # Color code status
                         if status.startswith('3'):
-                            status_style = "yellow"
+                            status_display = f"[yellow]{status}[/yellow]"
                         else:
-                            status_style = ""
+                            status_display = status
 
-                        table.add_row(path_id, f"[{status_style}]{status}[/{status_style}]", path_url, redirect)
+                        table.add_row(path_id, status_display, path_url, redirect)
 
                     console.print(table)
                     if len(paths) > 20:
@@ -3956,15 +3956,15 @@ def view_web_paths(engagement_id: int):
 
                         # Color code status
                         if status.startswith('2'):
-                            status_style = "green"
+                            status_display = f"[green]{status}[/green]"
                         elif status.startswith('4'):
-                            status_style = "red"
+                            status_display = f"[red]{status}[/red]"
                         elif status.startswith('5'):
-                            status_style = "magenta"
+                            status_display = f"[magenta]{status}[/magenta]"
                         else:
-                            status_style = ""
+                            status_display = status
 
-                        table.add_row(path_id, f"[{status_style}]{status}[/{status_style}]", path_url, size_display)
+                        table.add_row(path_id, status_display, path_url, size_display)
 
                     console.print(table)
                     if len(paths) > 20:
