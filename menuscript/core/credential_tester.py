@@ -35,11 +35,12 @@ class CredentialTester:
         
         try:
             # Use sshpass to test credentials non-interactively
+            # Add legacy crypto support for old SSH servers (like metasploitable)
             cmd = [
                 'sshpass', '-p', password,
                 'ssh', '-o', 'StrictHostKeyChecking=no',
                 '-o', 'ConnectTimeout=5',
-                '-o', 'BatchMode=yes',
+                '-o', 'HostKeyAlgorithms=+ssh-rsa',
                 f'{username}@{host}',
                 'echo', 'SUCCESS'
             ]
@@ -216,12 +217,8 @@ class CredentialTester:
     
     def _host_has_service(self, host: Dict, service: str, engagement_id: int) -> bool:
         """Check if a host has a specific service running."""
-        from menuscript.storage.services import ServiceManager
-        sm = ServiceManager()
-        
-        # Get services for this host
-        services = sm.list_services(engagement_id)
-        host_services = [s for s in services if s.get('host_id') == host.get('id')]
+        # Get services for this host from HostManager
+        services = self.hm.get_host_services(host.get('id'))
         
         # Check if service type matches
         service_ports = {
@@ -234,7 +231,7 @@ class CredentialTester:
         }
         
         target_ports = service_ports.get(service, [])
-        for svc in host_services:
+        for svc in services:
             if svc.get('port') in target_ports:
                 return True
         
@@ -273,17 +270,16 @@ An attacker with these credentials can:
         # Determine severity based on context
         severity = self._determine_credential_severity(cred, host)
         
-        finding_data = {
-            'title': title,
-            'description': description.strip(),
-            'severity': severity,
-            'host_id': host.get('id'),
-            'category': 'authentication',
-            'tool': 'credential_tester'
-        }
-        
         try:
-            finding = self.fm.add_finding(engagement_id, finding_data)
+            finding = self.fm.add_finding(
+                engagement_id,
+                title,
+                'vulnerability',  # finding_type
+                severity=severity,
+                description=description.strip(),
+                host_id=host.get('id'),
+                tool='credential_tester'
+            )
             return finding
         except Exception as e:
             print(f"Error creating finding: {e}")
