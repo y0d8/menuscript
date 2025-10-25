@@ -345,7 +345,7 @@ def run_job(jid: int) -> None:
 
         if not plugin_executed:
             _append_worker_log(f"job {jid}: no plugin found for '{tool}', using subprocess")
-            rc = _run_subprocess(tool, target, args, log_path, jid=jid, timeout=JOB_TIMEOUT_SECONDS)
+            rc = _run_subprocess(tool, target, args, log_path, jid=jid)
         
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         status = "done" if rc == 0 else "error"
