@@ -74,6 +74,8 @@ def parse_nmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Di
     try:
         from menuscript.parsers.nmap_parser import parse_nmap_log
         from menuscript.storage.hosts import HostManager
+        from menuscript.storage.findings import FindingsManager
+        from menuscript.core.cve_matcher import CVEMatcher
 
         # Parse the log file
         parsed = parse_nmap_log(log_path)
@@ -84,6 +86,65 @@ def parse_nmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Di
         # Import into database
         hm = HostManager()
         result = hm.import_nmap_results(engagement_id, parsed)
+
+        # Check for CVEs and common issues
+        fm = FindingsManager()
+        cve_matcher = CVEMatcher()
+        findings_added = 0
+        
+        for host_data in parsed.get('hosts', []):
+            if host_data.get('status') == 'up':
+                # Find host ID
+                host = hm.get_host_by_ip(engagement_id, host_data.get('ip'))
+                if not host:
+                    continue
+                    
+                host_id = host['id']
+                
+                # Check each service for CVEs and common issues
+                for svc in host_data.get('services', []):
+                    service_info = {
+                        'service_name': svc.get('service', ''),
+                        'version': svc.get('version', ''),
+                        'port': svc.get('port'),
+                        'protocol': svc.get('protocol', 'tcp')
+                    }
+                    
+                    # Check for CVEs
+                    cve_findings = cve_matcher.parse_nmap_service(service_info)
+                    for finding in cve_findings:
+                        fm.add_finding(
+                            engagement_id=engagement_id,
+                            host_id=host_id,
+                            title=finding['title'],
+                            finding_type='vulnerability',
+                            severity=finding['severity'],
+                            description=finding['description'],
+                            cve_id=finding.get('cve_id'),
+                            cvss_score=finding.get('cvss_score'),
+                            port=finding.get('port'),
+                            tool='nmap',
+                            category='cve',
+                            refs=f"https://nvd.nist.gov/vuln/detail/{finding.get('cve_id')}"
+                        )
+                        findings_added += 1
+                    
+                    # Check for common issues
+                    issue_findings = cve_matcher.scan_for_common_issues(service_info)
+                    for finding in issue_findings:
+                        fm.add_finding(
+                            engagement_id=engagement_id,
+                            host_id=host_id,
+                            title=finding['title'],
+                            finding_type='misconfiguration',
+                            severity=finding['severity'],
+                            description=finding['description'],
+                            port=finding.get('port'),
+                            tool='nmap',
+                            category=finding.get('category', 'misconfiguration'),
+                            remediation=finding.get('remediation')
+                        )
+                        findings_added += 1
 
         # Build host details list for summary
         host_details = []
@@ -116,6 +177,7 @@ def parse_nmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Di
             'tool': 'nmap',
             'hosts_added': result['hosts_added'],
             'services_added': result['services_added'],
+            'findings_added': findings_added,
             'host_details': host_details,
             'is_discovery': is_discovery,
             'is_full_scan': is_full_scan

@@ -23,7 +23,13 @@ class FindingsManager:
         tool: str = None,
         refs: str = None,
         port: int = None,
-        path: str = None
+        path: str = None,
+        cvss_score: float = None,
+        cve_id: str = None,
+        remediation: str = None,
+        evidence: str = None,
+        status: str = 'new',
+        category: str = None
     ) -> int:
         """
         Add a finding to the database.
@@ -31,7 +37,7 @@ class FindingsManager:
         Args:
             engagement_id: Engagement ID
             title: Finding title/summary
-            finding_type: Type of finding (e.g., 'web_vulnerability', 'misconfiguration', etc.)
+            finding_type: Type of finding (e.g., 'vulnerability', 'misconfiguration', etc.)
             severity: Severity level ('critical', 'high', 'medium', 'low', 'info')
             description: Detailed description
             host_id: Associated host ID (optional)
@@ -39,6 +45,12 @@ class FindingsManager:
             refs: Reference URL or CVE
             port: Associated port number
             path: Web path or file path
+            cvss_score: CVSS score (0-10)
+            cve_id: CVE identifier (e.g., CVE-2021-44228)
+            remediation: How to fix this issue
+            evidence: Proof/output showing the issue
+            status: Status ('new', 'confirmed', 'false_positive', 'fixed')
+            category: Category/tag for organization
 
         Returns:
             Finding ID
@@ -47,7 +59,8 @@ class FindingsManager:
             'engagement_id': engagement_id,
             'title': title,
             'finding_type': finding_type,
-            'severity': severity
+            'severity': severity,
+            'status': status
         }
 
         if description:
@@ -62,6 +75,16 @@ class FindingsManager:
             data['port'] = port
         if path:
             data['path'] = path
+        if cvss_score is not None:
+            data['cvss_score'] = cvss_score
+        if cve_id:
+            data['cve_id'] = cve_id
+        if remediation:
+            data['remediation'] = remediation
+        if evidence:
+            data['evidence'] = evidence
+        if category:
+            data['category'] = category
 
         return self.db.insert('findings', data)
 
@@ -220,3 +243,136 @@ class FindingsManager:
         """
         results = self.db.execute(query, (engagement_id,))
         return [row['tool'] for row in results if row.get('tool')]
+
+    def calculate_risk_score(
+        self,
+        severity: str,
+        cvss_score: float = None,
+        has_exploit: bool = False,
+        is_authenticated: bool = False
+    ) -> int:
+        """
+        Calculate risk score (0-100) based on severity, CVSS, and context.
+        
+        Args:
+            severity: Severity level
+            cvss_score: CVSS score if available
+            has_exploit: Whether public exploit exists
+            is_authenticated: Whether auth is required
+            
+        Returns:
+            Risk score 0-100
+        """
+        # Base score from severity
+        severity_scores = {
+            'critical': 90,
+            'high': 70,
+            'medium': 50,
+            'low': 30,
+            'info': 10
+        }
+        base = severity_scores.get(severity.lower(), 50)
+        
+        # Adjust for CVSS if available
+        if cvss_score is not None:
+            base = int((cvss_score / 10.0) * 100)
+        
+        # Modifiers
+        if has_exploit:
+            base = min(100, base + 15)
+        if not is_authenticated:
+            base = min(100, base + 10)
+        
+        return base
+    
+    def auto_classify_severity(
+        self,
+        cve_id: str = None,
+        cvss_score: float = None,
+        service: str = None,
+        port: int = None
+    ) -> str:
+        """
+        Automatically classify severity based on available info.
+        
+        Args:
+            cve_id: CVE identifier
+            cvss_score: CVSS score
+            service: Service name
+            port: Port number
+            
+        Returns:
+            Severity level
+        """
+        # Use CVSS score if available
+        if cvss_score is not None:
+            if cvss_score >= 9.0:
+                return 'critical'
+            elif cvss_score >= 7.0:
+                return 'high'
+            elif cvss_score >= 4.0:
+                return 'medium'
+            elif cvss_score >= 0.1:
+                return 'low'
+            else:
+                return 'info'
+        
+        # Check for critical services/ports
+        critical_ports = [22, 23, 3389, 445, 139]  # SSH, Telnet, RDP, SMB
+        if port and port in critical_ports:
+            return 'high'
+        
+        # Default
+        return 'medium'
+    
+    def add_cve_finding(
+        self,
+        engagement_id: int,
+        host_id: int,
+        cve_id: str,
+        service: str,
+        port: int,
+        cvss_score: float = None,
+        tool: str = None
+    ) -> int:
+        """
+        Add a CVE-based finding with auto-classification.
+        
+        Args:
+            engagement_id: Engagement ID
+            host_id: Host ID
+            cve_id: CVE identifier
+            service: Service name
+            port: Port number
+            cvss_score: CVSS score
+            tool: Tool that found it
+            
+        Returns:
+            Finding ID
+        """
+        severity = self.auto_classify_severity(
+            cve_id=cve_id,
+            cvss_score=cvss_score,
+            port=port
+        )
+        
+        title = f"{cve_id} - Vulnerable {service}"
+        description = f"Service {service} on port {port} is vulnerable to {cve_id}"
+        
+        if cvss_score:
+            description += f" (CVSS: {cvss_score})"
+        
+        return self.add_finding(
+            engagement_id=engagement_id,
+            title=title,
+            finding_type='vulnerability',
+            severity=severity,
+            description=description,
+            host_id=host_id,
+            port=port,
+            cve_id=cve_id,
+            cvss_score=cvss_score,
+            tool=tool,
+            category='cve',
+            refs=f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+        )
