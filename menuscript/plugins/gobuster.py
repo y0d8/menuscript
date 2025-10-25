@@ -29,8 +29,8 @@ HELP = {
     "examples": [
         "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\"",
         "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -x php,txt,html -t 20\"",
-        "menuscript jobs enqueue gobuster example.com --args \"dns --domain example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
-        "menuscript jobs enqueue gobuster http://example.com --args \"vhost -u http://example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
+        "menuscript jobs enqueue gobuster example.com --args \"dns --domain example.com -w /usr/share/wordlists/dirbuster/directory-list-1.0.txt -t 50\"",
+        "menuscript jobs enqueue gobuster http://example.com --args \"vhost -u http://example.com -w /usr/share/wordlists/dirbuster/directory-list-1.0.txt -t 50\"",
     ],
     "flags": [
         ["dir", "Directory/file enumeration mode"],
@@ -65,15 +65,15 @@ HELP = {
         "subdomain_enum": [
             {
                 "name": "Subdomain Scan (manual domain)",
-                "args": ["dns", "--domain", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
-                "desc": "Top 5000 subdomains - EDIT example.com to your domain"
+                "args": ["dns", "--domain", "example.com", "-w", "/usr/share/wordlists/dirbuster/directory-list-1.0.txt", "-t", "50"],
+                "desc": "Subdomain enumeration - EDIT example.com to your domain"
             }
         ],
         "vhost_discovery": [
             {
                 "name": "Virtual Hosts",
-                "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
-                "desc": "Virtual host discovery (top 5000)"
+                "args": ["vhost", "-u", "<target>", "-w", "/usr/share/wordlists/dirbuster/directory-list-1.0.txt", "-t", "50"],
+                "desc": "Virtual host discovery"
             }
         ]
     },
@@ -82,8 +82,8 @@ HELP = {
         {"name": "Quick Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"], "desc": "Common wordlist (4600 entries)"},
         {"name": "Standard Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/big.txt", "-t", "20"], "desc": "Big wordlist (20,000 entries)"},
         {"name": "PHP Extensions", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,phps,php3,php4,php5,phtml", "-t", "15"], "desc": "Common paths + PHP extensions"},
-        {"name": "Subdomain Scan (manual domain)", "args": ["dns", "--domain", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains - EDIT example.com to your domain"},
-        {"name": "Virtual Hosts", "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Virtual host discovery (top 5000)"}
+        {"name": "Subdomain Scan (manual domain)", "args": ["dns", "--domain", "example.com", "-w", "/usr/share/wordlists/dirbuster/directory-list-1.0.txt", "-t", "50"], "desc": "Subdomain enumeration - EDIT example.com to your domain"},
+        {"name": "Virtual Hosts", "args": ["vhost", "-u", "<target>", "-w", "/usr/share/wordlists/dirbuster/directory-list-1.0.txt", "-t", "50"], "desc": "Virtual host discovery"}
     ]
 }
 
