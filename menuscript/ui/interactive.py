@@ -3847,24 +3847,27 @@ def _delete_osint_data(engagement_id: int, om: 'OsintManager'):
 
 def view_web_paths(engagement_id: int):
     """Display and manage web paths in engagement."""
+    from rich.console import Console
+    from rich.table import Table
+    
     hm = HostManager()
     wpm = WebPathsManager()
+    console = Console()
 
     # Active filter
     filter_host_id = None
 
     while True:
         click.clear()
-        click.echo("\n" + "=" * 80)
-        click.echo("WEB PATHS")
-        click.echo("=" * 80 + "\n")
+        console.print("\n[bold cyan]═" * 70)
+        console.print("[bold cyan]WEB PATHS & REDIRECTS")
+        console.print("[bold cyan]═" * 70 + "\n")
 
         # Show active filter
         if filter_host_id:
             filter_host = next((h for h in hm.list_hosts(engagement_id) if h['id'] == filter_host_id), None)
             if filter_host:
-                click.echo(click.style(f"Active Filter: Host {filter_host.get('ip_address')}", bold=True))
-                click.echo()
+                console.print(f"[bold]Active Filter: Host {filter_host.get('ip_address')}[/bold]\n")
 
         # Get paths
         if filter_host_id:
@@ -3873,75 +3876,110 @@ def view_web_paths(engagement_id: int):
             all_paths = wpm.list_web_paths(engagement_id=engagement_id)
 
         if not all_paths:
-            click.echo("No web paths found.")
+            console.print("[yellow]No web paths found.[/yellow]")
         else:
+            # Separate paths into redirects and regular paths
+            redirects = [p for p in all_paths if p.get('redirect')]
+            regular_paths = [p for p in all_paths if not p.get('redirect')]
+            
+            console.print(f"Total paths: {len(all_paths)} | Redirects: {len(redirects)} | Regular paths: {len(regular_paths)}\n")
+
             # Group by host
             paths_by_host = {}
+            redirects_by_host = {}
             for path in all_paths:
                 host_id = path.get('host_id')
-                if host_id not in paths_by_host:
-                    paths_by_host[host_id] = []
-                paths_by_host[host_id].append(path)
+                if path.get('redirect'):
+                    if host_id not in redirects_by_host:
+                        redirects_by_host[host_id] = []
+                    redirects_by_host[host_id].append(path)
+                else:
+                    if host_id not in paths_by_host:
+                        paths_by_host[host_id] = []
+                    paths_by_host[host_id].append(path)
 
-            click.echo(f"Total paths: {len(all_paths)}\n")
+            # Display redirects first
+            if redirects_by_host:
+                console.print("[bold yellow]🔀 REDIRECTS[/bold yellow]\n")
+                for host_id, paths in redirects_by_host.items():
+                    host_info = next((h for h in hm.list_hosts(engagement_id) if h['id'] == host_id), None)
+                    host_ip = host_info.get('ip_address', 'Unknown') if host_info else 'Unknown'
 
-            # Display paths grouped by host
-            for host_id, paths in paths_by_host.items():
-                host_info = next((h for h in hm.list_hosts(engagement_id) if h['id'] == host_id), None)
-                host_ip = host_info.get('ip_address', 'Unknown') if host_info else 'Unknown'
-
-                click.echo(click.style(f"Host: {host_ip} ({len(paths)} paths)", bold=True, fg='cyan'))
-                click.echo("-" * 80)
-
-                # Table header
-                click.echo(f"  {'ID':<6} {'Status':<8} {'URL':<45} {'Endpoint':<35}")
-                click.echo("  " + "-" * 98)
-
-                for path in paths[:20]:  # Limit per host
-                    path_id = path.get('id', '?')
-                    path_url = path.get('url', '/')[:45]
-                    status = path.get('status_code', '?')
-                    redirect = path.get('redirect', '')
+                    console.print(f"[bold cyan]Host: {host_ip}[/bold cyan] ({len(paths)} redirect(s))")
                     
-                    # Extract just the path from redirect if it's a full URL
-                    if redirect:
-                        from urllib.parse import urlparse
-                        parsed_redirect = urlparse(redirect)
-                        if parsed_redirect.path:
-                            redirect_display = parsed_redirect.path[:35]
+                    table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 1))
+                    table.add_column("ID", style="dim", width=6)
+                    table.add_column("Status", width=8)
+                    table.add_column("Source URL", width=50)
+                    table.add_column("→ Redirect Target", width=40)
+
+                    for path in paths[:20]:
+                        path_id = str(path.get('id', '?'))
+                        path_url = path.get('url', '/')[:50]
+                        status = str(path.get('status_code', '?'))
+                        redirect = path.get('redirect', '')[:40]
+
+                        # Color code status
+                        if status.startswith('3'):
+                            status_style = "yellow"
                         else:
-                            redirect_display = redirect[:35]
-                    else:
-                        redirect_display = ''
+                            status_style = ""
 
-                    # Color code status
-                    if str(status).startswith('2'):
-                        status_colored = click.style(f"{status:<8}", fg='green')
-                    elif str(status).startswith('3'):
-                        status_colored = click.style(f"{status:<8}", fg='yellow')
-                    elif str(status).startswith('4'):
-                        status_colored = click.style(f"{status:<8}", fg='red')
-                    elif str(status).startswith('5'):
-                        status_colored = click.style(f"{status:<8}", fg='magenta')
-                    else:
-                        status_colored = f"{status:<8}"
+                        table.add_row(path_id, f"[{status_style}]{status}[/{status_style}]", path_url, redirect)
 
-                    click.echo(f"  {path_id:<6} {status_colored} {path_url:<45} {redirect_display:<35}")
+                    console.print(table)
+                    if len(paths) > 20:
+                        console.print(f"  [dim]... and {len(paths) - 20} more[/dim]\n")
+                    console.print()
 
-                if len(paths) > 20:
-                    click.echo(f"  ... and {len(paths) - 20} more")
+            # Display regular paths
+            if paths_by_host:
+                console.print("[bold green]📁 WEB PATHS[/bold green]\n")
+                for host_id, paths in paths_by_host.items():
+                    host_info = next((h for h in hm.list_hosts(engagement_id) if h['id'] == host_id), None)
+                    host_ip = host_info.get('ip_address', 'Unknown') if host_info else 'Unknown'
 
-                click.echo()
+                    console.print(f"[bold cyan]Host: {host_ip}[/bold cyan] ({len(paths)} path(s))")
+                    
+                    table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 1))
+                    table.add_column("ID", style="dim", width=6)
+                    table.add_column("Status", width=8)
+                    table.add_column("URL", width=60)
+                    table.add_column("Size", width=10, justify="right")
+
+                    for path in paths[:20]:
+                        path_id = str(path.get('id', '?'))
+                        path_url = path.get('url', '/')[:60]
+                        status = str(path.get('status_code', '?'))
+                        size = path.get('size', '')
+                        size_display = str(size) if size else '-'
+
+                        # Color code status
+                        if status.startswith('2'):
+                            status_style = "green"
+                        elif status.startswith('4'):
+                            status_style = "red"
+                        elif status.startswith('5'):
+                            status_style = "magenta"
+                        else:
+                            status_style = ""
+
+                        table.add_row(path_id, f"[{status_style}]{status}[/{status_style}]", path_url, size_display)
+
+                    console.print(table)
+                    if len(paths) > 20:
+                        console.print(f"  [dim]... and {len(paths) - 20} more[/dim]\n")
+                    console.print()
 
         # Menu options
-        click.echo("-" * 80)
-        click.echo("Options:")
+        console.print("\n[bold cyan]─" * 70)
+        console.print("[bold]OPTIONS")
+        console.print("[bold cyan]─" * 70 + "\n")
         click.echo("  [1] Filter by Host")
         click.echo("  [2] Clear Filter")
         click.echo("  [3] Add New Web Path")
         click.echo("  [4] Delete Web Path")
-        click.echo("  [0] Back to Main Menu")
-        click.echo()
+        click.echo("\n  [0] Back to Main Menu\n")
 
         try:
             choice = click.prompt("Select option", type=int, default=0)
