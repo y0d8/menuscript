@@ -11,31 +11,136 @@ class CVEMatcher:
     
     # Common vulnerable service versions (simple database)
     KNOWN_VULNS = {
+        # OpenSSH vulnerabilities
         'openssh': [
+            ('4.7', 'CVE-2008-5161', 7.5, 'Privilege escalation via X11 forwarding'),
+            ('5.8', 'CVE-2011-4327', 3.5, 'Forced command handling weakness'),
+            ('6.6', 'CVE-2015-5600', 8.5, 'Keyboard-interactive authentication brute force'),
+            ('7.2', 'CVE-2016-3115', 5.5, 'Command injection via X11 forwarding'),
             ('7.4', 'CVE-2018-15473', 7.5, 'Username enumeration vulnerability'),
             ('7.7', 'CVE-2019-6109', 6.8, 'Forced command injection'),
+            ('8.2', 'CVE-2020-15778', 7.8, 'Command injection via scp'),
             ('8.5', 'CVE-2021-41617', 7.0, 'Privilege escalation'),
         ],
+        
+        # vsftpd vulnerabilities
         'vsftpd': [
+            ('2.0.5', 'CVE-2011-0762', 6.8, 'Denial of service'),
             ('2.3.4', 'CVE-2011-2523', 10.0, 'Backdoor command execution'),
         ],
+        
+        # ProFTPD vulnerabilities
+        'proftpd': [
+            ('1.3.0', 'CVE-2010-4221', 9.0, 'SQL injection in mod_sql'),
+            ('1.3.3', 'CVE-2011-4130', 10.0, 'Remote code execution'),
+            ('1.3.5', 'CVE-2015-3306', 10.0, 'Remote code execution via mod_copy'),
+            ('1.3.6', 'CVE-2019-12815', 9.8, 'Arbitrary file copy'),
+        ],
+        
+        # Apache HTTP Server vulnerabilities
         'apache': [
+            ('2.2.8', 'CVE-2011-3192', 7.8, 'Range header DoS (Killapache)'),
+            ('2.4.7', 'CVE-2014-0098', 5.0, 'Denial of service'),
+            ('2.4.29', 'CVE-2017-15710', 5.0, 'Out-of-bounds read'),
+            ('2.4.43', 'CVE-2020-9490', 7.5, 'HTTP request smuggling'),
+            ('2.4.48', 'CVE-2021-40438', 9.0, 'Server-side request forgery'),
             ('2.4.49', 'CVE-2021-41773', 7.5, 'Path traversal and RCE'),
             ('2.4.50', 'CVE-2021-42013', 9.8, 'Path traversal and RCE'),
         ],
+        
+        # Nginx vulnerabilities
         'nginx': [
+            ('1.3.9', 'CVE-2013-2028', 5.8, 'Chunked transfer encoding bypass'),
             ('1.16.1', 'CVE-2019-20372', 5.3, 'HTTP request smuggling'),
+            ('1.20.0', 'CVE-2021-23017', 9.8, 'Off-by-one buffer overflow in DNS resolver'),
         ],
+        
+        # MySQL vulnerabilities
         'mysql': [
+            ('5.0.51', 'CVE-2009-2446', 8.5, 'Format string vulnerability'),
             ('5.5.62', 'CVE-2019-2805', 6.5, 'Partial DOS vulnerability'),
+            ('5.7.29', 'CVE-2020-2922', 3.7, 'Information disclosure'),
+            ('8.0.19', 'CVE-2020-2780', 6.5, 'Server component vulnerability'),
         ],
+        
+        # Samba vulnerabilities
         'samba': [
-            ('3.5.0', 'CVE-2017-7494', 10.0, 'Remote code execution'),
+            ('3.0', 'CVE-2007-2447', 10.0, 'Remote command execution via MS-RPC'),
+            ('3.5.0', 'CVE-2017-7494', 10.0, 'Remote code execution (SambaCry)'),
+            ('4.4', 'CVE-2017-12150', 7.5, 'SMB encryption downgrade'),
             ('4.5.16', 'CVE-2017-14746', 7.5, 'Use-after-free'),
+            ('4.11.6', 'CVE-2020-1472', 10.0, 'Zerologon privilege escalation'),
         ],
-        'proftpd': [
-            ('1.3.5', 'CVE-2015-3306', 10.0, 'Remote code execution'),
-        ]
+        
+        # PostgreSQL vulnerabilities
+        'postgresql': [
+            ('8.3.0', 'CVE-2009-3230', 6.5, 'Privilege escalation'),
+            ('9.3.10', 'CVE-2016-0766', 8.0, 'Privilege escalation'),
+            ('11.2', 'CVE-2019-10130', 4.0, 'Partition routing information disclosure'),
+        ],
+        
+        # Tomcat vulnerabilities
+        'tomcat': [
+            ('7.0.0', 'CVE-2017-12615', 8.1, 'Remote code execution via PUT'),
+            ('8.5.0', 'CVE-2017-12617', 8.1, 'Remote code execution via PUT'),
+            ('9.0.0', 'CVE-2020-1938', 9.8, 'Ghostcat - AJP file read/inclusion'),
+            ('9.0.30', 'CVE-2020-9484', 7.0, 'Remote code execution via session persistence'),
+        ],
+        
+        # ISC BIND vulnerabilities
+        'bind': [
+            ('9.4.2', 'CVE-2009-0696', 7.8, 'Dynamic update message DoS'),
+            ('9.8.0', 'CVE-2012-1667', 7.8, 'Denial of service'),
+            ('9.11.0', 'CVE-2017-3137', 5.9, 'Denial of service'),
+        ],
+        
+        # Postfix vulnerabilities
+        'postfix': [
+            ('2.5.0', 'CVE-2011-1720', 6.8, 'SMTP server STARTTLS plaintext injection'),
+            ('3.3.0', 'CVE-2018-16554', 5.3, 'Denial of service'),
+        ],
+        
+        # UnrealIRCd vulnerabilities
+        'unrealircd': [
+            ('3.2.8', 'CVE-2010-2075', 10.0, 'Backdoor command execution'),
+        ],
+        
+        # distcc vulnerabilities
+        'distccd': [
+            ('1.0', 'CVE-2004-2687', 9.3, 'Remote command execution'),
+        ],
+        
+        # Ruby DRb vulnerabilities
+        'drb': [
+            ('1.8', 'CVE-2011-1004', 10.0, 'Arbitrary command execution'),
+        ],
+        
+        # VNC vulnerabilities
+        'vnc': [
+            ('3.3', 'CVE-2006-2369', 7.5, 'Authentication bypass'),
+        ],
+        
+        # Jetty vulnerabilities
+        'jetty': [
+            ('8.1.7', 'CVE-2017-7656', 7.5, 'HTTP request smuggling'),
+            ('9.3.0', 'CVE-2017-7658', 9.8, 'Remote code execution'),
+        ],
+        
+        # ElasticSearch vulnerabilities
+        'elasticsearch': [
+            ('1.4.2', 'CVE-2015-1427', 10.0, 'Remote code execution via Groovy scripting'),
+        ],
+        
+        # Redis vulnerabilities
+        'redis': [
+            ('4.0.0', 'CVE-2018-11218', 7.5, 'Integer overflow'),
+            ('5.0.0', 'CVE-2019-10192', 7.2, 'Hyperloglog DoS'),
+        ],
+        
+        # MongoDB vulnerabilities
+        'mongodb': [
+            ('3.6.0', 'CVE-2019-2386', 9.8, 'Incorrect authorization'),
+        ],
     }
     
     def extract_cves_from_text(self, text: str) -> List[str]:
