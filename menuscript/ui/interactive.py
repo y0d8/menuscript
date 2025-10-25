@@ -2065,22 +2065,22 @@ def view_services_by_host(engagement_id: int):
         console = Console(width=table_width)
         table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
         
-        table.add_column("#", width=4, no_wrap=True)
+        table.add_column("#", width=5, no_wrap=True)
         table.add_column("Host IP", width=18, no_wrap=True)
-        table.add_column("Hostname", width=30)
-        table.add_column("Services", width=10, justify="right")
+        table.add_column("Hostname", width=35)
+        table.add_column("Services", width=15, justify="right", no_wrap=True)
 
         for idx, item in enumerate(hosts_with_services, 1):
             host = item['host']
             ip = host.get('ip_address', 'N/A')
-            hostname = (host.get('hostname') or '-')[:30]
+            hostname = (host.get('hostname') or '-')[:35]
             svc_count = item['service_count']
 
             table.add_row(
                 str(idx),
                 f"● {ip}",
                 hostname,
-                f"{svc_count} service(s)"
+                f"{svc_count}"
             )
         
         console.print("  ", table)
