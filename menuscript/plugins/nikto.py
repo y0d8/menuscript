@@ -51,6 +51,11 @@ HELP = {
             "desc": "HTTPS vulnerability scan"
         },
         {
+            "name": "Optimized Scan",
+            "args": ["-h", "<target>", "-Tuning", "123b", "-timeout", "30", "-no404"],
+            "desc": "Targeted scan (software bugs, injection, auth bypass) with optimizations"
+        },
+        {
             "name": "Full Scan",
             "args": ["-h", "<target>", "-Tuning", "123456789"],
             "desc": "Comprehensive scan (all tests)"

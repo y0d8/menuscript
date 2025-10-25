@@ -2734,7 +2734,7 @@ def view_findings(engagement_id: int):
             click.echo("  └────────┴──────────────┴────────────────────────┴───────────────────┴─────────────────────────────────────────────────────┘")
 
             if len(findings) > 30:
-                click.echo(f"\n  ... showing first 30 of {len(findings)} findings (use filters to narrow results)")
+                click.echo(f"\n  ... showing first 30 of {len(findings)} findings")
 
         # Menu options
         click.echo()
@@ -2748,6 +2748,8 @@ def view_findings(engagement_id: int):
         click.echo("      [4] Search (title/description)")
         click.echo("      [5] Filter by IP Address")
         click.echo("      [6] Clear All Filters")
+        if len(findings) > 30:
+            click.echo("      [11] View All Results")
         click.echo()
         click.echo("  " + "─" * (width - 4))
         click.echo("  " + click.style("MANAGEMENT OPTIONS", bold=True))
@@ -2790,6 +2792,8 @@ def view_findings(engagement_id: int):
                 _edit_finding(engagement_id, fm)
             elif choice == 10:
                 _delete_finding(engagement_id, fm)
+            elif choice == 11 and len(findings) > 30:
+                _view_all_findings(findings)
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -2878,6 +2882,54 @@ def _filter_by_ip():
         return ip if ip else None
     except (KeyboardInterrupt, click.Abort):
         return None
+
+
+def _view_all_findings(findings: list):
+    """View all findings results with pagination."""
+    click.clear()
+    click.echo("\n" + "=" * 110)
+    click.echo("ALL FINDINGS")
+    click.echo("=" * 110 + "\n")
+    
+    click.echo(f"Total findings: {len(findings)}\n")
+    
+    # Table header
+    click.echo("  ┌────────┬──────────────┬────────────────────────┬───────────────────┬─────────────────────────────────────────────────────┐")
+    header = f"  │ ID     │ Severity     │ Type                   │ Host              │ Title                                               │"
+    click.echo(click.style(header, bold=True))
+    click.echo("  ├────────┼──────────────┼────────────────────────┼───────────────────┼─────────────────────────────────────────────────────┤")
+    
+    for finding in findings:
+        fid = finding.get('id', '?')
+        sev = finding.get('severity', 'info')
+        ftype = (finding.get('finding_type') or 'unknown')
+        host = (finding.get('ip_address') or 'N/A')
+        title = (finding.get('title') or 'No title')
+        
+        # Truncate long strings
+        if len(ftype) > 22:
+            ftype = ftype[:19] + '...'
+        if len(host) > 17:
+            host = host[:17]
+        if len(title) > 51:
+            title = title[:48] + '...'
+        
+        # Color code severity
+        sev_color = {
+            'critical': 'red',
+            'high': 'red',
+            'medium': 'yellow',
+            'low': 'blue',
+            'info': 'white'
+        }.get(sev, 'white')
+        
+        sev_display = click.style(f"{sev:<12}", fg=sev_color)
+        row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {host:<17} │ {title:<51} │"
+        click.echo(row)
+    
+    click.echo("  └────────┴──────────────┴────────────────────────┴───────────────────┴─────────────────────────────────────────────────────┘")
+    
+    click.pause("\n\nPress any key to continue...")
 
 
 def _view_finding_details(engagement_id: int, fm: 'FindingsManager'):
