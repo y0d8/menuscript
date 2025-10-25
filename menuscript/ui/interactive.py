@@ -6,6 +6,8 @@ import click
 import os
 import textwrap
 from typing import Dict, Any, Optional, List
+from rich.console import Console
+from rich.table import Table
 from menuscript.engine.loader import discover_plugins
 from menuscript.engine.background import enqueue_job, list_jobs, get_job
 from menuscript.storage.engagements import EngagementManager
@@ -896,9 +898,6 @@ def view_jobs_menu():
             return
 
         # Display jobs table with proper formatting
-        from rich.console import Console
-        from rich.table import Table
-        
         console = Console()
         table = Table(show_header=True, header_style="bold cyan", box=None, padding=(0, 2))
         
