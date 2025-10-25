@@ -29,7 +29,7 @@ HELP = {
     "examples": [
         "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -t 10\"",
         "menuscript jobs enqueue gobuster http://example.com --args \"dir -u http://example.com -w /usr/share/wordlists/dirb/common.txt -x php,txt,html -t 20\"",
-        "menuscript jobs enqueue gobuster example.com --args \"dns -d example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
+        "menuscript jobs enqueue gobuster example.com --args \"dns --domain example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
         "menuscript jobs enqueue gobuster http://example.com --args \"vhost -u http://example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50\"",
     ],
     "flags": [
@@ -37,7 +37,7 @@ HELP = {
         ["dns", "DNS subdomain enumeration mode"],
         ["vhost", "Virtual host discovery mode"],
         ["-u <url>", "Target URL (dir/vhost modes)"],
-        ["-d <domain>", "Target domain (dns mode)"],
+        ["--domain <domain>", "Target domain (dns mode)"],
         ["-w <wordlist>", "Wordlist path"],
         ["-t <threads>", "Number of threads"],
         ["-x <extensions>", "File extensions to check (comma-separated)"],
@@ -65,7 +65,7 @@ HELP = {
         "subdomain_enum": [
             {
                 "name": "Subdomain Scan (manual domain)",
-                "args": ["dns", "-d", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
+                "args": ["dns", "--domain", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"],
                 "desc": "Top 5000 subdomains - EDIT example.com to your domain"
             }
         ],
@@ -82,7 +82,7 @@ HELP = {
         {"name": "Quick Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "10"], "desc": "Common wordlist (4600 entries)"},
         {"name": "Standard Scan", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/big.txt", "-t", "20"], "desc": "Big wordlist (20,000 entries)"},
         {"name": "PHP Extensions", "args": ["dir", "-u", "<target>", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,phps,php3,php4,php5,phtml", "-t", "15"], "desc": "Common paths + PHP extensions"},
-        {"name": "Subdomain Scan (manual domain)", "args": ["dns", "-d", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains - EDIT example.com to your domain"},
+        {"name": "Subdomain Scan (manual domain)", "args": ["dns", "--domain", "example.com", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Top 5000 subdomains - EDIT example.com to your domain"},
         {"name": "Virtual Hosts", "args": ["vhost", "-u", "<target>", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "50"], "desc": "Virtual host discovery (top 5000)"}
     ]
 }
