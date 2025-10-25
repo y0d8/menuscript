@@ -509,16 +509,29 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
     if tool_name == 'gobuster' and args and 'dns' in args and 'example.com' in args:
         click.echo()
         click.echo(click.style("📝 Domain Configuration", bold=True, fg='yellow'))
-        click.echo("The preset contains 'example.com' which needs to be replaced with your target domain.")
-        click.echo()
         
-        domain = click.prompt("Enter target domain (e.g., company.com, example.org)", type=str)
+        # Check if the target looks like a domain (not an IP)
+        import re
+        is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', target)
+        
+        if not is_ip and target and '/' not in target:
+            # Target is already a domain, use it
+            domain = target
+            click.echo(f"Using target domain: {domain}")
+        else:
+            # Target is an IP or CIDR, need to prompt for domain
+            click.echo("DNS subdomain enumeration requires a domain name (not an IP address).")
+            click.echo()
+            domain = click.prompt("Enter target domain (e.g., company.com, example.org)", type=str, default="")
+        
         if domain:
             # Replace example.com with the actual domain
             args = [domain if arg == 'example.com' else arg for arg in args]
             click.echo(click.style(f"✓ Domain set to: {domain}", fg='green'))
         else:
-            click.echo(click.style("✗ No domain provided, using example.com", fg='yellow'))
+            click.echo(click.style("✗ No domain provided, cannot run DNS subdomain scan", fg='red'))
+            click.pause()
+            return None
     
     # Special handling for MSF login modules - prompt for credentials
     if tool_name == 'msf_auxiliary' and args:
