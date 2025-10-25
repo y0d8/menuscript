@@ -2064,12 +2064,12 @@ def view_services_by_host(engagement_id: int):
         
         console = Console(width=table_width)
         from rich import box
-        table = Table(show_header=True, header_style="bold", box=box.SIMPLE, padding=(0, 1))
+        table = Table(show_header=True, header_style="bold", box=box.ROUNDED, padding=(0, 1))
         
-        table.add_column("#", width=6, no_wrap=True)
-        table.add_column("Host IP", width=20, no_wrap=True)
-        table.add_column("Hostname", width=40)
-        table.add_column("Services", width=10, justify="right", no_wrap=True)
+        table.add_column("#", width=8, no_wrap=True)
+        table.add_column("Host IP", width=22, no_wrap=True)
+        table.add_column("Hostname", width=45, overflow="ellipsis")
+        table.add_column("Services", width=12, justify="right", no_wrap=True)
 
         for idx, item in enumerate(hosts_with_services, 1):
             host = item['host']
@@ -2516,24 +2516,34 @@ def _delete_service(engagement_id: int, hm: 'HostManager'):
 def view_host_services(host: dict, hm: HostManager):
     """Display services for a specific host."""
     import re
+    from rich.console import Console
+    from rich.table import Table
 
     services = hm.get_host_services(host['id'])
+    console = Console()
 
     click.clear()
-    click.echo("\n" + "=" * 70)
-    click.echo(f"SERVICES - {host.get('ip_address', 'N/A')}")
-    if host.get('hostname'):
-        click.echo(f"Hostname: {host['hostname']}")
-    click.echo("=" * 70 + "\n")
+    
+    # Create header
+    host_ip = host.get('ip_address', 'N/A')
+    hostname = host.get('hostname', '')
+    
+    title = f"SERVICES - {host_ip}"
+    if hostname:
+        title += f" ({hostname})"
+    
+    # Create table
+    table = Table(title=title, show_header=True, header_style="bold cyan", border_style="cyan", width=100)
+    table.add_column("Port", style="yellow", width=8)
+    table.add_column("Protocol", style="blue", width=10)
+    table.add_column("Service", style="green", width=15)
+    table.add_column("Version", style="white", width=60)
 
     if not services:
-        click.echo("No services found.")
+        click.echo("\nNo services found.\n")
     else:
-        click.echo(f"{'Port':<7} {'Protocol':<10} {'Service':<15} {'Version'}")
-        click.echo("-" * 70)
-
         for svc in services:
-            port = svc.get('port', '?')
+            port = str(svc.get('port', '?'))
             protocol = svc.get('protocol', 'tcp')
             service = (svc.get('service_name') or 'unknown')[:15]
 
@@ -2546,12 +2556,13 @@ def view_host_services(host: dict, hm: HostManager):
             else:
                 version = '-'
 
-            click.echo(f"{port:<7} {protocol:<10} {service:<15} {version}")
+            table.add_row(port, protocol, service, version)
 
-        click.echo(f"\nTotal: {len(services)} service(s)")
+        console.print("\n")
+        console.print(table)
+        click.echo(f"\n  Total: {len(services)} service(s)\n")
 
-    click.echo()
-    click.pause("Press any key to continue...")
+    click.pause("  Press any key to continue...")
 
 
 def view_findings(engagement_id: int):
