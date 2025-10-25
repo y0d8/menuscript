@@ -110,6 +110,14 @@ def parse_nmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Di
                         'protocol': svc.get('protocol', 'tcp')
                     }
                     
+                    # Also check database for stored version if not in parsed data
+                    if not service_info['version']:
+                        services = hm.get_host_services(host_id)
+                        for stored_svc in services:
+                            if stored_svc['port'] == svc.get('port'):
+                                service_info['version'] = stored_svc.get('service_version', '')
+                                break
+                    
                     # Check for CVEs
                     cve_findings = cve_matcher.parse_nmap_service(service_info)
                     for finding in cve_findings:
