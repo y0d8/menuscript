@@ -13,6 +13,7 @@ from menuscript.engine.background import list_jobs, get_job
 from menuscript.storage.engagements import EngagementManager
 from menuscript.storage.hosts import HostManager
 from menuscript.storage.findings import FindingsManager
+from menuscript.storage.credentials import CredentialsManager
 
 
 def clear_screen():
@@ -334,12 +335,14 @@ def render_recent_findings(engagement_id: int, width: int):
 
 def render_identified_users(engagement_id: int, width: int):
     """Render identified users and credentials from all scans."""
+    cm = CredentialsManager()
     fm = FindingsManager()
+    
+    # Get actual credentials from CredentialsManager
+    credentials = cm.list_credentials(engagement_id)
     findings = fm.list_findings(engagement_id)
 
     # Filter to credential/authentication related findings
-    # Include: valid credentials, user enumeration, account discoveries
-    # Use more specific patterns to avoid false positives like "user agent"
     credential_keywords = ['credential', 'password', 'login', 'ssh_login', 'rdp_login', 'smb_login']
     user_enum_keywords = ['username', 'user enumeration', 'account found', 'valid user']
 
@@ -359,20 +362,53 @@ def render_identified_users(engagement_id: int, width: int):
         if any(keyword in text for keyword in credential_keywords + user_enum_keywords):
             user_findings.append(f)
 
-    recent_users = sorted(user_findings, key=lambda x: x.get('id', 0), reverse=True)[:5]
-
     lines = []
     lines.append("")
     lines.append(click.style("🔐 CREDENTIALS & AUTHENTICATION", bold=True, fg='red'))
     lines.append("─" * width)
 
-    if not recent_users:
-        lines.append("No credentials or authentication findings yet")
-    else:
-        for finding in recent_users:
+    # Show actual credentials first
+    if credentials:
+        lines.append(click.style(f"  Discovered Credentials: {len(credentials)}", bold=True, fg='cyan'))
+        
+        # Group by host for cleaner display
+        creds_by_host = {}
+        for cred in credentials:
+            host_ip = cred.get('ip_address', 'N/A')
+            if host_ip not in creds_by_host:
+                creds_by_host[host_ip] = []
+            creds_by_host[host_ip].append(cred)
+        
+        # Show up to 5 hosts with credentials
+        for idx, (host_ip, host_creds) in enumerate(list(creds_by_host.items())[:5]):
+            service = host_creds[0].get('service', 'unknown')
+            tool = host_creds[0].get('tool', 'unknown')
+            usernames = [c.get('username', '?') for c in host_creds[:3]]
+            
+            if len(host_creds) > 3:
+                display = f"{', '.join(usernames)}, +{len(host_creds)-3} more"
+            else:
+                display = ', '.join(usernames)
+            
+            status = host_creds[0].get('status', 'untested')
+            status_color = 'green' if status == 'valid' else 'white'
+            
+            cred_line = f"  {host_ip:<15} {service:<10} {tool:<12} [{len(host_creds)} users] {click.style(display, fg=status_color)}"
+            lines.append(cred_line)
+        
+        if len(creds_by_host) > 5:
+            lines.append(f"  ... and {len(creds_by_host) - 5} more hosts")
+    
+    # Show authentication-related findings
+    if user_findings:
+        recent_findings = sorted(user_findings, key=lambda x: x.get('id', 0), reverse=True)[:3]
+        if credentials:
+            lines.append("")
+            lines.append(click.style("  Related Findings:", bold=True, fg='cyan'))
+        
+        for finding in recent_findings:
             fid = finding.get('id', '?')
             title = finding.get('title', 'No title')
-            desc = finding.get('description', '')
             severity = finding.get('severity', 'info')
             tool = finding.get('tool', 'unknown')
             ip = finding.get('ip_address', 'N/A')
@@ -387,12 +423,12 @@ def render_identified_users(engagement_id: int, width: int):
             else:
                 sev_color = 'white'
 
-            # Don't truncate - show full title (dashboard has width for it)
-            display_title = title
-
-            # Show IP, tool, and title
+            display_title = title if len(title) <= 50 else title[:47] + "..."
             finding_line = f"  [{fid:>3}] {ip:<15} {tool:<12} {click.style(display_title, fg=sev_color)}"
             lines.append(finding_line)
+    
+    if not credentials and not user_findings:
+        lines.append("No credentials or authentication findings yet")
 
     return lines
 
