@@ -28,15 +28,15 @@ HELP = {
         "- Respect rate limits and API terms for the public sources you query.\n"
         "- Use findings from theHarvester to feed targeted scans (subdomain -> Nmap -> service checks) or social-engineering risk assessments.\n"
     ),
-    "usage": "menuscript jobs enqueue theharvester <domain> --args \"-b google\"",
+    "usage": "menuscript jobs enqueue theharvester <domain> --args \"-b bing\"",
     "examples": [
-        "menuscript jobs enqueue theharvester example.com --args \"-b google\"",
-        "menuscript jobs enqueue theharvester example.com --args \"-b all\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b bing\"",
         "menuscript jobs enqueue theharvester example.com --args \"-b certspotter,crtsh\"",
-        "menuscript jobs enqueue theharvester example.com --args \"-b linkedin -l 200\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b duckduckgo -l 200\"",
+        "menuscript jobs enqueue theharvester example.com --args \"-b hackertarget,virustotal\"",
     ],
     "flags": [
-        ["-b <source>", "Data source (google, bing, linkedin, certspotter, crtsh, dnsdumpster, etc.)"],
+        ["-b <source>", "Data source (bing, duckduckgo, yahoo, certspotter, crtsh, dnsdumpster, hackertarget, etc.)"],
         ["-l <limit>", "Limit results (default 500)"],
         ["-s <start>", "Start at result number X"],
         ["-f <file>", "Save results to HTML/XML file"],
@@ -44,13 +44,23 @@ HELP = {
     "preset_categories": {
         "active_sources": [
             {
-                "name": "Google Search",
-                "args": ["-b", "google", "-l", "500"],
-                "desc": "Search Google for emails/subdomains/hosts"
+                "name": "Bing Search",
+                "args": ["-b", "bing", "-l", "500"],
+                "desc": "Search Bing for emails/subdomains/hosts"
+            },
+            {
+                "name": "DuckDuckGo Search",
+                "args": ["-b", "duckduckgo", "-l", "500"],
+                "desc": "Search DuckDuckGo for emails/subdomains/hosts"
+            },
+            {
+                "name": "URLScan Search",
+                "args": ["-b", "urlscan", "-l", "500"],
+                "desc": "Search URLScan.io for URLs/subdomains/hosts"
             },
             {
                 "name": "Quick Search",
-                "args": ["-b", "google,bing", "-l", "100"],
+                "args": ["-b", "bing,yahoo", "-l", "100"],
                 "desc": "Quick search engine scan (100 results)"
             }
         ],
@@ -62,17 +72,19 @@ HELP = {
             },
             {
                 "name": "Comprehensive Passive",
-                "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,threatcrowd,virustotal"],
+                "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,virustotal"],
                 "desc": "All passive sources (no active queries)"
             }
         ]
     },
     "presets": [
         # Flattened list for backward compatibility
-        {"name": "Google Search", "args": ["-b", "google", "-l", "500"], "desc": "Search Google for emails/subdomains/hosts"},
-        {"name": "Quick Search", "args": ["-b", "google,bing", "-l", "100"], "desc": "Quick search engine scan (100 results)"},
+        {"name": "Bing Search", "args": ["-b", "bing", "-l", "500"], "desc": "Search Bing for emails/subdomains/hosts"},
+        {"name": "DuckDuckGo Search", "args": ["-b", "duckduckgo", "-l", "500"], "desc": "Search DuckDuckGo for emails/subdomains/hosts"},
+        {"name": "URLScan Search", "args": ["-b", "urlscan", "-l", "500"], "desc": "Search URLScan.io for URLs/subdomains/hosts"},
+        {"name": "Quick Search", "args": ["-b", "bing,yahoo", "-l", "100"], "desc": "Quick search engine scan (100 results)"},
         {"name": "Certificate Logs", "args": ["-b", "certspotter,crtsh"], "desc": "Certificate transparency logs (subdomains)"},
-        {"name": "Comprehensive Passive", "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,threatcrowd,virustotal"], "desc": "All passive sources (no active queries)"}
+        {"name": "Comprehensive Passive", "args": ["-b", "certspotter,crtsh,dnsdumpster,hackertarget,otx,virustotal"], "desc": "All passive sources (no active queries)"}
     ]
 }
 
