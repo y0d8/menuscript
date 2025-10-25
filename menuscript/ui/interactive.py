@@ -897,16 +897,15 @@ def view_jobs_menu():
             click.pause("Press any key to return to main menu...")
             return
 
-        # Display jobs table with proper formatting
-        console = Console()
-        table = Table(show_header=True, header_style="bold cyan", box=None, padding=(0, 2))
+        # Display jobs count
+        click.echo(f"  {click.style('Total Jobs:', bold=True)} {len(jobs)}")
+        click.echo()
         
-        table.add_column("ID", style="dim", width=6, justify="right")
-        table.add_column("Status", width=10)
-        table.add_column("Tool", width=14)
-        table.add_column("Target", width=40, no_wrap=False)
-        table.add_column("Label", width=20, no_wrap=False)
-        table.add_column("Created", width=19)
+        # Table header with borders
+        click.echo("  ┌──────┬──────────┬──────────────┬────────────────────────────────────────┬────────────────────┬──────────────────────┐")
+        header = f"  │  ID  │ Status   │ Tool         │ Target                                 │ Label              │ Created              │"
+        click.echo(click.style(header, bold=True))
+        click.echo("  ├──────┼──────────┼──────────────┼────────────────────────────────────────┼────────────────────┼──────────────────────┤")
 
         for job in jobs:
             jid = str(job.get('id', '?'))
@@ -914,33 +913,44 @@ def view_jobs_menu():
             tool = job.get('tool', 'unknown')
             target = job.get('target', '')
             label = job.get('label', '') or '-'
-            created = job.get('created_at', '')[:19]
+            created = job.get('created_at', '')[:19] if job.get('created_at') else '-'
 
             # Truncate target if too long
-            if len(target) > 40:
-                target = target[:37] + '...'
+            if len(target) > 38:
+                target = target[:35] + '...'
             
             # Truncate label if too long
-            if len(label) > 20:
-                label = label[:17] + '...'
+            if len(label) > 18:
+                label = label[:15] + '...'
+            
+            # Truncate tool if too long
+            if len(tool) > 12:
+                tool = tool[:12]
 
-            # Color code status
+            # Color code status with status marker
             if status == 'done':
-                status_display = f"[green]{status}[/green]"
+                status_marker = click.style('✓', fg='green')
+                status_display = f"{status_marker} {status:<7}"
             elif status == 'running':
-                status_display = f"[yellow]{status}[/yellow]"
+                status_marker = click.style('▶', fg='yellow')
+                status_display = f"{status_marker} {status:<7}"
             elif status in ('failed', 'error'):
-                status_display = f"[red]{status}[/red]"
+                status_marker = click.style('✗', fg='red')
+                status_display = f"{status_marker} {status:<7}"
             elif status == 'killed':
-                status_display = f"[magenta]{status}[/magenta]"
+                status_marker = click.style('●', fg='magenta')
+                status_display = f"{status_marker} {status:<7}"
             elif status == 'queued':
-                status_display = f"[cyan]{status}[/cyan]"
+                status_marker = click.style('◷', fg='cyan')
+                status_display = f"{status_marker} {status:<7}"
             else:
-                status_display = status
+                status_display = f"  {status:<7}"
 
-            table.add_row(jid, status_display, tool, target, label, created)
+            row = f"  │ {jid:>4} │ {status_display} │ {tool:<12} │ {target:<38} │ {label:<18} │ {created:<20} │"
+            click.echo(row)
 
-        console.print(table)
+        # Bottom border
+        click.echo("  └──────┴──────────┴──────────────┴────────────────────────────────────────┴────────────────────┴──────────────────────┘")
         click.echo()
         click.echo("Enter job ID to view details, or 0 to return")
 
