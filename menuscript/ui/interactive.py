@@ -3977,9 +3977,9 @@ def view_web_paths(engagement_id: int):
                         console.print(f"  [dim]... and {len(paths) - display_limit} more[/dim]")
 
         # Menu options
-        console.print("\n[bold cyan]─" * 70)
-        console.print("[bold]OPTIONS")
-        console.print("[bold cyan]─" * 70 + "\n")
+        click.echo("\n" + "─" * 70)
+        click.echo("OPTIONS")
+        click.echo("─" * 70 + "\n")
         click.echo("  [1] View All Results")
         click.echo("  [2] Filter by Host")
         click.echo("  [3] Clear Filter")
