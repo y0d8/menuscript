@@ -544,7 +544,7 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
                         lines.append(click.style(f"  • {findings_added} finding(s) added", fg='red', bold=True))
 
                 elif tool == 'gobuster':
-                    paths_found = result.get('paths_found', 0)
+                    paths_found = result.get('paths_found') or result.get('total_paths', 0)
                     lines.append(f"  • {paths_found} web path(s) discovered")
 
                 else:
