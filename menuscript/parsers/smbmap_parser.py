@@ -95,41 +95,59 @@ def parse_smbmap_output(output: str, target: str = "") -> Dict[str, Any]:
         # Parse share entries
         elif in_share_table and line and not line.startswith('*') and not line.startswith('Closed'):
             # Try to parse share line
-            # Format: sharename <tabs> permissions <tabs> comment
+            # Format: sharename <tabs/spaces> permissions <tabs/spaces> comment
             # tmp                                               	READ, WRITE	oh noes!
 
+            # Try tab split first
             parts = re.split(r'\t+', line)
-            if len(parts) >= 2:
+            if len(parts) >= 3:
+                # Tab-separated format
                 share_name = parts[0].strip()
-                permissions = parts[1].strip() if len(parts) > 1 else 'UNKNOWN'
+                permissions = parts[1].strip()
                 comment = parts[2].strip() if len(parts) > 2 else ''
-
-                # Skip empty lines or non-share lines
-                if not share_name or share_name in ['Disk', 'IPC', '', '*']:
+            elif len(parts) == 2:
+                # Only 2 parts (share + permissions, no comment)
+                share_name = parts[0].strip()
+                permissions = parts[1].strip()
+                comment = ''
+            else:
+                # No tabs - try space-based parsing
+                # Match pattern: SHARENAME (spaces) PERMISSIONS (spaces) COMMENT
+                # Need at least 2+ spaces to separate fields
+                match = re.match(r'^\s*(\S+)\s{2,}(READ, WRITE|NO ACCESS|READ|WRITE)(?:\s{2,}(.*))?$', line)
+                if match:
+                    share_name = match.group(1).strip()
+                    permissions = match.group(2).strip()
+                    comment = match.group(3).strip() if match.group(3) else ''
+                else:
                     continue
 
-                # Skip separator lines (----, ===, etc.)
-                if re.match(r'^[\-=]+$', share_name):
-                    continue
+            # Skip empty lines or non-share lines
+            if not share_name or share_name in ['Disk', 'IPC', '', '*']:
+                continue
 
-                # Determine share type (Disk vs IPC)
-                share_type = 'IPC' if share_name.endswith('$') and 'IPC' in comment else 'Disk'
+            # Skip separator lines (----, ===, etc.)
+            if re.match(r'^[\-=]+$', share_name):
+                continue
 
-                # Parse permissions
-                readable = 'READ' in permissions.upper()
-                writable = 'WRITE' in permissions.upper()
+            # Determine share type (Disk vs IPC)
+            share_type = 'IPC' if share_name.endswith('$') and 'IPC' in comment else 'Disk'
 
-                share_info = {
-                    'name': share_name,
-                    'type': share_type,
-                    'permissions': permissions,
-                    'comment': comment,
-                    'readable': readable,
-                    'writable': writable
-                }
+            # Parse permissions
+            readable = 'READ' in permissions.upper()
+            writable = 'WRITE' in permissions.upper()
 
-                result['shares'].append(share_info)
-                current_share = share_name
+            share_info = {
+                'name': share_name,
+                'type': share_type,
+                'permissions': permissions,
+                'comment': comment,
+                'readable': readable,
+                'writable': writable
+            }
+
+            result['shares'].append(share_info)
+            current_share = share_name
 
         # Parse file listings (if -R was used)
         # dr--r--r--                0 Sat May 16 14:06:55 2009	.

@@ -68,8 +68,32 @@ CREATE TABLE IF NOT EXISTS osint_data (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS smb_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    host_id INTEGER NOT NULL,
+    share_name TEXT NOT NULL,
+    share_type TEXT,
+    permissions TEXT,
+    comment TEXT,
+    readable INTEGER DEFAULT 0,
+    writable INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS smb_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    share_id INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    size INTEGER,
+    timestamp TEXT,
+    is_directory INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_hosts_engagement ON hosts(engagement_id);
 CREATE INDEX IF NOT EXISTS idx_hosts_ip ON hosts(ip_address);
 CREATE INDEX IF NOT EXISTS idx_services_host ON services(host_id);
 CREATE INDEX IF NOT EXISTS idx_findings_engagement ON findings(engagement_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
+CREATE INDEX IF NOT EXISTS idx_smb_shares_host ON smb_shares(host_id);
+CREATE INDEX IF NOT EXISTS idx_smb_files_share ON smb_files(share_id);

@@ -65,6 +65,8 @@ def handle_job_result(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return parse_msf_auxiliary_job(engagement_id, log_path, job)
     elif tool == 'sqlmap':
         return parse_sqlmap_job(engagement_id, log_path, job)
+    elif tool == 'smbmap':
+        return parse_smbmap_job(engagement_id, log_path, job)
 
     return None
 
@@ -665,6 +667,90 @@ def parse_msf_auxiliary_job(engagement_id: int, log_path: str, job: Dict[str, An
             'tool': 'msf_auxiliary',
             'host': target,
             'services_added': services_added,
+            'findings_added': findings_added
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def parse_smbmap_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse smbmap job results."""
+    try:
+        from menuscript.parsers.smbmap_parser import parse_smbmap_output, extract_findings
+        from menuscript.storage.smb_shares import SMBSharesManager
+        from menuscript.storage.findings import FindingsManager
+        from menuscript.storage.hosts import HostManager
+
+        # Read the log file
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            log_content = f.read()
+
+        # Parse smbmap output
+        target = job.get('target', '')
+        parsed = parse_smbmap_output(log_content, target)
+
+        # Get or create host from target
+        hm = HostManager()
+        host_id = None
+
+        if parsed['target']:
+            # Try to find existing host
+            import re
+            is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', parsed['target'])
+
+            if is_ip:
+                host = hm.get_host_by_ip(engagement_id, parsed['target'])
+                if host:
+                    host_id = host['id']
+                else:
+                    # Create host
+                    host_id = hm.add_or_update_host(engagement_id, {
+                        'ip': parsed['target'],
+                        'status': 'up'
+                    })
+
+        if not host_id:
+            return {'error': 'Could not determine target host'}
+
+        # Store SMB shares
+        smm = SMBSharesManager()
+        shares_added = 0
+        files_added = 0
+
+        for share in parsed['shares']:
+            share_id = smm.add_share(host_id, share)
+            shares_added += 1
+
+            # Add files if any
+            share_files = [f for f in parsed['files'] if f.get('share') == share['name']]
+            for file_data in share_files:
+                smm.add_file(share_id, file_data)
+                files_added += 1
+
+        # Extract and store findings
+        fm = FindingsManager()
+        findings_added = 0
+
+        findings = extract_findings(parsed)
+        for finding in findings:
+            fm.add_finding(
+                engagement_id=engagement_id,
+                host_id=host_id,
+                finding_type='smb_share',
+                severity=finding.get('severity'),
+                title=finding.get('title'),
+                description=finding.get('description'),
+                evidence=finding.get('evidence'),
+                tool='smbmap'
+            )
+            findings_added += 1
+
+        return {
+            'tool': 'smbmap',
+            'host': parsed['target'],
+            'status': parsed.get('status', 'Unknown'),
+            'shares_added': shares_added,
+            'files_added': files_added,
             'findings_added': findings_added
         }
     except Exception as e:

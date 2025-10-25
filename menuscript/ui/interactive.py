@@ -15,6 +15,7 @@ from menuscript.storage.hosts import HostManager
 from menuscript.storage.findings import FindingsManager
 from menuscript.storage.osint import OsintManager
 from menuscript.storage.web_paths import WebPathsManager
+from menuscript.storage.smb_shares import SMBSharesManager
 from menuscript.ui.terminal import setup_terminal
 
 
@@ -178,7 +179,12 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
     additional_option = idx
     click.echo(f"      " + click.style("[v]", bold=True) + " or " +
-               f"[{idx}]" + "  View Additional Data    - OSINT, Web Paths")
+               f"[{idx}]" + "  View Additional Data    - OSINT, Web Paths, SMB Shares")
+    idx += 1
+
+    msf_option = idx
+    click.echo(f"      " + click.style("[m]", bold=True) + " or " +
+               f"[{idx}]" + "  MSF Integration         - Generate exploits, get recommendations")
     idx += 1
 
     click.echo()
@@ -222,6 +228,8 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
             return {'action': 'manage_engagements'}
         elif choice_input == 'v':
             return {'action': 'view_additional_data'}
+        elif choice_input == 'm':
+            return {'action': 'manage_msf'}
         elif choice_input in ('q', '0', ''):
             return None
 
@@ -262,6 +270,9 @@ def show_main_menu() -> Optional[Dict[str, Any]]:
 
         if choice == additional_option:
             return {'action': 'view_additional_data'}
+
+        if choice == msf_option:
+            return {'action': 'manage_msf'}
 
         if 1 <= choice <= len(tool_list):
             action_type, tool_name = tool_list[choice - 1]
@@ -1402,6 +1413,7 @@ def view_additional_data_menu():
 
         click.echo("  1. OSINT Data       - View and manage OSINT reconnaissance data")
         click.echo("  2. Web Paths        - View and manage discovered web paths")
+        click.echo("  3. SMB Shares       - View and manage enumerated SMB shares")
         click.echo()
         click.echo("  0. Back to Main Menu")
         click.echo()
@@ -1415,6 +1427,8 @@ def view_additional_data_menu():
                 view_osint(engagement_id)
             elif choice == 2:
                 view_web_paths(engagement_id)
+            elif choice == 3:
+                view_smb_shares(engagement_id)
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
                 click.pause()
@@ -3918,9 +3932,9 @@ def view_web_paths(engagement_id: int):
 
     while True:
         click.clear()
-        console.print("\n[bold cyan]═" * 70)
+        console.print("\n[bold cyan]" + "═" * 70)
         console.print("[bold cyan]WEB PATHS & REDIRECTS")
-        console.print("[bold cyan]═" * 70 + "\n")
+        console.print("[bold cyan]" + "═" * 70 + "[/bold cyan]\n")
 
         # Show active filter
         if filter_host_id:
@@ -4205,6 +4219,391 @@ def _delete_web_path(engagement_id: int, wpm: 'WebPathsManager'):
         click.pause()
 
 
+def view_smb_shares(engagement_id: int):
+    """Display and manage SMB shares discovered via smbmap."""
+    from rich.console import Console
+    from rich.table import Table
+    from menuscript.storage.smb_shares import SMBSharesManager
+    
+    hm = HostManager()
+    smm = SMBSharesManager()
+    console = Console()
+
+    # Active filter
+    filter_host_id = None
+    show_files = False
+
+    while True:
+        click.clear()
+        console.print("\n[bold cyan]" + "═" * 70)
+        console.print("[bold cyan]SMB SHARES ENUMERATION")
+        console.print("[bold cyan]" + "═" * 70 + "[/bold cyan]\n")
+
+        # Show active filter
+        if filter_host_id:
+            filter_host = next((h for h in hm.list_hosts(engagement_id) if h['id'] == filter_host_id), None)
+            if filter_host:
+                console.print(f"[bold]Active Filter: Host {filter_host.get('ip_address')}[/bold]\n")
+
+        # Get shares
+        if filter_host_id:
+            all_shares = smm.list_shares(engagement_id, host_id=filter_host_id)
+        else:
+            all_shares = smm.list_shares(engagement_id)
+
+        if not all_shares:
+            console.print("[yellow]No SMB shares found.[/yellow]")
+            console.print("\n[dim]💡 Run smbmap scans to discover SMB shares:[/dim]")
+            console.print("[dim]   menuscript scan smbmap <target>[/dim]\n")
+        else:
+            # Get stats
+            stats = smm.get_stats(engagement_id)
+            console.print(f"[bold]Total Shares:[/bold] {stats['total_shares']} | ", end="")
+            console.print(f"[bold green]Readable:[/bold green] {stats['readable']} | ", end="")
+            console.print(f"[bold red]Writable:[/bold red] {stats['writable']} | ", end="")
+            console.print(f"[bold]Hosts:[/bold] {stats['hosts_with_smb']}\n")
+
+            # Separate by security level
+            writable_shares = [s for s in all_shares if s['writable']]
+            readable_shares = [s for s in all_shares if s['readable'] and not s['writable']]
+            no_access_shares = [s for s in all_shares if not s['readable'] and not s['writable']]
+
+            # Display writable shares first (highest priority)
+            if writable_shares:
+                console.print("[bold red]🚨 WRITABLE SHARES (HIGH RISK)[/bold red]\n")
+                
+                # Group by host
+                shares_by_host = {}
+                for share in writable_shares:
+                    host_ip = share.get('ip_address', 'Unknown')
+                    if host_ip not in shares_by_host:
+                        shares_by_host[host_ip] = []
+                    shares_by_host[host_ip].append(share)
+
+                for host_ip, shares in shares_by_host.items():
+                    console.print(f"[bold cyan]Host: {host_ip}[/bold cyan] ({len(shares)} writable share(s))")
+                    
+                    table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 1))
+                    table.add_column("ID", style="dim", width=6)
+                    table.add_column("Share Name", width=25)
+                    table.add_column("Type", width=10)
+                    table.add_column("Permissions", width=15)
+                    table.add_column("Comment", width=35)
+
+                    for share in shares:
+                        share_id = str(share.get('id', '?'))
+                        share_name = share.get('share_name', '')[:25]
+                        share_type = share.get('share_type', '')[:10]
+                        permissions = f"[red bold]{share.get('permissions', '')}[/red bold]"
+                        comment = share.get('comment', '')[:35]
+
+                        table.add_row(share_id, share_name, share_type, permissions, comment)
+
+                    console.print(table)
+                    console.print()
+
+            # Display readable shares
+            if readable_shares:
+                console.print("[bold yellow]📂 READABLE SHARES[/bold yellow]\n")
+                
+                # Group by host
+                shares_by_host = {}
+                for share in readable_shares:
+                    host_ip = share.get('ip_address', 'Unknown')
+                    if host_ip not in shares_by_host:
+                        shares_by_host[host_ip] = []
+                    shares_by_host[host_ip].append(share)
+
+                for host_ip, shares in shares_by_host.items():
+                    console.print(f"[bold cyan]Host: {host_ip}[/bold cyan] ({len(shares)} readable share(s))")
+                    
+                    table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 1))
+                    table.add_column("ID", style="dim", width=6)
+                    table.add_column("Share Name", width=25)
+                    table.add_column("Type", width=10)
+                    table.add_column("Permissions", width=15)
+                    table.add_column("Comment", width=35)
+
+                    for share in shares:
+                        share_id = str(share.get('id', '?'))
+                        share_name = share.get('share_name', '')[:25]
+                        share_type = share.get('share_type', '')[:10]
+                        permissions = f"[yellow]{share.get('permissions', '')}[/yellow]"
+                        comment = share.get('comment', '')[:35]
+
+                        table.add_row(share_id, share_name, share_type, permissions, comment)
+
+                    console.print(table)
+                    console.print()
+
+            # Display no-access shares (collapsed)
+            if no_access_shares:
+                console.print(f"[dim]🔒 NO ACCESS SHARES ({len(no_access_shares)})[/dim]")
+                console.print("[dim]   These shares were enumerated but are not accessible.[/dim]\n")
+
+        # Menu options
+        click.echo("\n" + "─" * 70)
+        click.echo("OPTIONS")
+        click.echo("─" * 70 + "\n")
+        click.echo("  [1] View Share Details (with files)")
+        click.echo("  [2] Filter by Host")
+        click.echo("  [3] Clear Filter")
+        click.echo("  [4] Show Statistics")
+        click.echo("  [5] Export Writable Shares to File")
+        click.echo("\n  [0] Back to Main Menu\n")
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+            
+            if choice == 0:
+                return
+            elif choice == 1:
+                if all_shares:
+                    _view_share_details(engagement_id, smm)
+                else:
+                    click.echo(click.style("\n✗ No shares to view!", fg='red'))
+                    click.pause()
+            elif choice == 2:
+                result = _filter_smb_by_host(engagement_id, hm)
+                if result:
+                    filter_host_id = result
+            elif choice == 3:
+                filter_host_id = None
+                click.echo(click.style("✓ Filter cleared", fg='green'))
+                click.pause()
+            elif choice == 4:
+                _show_smb_statistics(engagement_id, smm)
+            elif choice == 5:
+                _export_writable_shares(engagement_id, smm)
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _view_share_details(engagement_id: int, smm: SMBSharesManager):
+    """View detailed information about a specific share including files."""
+    from rich.console import Console
+    from rich.table import Table
+    
+    console = Console()
+    
+    try:
+        share_id = click.prompt("Enter Share ID to view details", type=int)
+        
+        # Get all shares to find this one
+        all_shares = smm.list_shares(engagement_id)
+        share = next((s for s in all_shares if s['id'] == share_id), None)
+        
+        if not share:
+            click.echo(click.style(f"\n✗ Share ID {share_id} not found!", fg='red'))
+            click.pause()
+            return
+        
+        click.clear()
+        console.print("\n[bold cyan]" + "═" * 70)
+        console.print(f"[bold cyan]SHARE DETAILS: {share['share_name']}")
+        console.print("[bold cyan]" + "═" * 70 + "[/bold cyan]\n")
+        
+        # Share info
+        console.print(f"[bold]Host:[/bold] {share['ip_address']}")
+        if share.get('hostname'):
+            console.print(f"[bold]Hostname:[/bold] {share['hostname']}")
+        console.print(f"[bold]Share Name:[/bold] {share['share_name']}")
+        console.print(f"[bold]Type:[/bold] {share['share_type']}")
+        
+        # Color-code permissions
+        if share['writable']:
+            perm_color = "red bold"
+        elif share['readable']:
+            perm_color = "yellow"
+        else:
+            perm_color = "dim"
+        console.print(f"[bold]Permissions:[/bold] [{perm_color}]{share['permissions']}[/{perm_color}]")
+        
+        if share['comment']:
+            console.print(f"[bold]Comment:[/bold] {share['comment']}")
+        console.print()
+        
+        # Get files
+        files = smm.get_share_files(share_id)
+        
+        if files:
+            console.print(f"[bold green]📁 ENUMERATED FILES ({len(files)})[/bold green]\n")
+            
+            # Separate directories and files
+            directories = [f for f in files if f['is_directory']]
+            regular_files = [f for f in files if not f['is_directory']]
+            
+            if directories:
+                console.print("[bold]Directories:[/bold]")
+                for d in directories[:10]:
+                    console.print(f"  📁 {d['path']}")
+                if len(directories) > 10:
+                    console.print(f"  [dim]... and {len(directories) - 10} more[/dim]")
+                console.print()
+            
+            if regular_files:
+                console.print("[bold]Files:[/bold]")
+                table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 1))
+                table.add_column("File Name", width=50)
+                table.add_column("Size", width=12, justify="right")
+                table.add_column("Modified", width=25)
+                
+                for f in regular_files[:20]:
+                    filename = f['path'][:50]
+                    size = f"{f['size']:,} bytes" if f['size'] else '-'
+                    timestamp = f['timestamp'][:25] if f['timestamp'] else '-'
+                    table.add_row(filename, size, timestamp)
+                
+                console.print(table)
+                if len(regular_files) > 20:
+                    console.print(f"  [dim]... and {len(regular_files) - 20} more files[/dim]")
+        else:
+            console.print("[yellow]No files enumerated for this share.[/yellow]")
+            console.print("[dim]💡 Use smbmap with -R flag to enumerate files.[/dim]")
+        
+        console.print()
+        click.pause()
+        
+    except (KeyboardInterrupt, click.Abort):
+        return
+
+
+def _filter_smb_by_host(engagement_id: int, hm: HostManager):
+    """Prompt for host filter for SMB shares."""
+    hosts = hm.list_hosts(engagement_id)
+
+    if not hosts:
+        click.echo(click.style("\n✗ No hosts found!", fg='red'))
+        click.pause()
+        return None
+
+    click.echo("\n" + "─" * 70)
+    click.echo("SELECT HOST TO FILTER")
+    click.echo("─" * 70 + "\n")
+
+    for idx, host in enumerate(hosts[:20], 1):
+        ip = host.get('ip_address', 'N/A')
+        hostname = host.get('hostname', '')
+        display = f"{ip} ({hostname})" if hostname else ip
+        click.echo(f"  [{idx}] {display}")
+
+    try:
+        choice = click.prompt("\nSelect host number", type=int)
+        if 1 <= choice <= len(hosts):
+            selected_host = hosts[choice - 1]
+            click.echo(click.style(f"\n✓ Filtering by: {selected_host.get('ip_address')}", fg='green'))
+            click.pause()
+            return selected_host['id']
+        else:
+            click.echo(click.style("\n✗ Invalid selection!", fg='red'))
+            click.pause()
+            return None
+    except (KeyboardInterrupt, click.Abort):
+        return None
+
+
+def _show_smb_statistics(engagement_id: int, smm: SMBSharesManager):
+    """Display SMB shares statistics."""
+    from rich.console import Console
+    from menuscript.storage.hosts import HostManager
+    
+    console = Console()
+    hm = HostManager()
+    
+    click.clear()
+    console.print("\n[bold cyan]" + "═" * 70)
+    console.print("[bold cyan]SMB ENUMERATION STATISTICS")
+    console.print("[bold cyan]" + "═" * 70 + "[/bold cyan]\n")
+    
+    stats = smm.get_stats(engagement_id)
+    
+    console.print(f"[bold]Total Shares Discovered:[/bold] {stats['total_shares']}")
+    console.print(f"[bold green]Readable Shares:[/bold green] {stats['readable']}")
+    console.print(f"[bold red]Writable Shares:[/bold red] {stats['writable']}")
+    console.print(f"[bold]Hosts with SMB:[/bold] {stats['hosts_with_smb']}")
+    console.print()
+    
+    # Show breakdown by host
+    all_shares = smm.list_shares(engagement_id)
+    shares_by_host = {}
+    for share in all_shares:
+        host_ip = share.get('ip_address', 'Unknown')
+        if host_ip not in shares_by_host:
+            shares_by_host[host_ip] = {'total': 0, 'readable': 0, 'writable': 0}
+        shares_by_host[host_ip]['total'] += 1
+        if share['readable']:
+            shares_by_host[host_ip]['readable'] += 1
+        if share['writable']:
+            shares_by_host[host_ip]['writable'] += 1
+    
+    console.print("[bold]Breakdown by Host:[/bold]")
+    for host_ip, counts in sorted(shares_by_host.items()):
+        writable_str = f"[red]{counts['writable']} writable[/red]" if counts['writable'] > 0 else "0 writable"
+        console.print(f"  {host_ip}: {counts['total']} total, {counts['readable']} readable, {writable_str}")
+    
+    console.print()
+    click.pause()
+
+
+def _export_writable_shares(engagement_id: int, smm: SMBSharesManager):
+    """Export writable shares to a file."""
+    import time
+    from menuscript.storage.engagements import EngagementManager
+    
+    writable_shares = smm.get_writable_shares(engagement_id)
+    
+    if not writable_shares:
+        click.echo(click.style("\n✗ No writable shares found!", fg='yellow'))
+        click.pause()
+        return
+    
+    em = EngagementManager()
+    engagement = em.get_by_id(engagement_id)
+    engagement_name = engagement['name'] if engagement else 'unknown'
+    
+    filename = f"writable_shares_{engagement_name}_{int(time.time())}.txt"
+    filepath = os.path.join(os.getcwd(), filename)
+    
+    try:
+        with open(filepath, 'w') as f:
+            f.write(f"# Writable SMB Shares - Engagement: {engagement_name}\n")
+            f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"# Total: {len(writable_shares)} writable share(s)\n\n")
+            
+            # Group by host
+            shares_by_host = {}
+            for share in writable_shares:
+                host_ip = share.get('ip_address', 'Unknown')
+                if host_ip not in shares_by_host:
+                    shares_by_host[host_ip] = []
+                shares_by_host[host_ip].append(share)
+            
+            for host_ip, shares in sorted(shares_by_host.items()):
+                f.write(f"\n## Host: {host_ip}\n")
+                for share in shares:
+                    f.write(f"  Share: {share['share_name']}\n")
+                    f.write(f"  Permissions: {share['permissions']}\n")
+                    if share['comment']:
+                        f.write(f"  Comment: {share['comment']}\n")
+                    f.write(f"  UNC Path: \\\\{host_ip}\\{share['share_name']}\n")
+                    f.write("\n")
+        
+        click.echo()
+        click.echo(click.style(f"✓ Exported {len(writable_shares)} writable share(s) to:", fg='green'))
+        click.echo(f"  {filepath}")
+        click.echo()
+        click.pause()
+        
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f"✗ Error exporting: {e}", fg='red'))
+        click.pause()
+
+
 def test_credentials_menu():
     """Interactive credential testing menu."""
     from menuscript.core.credential_tester import CredentialTester
@@ -4383,6 +4782,438 @@ def _import_msf_data():
             import traceback
             traceback.print_exc()
         click.pause("\nPress any key to continue...")
+
+
+def manage_msf_integration():
+    """MSF integration menu - generate resource scripts and get module recommendations."""
+    from menuscript.core.msf_integration import MSFResourceGenerator, MSFModuleSelector, MSFConsoleManager
+    from menuscript.storage.smb_shares import SMBSharesManager
+    from menuscript.storage.credentials import CredentialsManager
+    from menuscript.storage.findings import FindingsManager
+    
+    em = EngagementManager()
+    current_ws = em.get_current()
+
+    if not current_ws:
+        click.echo(click.style("No engagement selected!", fg='red'))
+        click.pause()
+        return
+
+    engagement_id = current_ws['id']
+    
+    # Initialize managers
+    msf_gen = MSFResourceGenerator()
+    msf_selector = MSFModuleSelector()
+    msf_console = MSFConsoleManager()
+    
+    while True:
+        click.clear()
+        click.echo("\n" + "=" * 70)
+        click.echo("METASPLOIT FRAMEWORK INTEGRATION")
+        click.echo("=" * 70 + "\n")
+        
+        # Show MSF availability
+        if msf_console.is_available():
+            click.echo(click.style("  ✓ msfconsole detected", fg='green'))
+        else:
+            click.echo(click.style("  ✗ msfconsole not found", fg='yellow'))
+        
+        click.echo()
+        click.echo(click.style("  RESOURCE SCRIPT GENERATION", bold=True, fg='cyan'))
+        click.echo("  1. Generate PsExec Script (Writable SMB Shares)")
+        click.echo("  2. Generate SSH Brute Force Script")
+        click.echo("  3. Generate Credential Spray Script")
+        click.echo("  4. Generate Exploit Script (From Findings)")
+        click.echo()
+        click.echo(click.style("  MODULE RECOMMENDATIONS", bold=True, fg='cyan'))
+        click.echo("  5. Get Modules for Service")
+        click.echo("  6. Find Exploits for Vulnerability")
+        click.echo()
+        click.echo(click.style("  LAUNCH", bold=True, fg='cyan'))
+        click.echo("  7. Launch MSF with Resource Script")
+        click.echo("  8. Interactive MSF Console (Embedded)")
+        click.echo()
+        click.echo("  0. Back to Main Menu")
+        click.echo()
+
+        try:
+            choice = click.prompt("Select option", type=int, default=0)
+
+            if choice == 0:
+                return
+            
+            elif choice == 1:
+                # Generate PsExec script for writable SMB shares
+                smm = SMBSharesManager()
+                cm = CredentialsManager()
+                
+                writable = smm.get_writable_shares(engagement_id)
+                creds = cm.list_credentials(engagement_id)
+                valid_creds = [c for c in creds if c.get('status') == 'valid']
+                
+                if not writable:
+                    click.echo(click.style("\n✗ No writable SMB shares found!", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                script = msf_gen.generate_smb_psexec_script(writable, valid_creds)
+                filename = f"psexec_writable_shares_{engagement_id}.rc"
+                filepath = msf_gen.save_script(script, filename)
+                
+                click.echo(click.style(f"\n✓ Generated PsExec script:", fg='green'))
+                click.echo(f"  {filepath}")
+                click.echo(f"\n  Targets: {len(writable)} writable share(s)")
+                if valid_creds:
+                    click.echo(f"  Credentials: {len(valid_creds)} valid credential(s)")
+                else:
+                    click.echo(click.style("  ⚠ No credentials - you'll need to set them manually", fg='yellow'))
+                click.echo(f"\n  Launch: msfconsole -r {filepath}")
+                click.pause()
+            
+            elif choice == 2:
+                # Generate SSH brute force script
+                hm = HostManager()
+                all_services = []
+                
+                for host in hm.list_hosts(engagement_id):
+                    services = hm.get_host_services(host['id'])
+                    all_services.extend([{**s, 'ip_address': host['ip_address']} for s in services])
+                
+                ssh_services = [s for s in all_services if s.get('service_name', '').lower() == 'ssh']
+                
+                if not ssh_services:
+                    click.echo(click.style("\n✗ No SSH services found!", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                ssh_hosts = [{'ip_address': s['ip_address'], 'port': s['port']} for s in ssh_services]
+                script = msf_gen.generate_ssh_bruteforce_script(ssh_hosts)
+                filename = f"ssh_bruteforce_{engagement_id}.rc"
+                filepath = msf_gen.save_script(script, filename)
+                
+                click.echo(click.style(f"\n✓ Generated SSH brute force script:", fg='green'))
+                click.echo(f"  {filepath}")
+                click.echo(f"\n  Targets: {len(ssh_hosts)} SSH service(s)")
+                click.echo(f"  Launch: msfconsole -r {filepath}")
+                click.pause()
+            
+            elif choice == 3:
+                # Generate credential spray script
+                hm = HostManager()
+                cm = CredentialsManager()
+                
+                all_services = []
+                for host in hm.list_hosts(engagement_id):
+                    services = hm.get_host_services(host['id'])
+                    all_services.extend([{**s, 'ip_address': host['ip_address']} for s in services])
+                
+                creds = cm.list_credentials(engagement_id)
+                
+                if not creds:
+                    click.echo(click.style("\n✗ No credentials found!", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                script = msf_gen.generate_credential_spray_script(creds, all_services)
+                filename = f"credential_spray_{engagement_id}.rc"
+                filepath = msf_gen.save_script(script, filename)
+                
+                click.echo(click.style(f"\n✓ Generated credential spray script:", fg='green'))
+                click.echo(f"  {filepath}")
+                click.echo(f"\n  Credentials: {len(creds)} to test")
+                click.echo(f"  Services: {len(all_services)} target(s)")
+                click.echo(f"  Launch: msfconsole -r {filepath}")
+                click.pause()
+            
+            elif choice == 4:
+                # Generate exploit script from findings
+                fm = FindingsManager()
+                findings = fm.list_findings(engagement_id)
+                
+                # Filter to exploitable findings
+                exploitable = [f for f in findings if f.get('severity') in ['critical', 'high']]
+                
+                if not exploitable:
+                    click.echo(click.style("\n✗ No high/critical findings to exploit!", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                script = msf_gen.generate_exploit_script(exploitable)
+                filename = f"auto_exploit_{engagement_id}.rc"
+                filepath = msf_gen.save_script(script, filename)
+                
+                click.echo(click.style(f"\n✓ Generated exploit script:", fg='green'))
+                click.echo(f"  {filepath}")
+                click.echo(f"\n  Vulnerabilities: {len(exploitable)}")
+                click.echo(click.style("  ⚠ Review script before running!", fg='yellow', bold=True))
+                click.echo(f"  Launch: msfconsole -r {filepath}")
+                click.pause()
+            
+            elif choice == 5:
+                # Get module recommendations for a service
+                service = click.prompt("\nEnter service name (ssh, smb, http, rdp)", type=str)
+                
+                click.echo("\nRisk levels to include:")
+                click.echo("  [1] Safe only")
+                click.echo("  [2] Safe + Noisy")
+                click.echo("  [3] All (including exploits)")
+                risk_choice = click.prompt("Select", type=int, default=2)
+                
+                if risk_choice == 1:
+                    risk_levels = ['safe']
+                elif risk_choice == 2:
+                    risk_levels = ['safe', 'noisy']
+                else:
+                    risk_levels = ['safe', 'noisy', 'moderate', 'dangerous']
+                
+                recommendations = msf_selector.get_recommendations(service, include_risk=risk_levels)
+                
+                if not recommendations:
+                    click.echo(click.style(f"\n✗ No recommendations for '{service}'", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                click.echo(click.style(f"\n📋 Recommendations for {service.upper()}:", bold=True, fg='cyan'))
+                click.echo("=" * 70)
+                
+                for i, module in enumerate(recommendations, 1):
+                    risk_color = {
+                        'safe': 'green',
+                        'noisy': 'yellow',
+                        'moderate': 'yellow',
+                        'dangerous': 'red'
+                    }.get(module['risk'], 'white')
+                    
+                    click.echo(f"\n{i}. {module['name']}")
+                    click.echo(f"   Path: {module['path']}")
+                    click.echo(f"   Type: {module['category']}")
+                    click.echo(f"   Risk: " + click.style(module['risk'].upper(), fg=risk_color))
+                    click.echo(f"   Desc: {module['description']}")
+                
+                click.echo()
+                click.pause()
+            
+            elif choice == 6:
+                # Find exploits for vulnerability
+                fm = FindingsManager()
+                findings = fm.list_findings(engagement_id)
+                
+                click.echo("\n" + "=" * 70)
+                click.echo("SELECT VULNERABILITY")
+                click.echo("=" * 70 + "\n")
+                
+                for i, finding in enumerate(findings[:20], 1):
+                    severity_color = {
+                        'critical': 'red',
+                        'high': 'red',
+                        'medium': 'yellow',
+                        'low': 'blue'
+                    }.get(finding.get('severity'), 'white')
+                    
+                    click.echo(f"{i:2}. [{click.style(finding['severity'][:4].upper(), fg=severity_color)}] {finding['title'][:60]}")
+                
+                click.echo()
+                idx = click.prompt("Select finding number", type=int, default=0)
+                
+                if idx < 1 or idx > len(findings):
+                    continue
+                
+                selected = findings[idx - 1]
+                
+                # Try to find matching exploits
+                matches = msf_selector.match_vulnerability_to_exploit(
+                    selected.get('title', ''),
+                    selected.get('description', ''),
+                    []  # Could extract CVEs from description
+                )
+                
+                if not matches:
+                    click.echo(click.style("\n✗ No known exploits found for this vulnerability", fg='yellow'))
+                    click.pause()
+                    continue
+                
+                click.echo(click.style(f"\n🎯 Potential Exploits:", bold=True, fg='green'))
+                click.echo("=" * 70)
+                
+                for i, exploit in enumerate(matches, 1):
+                    click.echo(f"\n{i}. {exploit['name']}")
+                    click.echo(f"   Module: {exploit['path']}")
+                    click.echo(f"   Risk: " + click.style(exploit['risk'].upper(), fg='red'))
+                    click.echo(f"   Description: {exploit['description']}")
+                    if 'cve' in exploit:
+                        click.echo(f"   CVEs: {', '.join(exploit['cve'])}")
+                
+                click.echo()
+                click.pause()
+            
+            elif choice == 7:
+                # Launch MSF with resource script
+                if not msf_console.is_available():
+                    click.echo(click.style("\n✗ msfconsole not found!", fg='red'))
+                    click.pause()
+                    continue
+                
+                # List available resource scripts
+                import glob
+                scripts = glob.glob(os.path.join(msf_gen.output_dir, '*.rc'))
+                
+                if not scripts:
+                    click.echo(click.style("\n✗ No resource scripts found!", fg='yellow'))
+                    click.echo("Generate a script first (options 1-4)")
+                    click.pause()
+                    continue
+                
+                click.echo("\n" + "=" * 70)
+                click.echo("SELECT RESOURCE SCRIPT")
+                click.echo("=" * 70 + "\n")
+                
+                for i, script in enumerate(scripts, 1):
+                    click.echo(f"{i}. {os.path.basename(script)}")
+                
+                click.echo()
+                idx = click.prompt("Select script number", type=int, default=0)
+                
+                if idx < 1 or idx > len(scripts):
+                    continue
+                
+                selected_script = scripts[idx - 1]
+                
+                click.echo(click.style(f"\n🚀 Launching msfconsole with {os.path.basename(selected_script)}...", fg='green'))
+                click.echo()
+                click.pause("Press Enter to continue...")
+                
+                # Launch msfconsole (this will replace current process)
+                msf_console.launch_with_resource(selected_script, background=False)
+            
+            elif choice == 8:
+                # Interactive MSF Console
+                if not msf_console.is_available():
+                    click.echo(click.style("\n✗ msfconsole not found!", fg='red'))
+                    click.pause()
+                    continue
+                
+                _launch_interactive_msfconsole(engagement_id)
+            
+            else:
+                click.echo(click.style("Invalid selection!", fg='red'))
+                click.pause()
+
+        except (KeyboardInterrupt, click.Abort):
+            return
+
+
+def _launch_interactive_msfconsole(engagement_id: int):
+    """Launch an interactive msfconsole with engagement context pre-loaded."""
+    import tempfile
+    from menuscript.storage.hosts import HostManager
+    from menuscript.storage.credentials import CredentialsManager
+    
+    click.clear()
+    click.echo("\n" + "=" * 70)
+    click.echo("INTERACTIVE MSFCONSOLE")
+    click.echo("=" * 70 + "\n")
+    
+    click.echo(click.style("  🚀 Launching embedded msfconsole...", fg='cyan', bold=True))
+    click.echo()
+    click.echo("  💡 Features:")
+    click.echo("     • Your engagement data is pre-loaded")
+    click.echo("     • RHOSTS can be set from discovered hosts")
+    click.echo("     • Credentials available for attacks")
+    click.echo("     • Type 'exit' to return to menuscript")
+    click.echo()
+    click.echo(click.style("  ⚠️  Note: Launching with sudo for exploit capabilities", fg='yellow', bold=True))
+    click.echo("     (You may be prompted for your password)")
+    click.echo()
+    
+    # Gather engagement data
+    hm = HostManager()
+    cm = CredentialsManager()
+    
+    hosts = hm.list_hosts(engagement_id)
+    creds = cm.list_credentials(engagement_id)
+    
+    # Build RHOSTS list
+    host_ips = [h.get('ip_address') for h in hosts if h.get('status') == 'up']
+    rhosts_str = ' '.join(host_ips[:20])  # Limit to first 20
+    
+    # Show context
+    click.echo(click.style(f"  📊 Engagement Context:", bold=True))
+    click.echo(f"     • {len(hosts)} host(s) discovered")
+    click.echo(f"     • {len(creds)} credential(s) available")
+    
+    if host_ips:
+        click.echo(f"     • RHOSTS preset: {host_ips[0]}" + (f" +{len(host_ips)-1} more" if len(host_ips) > 1 else ""))
+    click.echo()
+    
+    # Create a resource script to pre-configure the session
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.rc', delete=False) as rc:
+        rc.write("# Menuscript Engagement Context\n")
+        rc.write(f"# Auto-generated for engagement {engagement_id}\n\n")
+        
+        # Set workspace
+        rc.write(f"# workspace -a menuscript_{engagement_id}\n")
+        rc.write(f"# workspace menuscript_{engagement_id}\n\n")
+        
+        # Pre-set RHOSTS if we have hosts
+        if rhosts_str:
+            rc.write(f"# Discovered hosts (set with: setg RHOSTS {rhosts_str})\n")
+            rc.write(f"setg RHOSTS {rhosts_str}\n\n")
+        
+        # Show credentials info
+        if creds:
+            rc.write("# Available credentials:\n")
+            for cred in creds[:5]:
+                username = cred.get('username', '')
+                password = cred.get('password', '')
+                service = cred.get('service', 'unknown')
+                if username and password:
+                    rc.write(f"#   {service}: {username}/{password}\n")
+            if len(creds) > 5:
+                rc.write(f"#   ... and {len(creds)-5} more\n")
+            rc.write("\n")
+        
+        # Welcome banner
+        rc.write('banner\n')
+        rc.write(f'echo ""\n')
+        rc.write(f'echo "═══════════════════════════════════════════════════════════════"\n')
+        rc.write(f'echo "  MENUSCRIPT → MSFCONSOLE INTEGRATION"\n')
+        rc.write(f'echo "═══════════════════════════════════════════════════════════════"\n')
+        rc.write(f'echo ""\n')
+        rc.write(f'echo "  Engagement: {engagement_id}"\n')
+        rc.write(f'echo "  Hosts: {len(hosts)} | Credentials: {len(creds)}"\n')
+        rc.write(f'echo ""\n')
+        if rhosts_str:
+            rc.write(f'echo "  💡 RHOSTS pre-set to discovered hosts"\n')
+            rc.write(f'echo "     (use: show options to see RHOSTS)"\n')
+        rc.write(f'echo ""\n')
+        rc.write(f'echo "  Quick Commands:"\n')
+        rc.write(f'echo "    • show rhosts               - View target list"\n')
+        rc.write(f'echo "    • use auxiliary/...         - Load a module"\n')
+        rc.write(f'echo "    • search <keyword>          - Find modules"\n')
+        rc.write(f'echo "    • exit                      - Return to menuscript"\n')
+        rc.write(f'echo ""\n')
+        rc.write(f'echo "═══════════════════════════════════════════════════════════════"\n')
+        rc.write(f'echo ""\n')
+        
+        rc_path = rc.name
+    
+    try:
+        click.pause("Press Enter to launch msfconsole...")
+        
+        # Launch msfconsole with our resource script
+        # Use sudo for privilege escalation (needed for exploits)
+        import subprocess
+        result = subprocess.run(['sudo', '/usr/bin/msfconsole', '-q', '-r', rc_path])
+        
+        click.echo()
+        click.echo(click.style("✓ Returned from msfconsole", fg='green'))
+        click.pause()
+        
+    finally:
+        # Clean up temp file
+        import os
+        if os.path.exists(rc_path):
+            os.unlink(rc_path)
 
 
 def manage_reports_menu():
@@ -4698,6 +5529,9 @@ def run_interactive_menu():
 
         elif action == 'view_additional_data':
             view_additional_data_menu()
+
+        elif action == 'manage_msf':
+            manage_msf_integration()
 
         elif action == 'launch_tool':
             tool_name = result.get('tool')
