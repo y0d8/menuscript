@@ -947,7 +947,7 @@ def view_jobs_menu():
                 status_marker = " "
                 status_text = f"{status:<7}"
 
-            row = f"  │ {jid:>4} │ {status_marker} {status_text} │ {tool:<12} │ {target:<38} │ {label:<18} │ {created:<20} │"
+            row = f"  │ {jid:>4} │ {status_marker} {status_text}│ {tool:<12} │ {target:<38} │ {label:<18} │ {created:<20} │"
             click.echo(row)
 
         # Bottom border
