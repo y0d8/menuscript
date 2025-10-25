@@ -2698,25 +2698,28 @@ def view_findings(engagement_id: int):
             click.echo()
 
             # Table header
-            click.echo("  ┌────────┬──────────────┬────────────────────────┬───────────────────┬─────────────────────────────────────────────────────┐")
-            header = f"  │ ID     │ Severity     │ Type                   │ Host              │ Title                                               │"
+            click.echo("  ┌────────┬──────────────┬────────────────────────┬──────────────┬───────────────────┬──────────────────────────────────────────┐")
+            header = f"  │ ID     │ Severity     │ Type                   │ Tool         │ Host              │ Title                                    │"
             click.echo(click.style(header, bold=True))
-            click.echo("  ├────────┼──────────────┼────────────────────────┼───────────────────┼─────────────────────────────────────────────────────┤")
+            click.echo("  ├────────┼──────────────┼────────────────────────┼──────────────┼───────────────────┼──────────────────────────────────────────┤")
 
             for finding in findings[:30]:  # Limit to 30
                 fid = finding.get('id', '?')
                 sev = finding.get('severity', 'info')
                 ftype = (finding.get('finding_type') or 'unknown')
+                tool = (finding.get('tool') or '-')
                 host = (finding.get('ip_address') or 'N/A')
                 title = (finding.get('title') or 'No title')
 
                 # Truncate long strings
                 if len(ftype) > 22:
                     ftype = ftype[:19] + '...'
+                if len(tool) > 12:
+                    tool = tool[:9] + '...'
                 if len(host) > 17:
                     host = host[:17]
-                if len(title) > 51:
-                    title = title[:48] + '...'
+                if len(title) > 40:
+                    title = title[:37] + '...'
 
                 # Color code severity
                 sev_color = {
@@ -2728,10 +2731,10 @@ def view_findings(engagement_id: int):
                 }.get(sev, 'white')
 
                 sev_display = click.style(f"{sev:<12}", fg=sev_color)
-                row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {host:<17} │ {title:<51} │"
+                row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {tool:<12} │ {host:<17} │ {title:<40} │"
                 click.echo(row)
 
-            click.echo("  └────────┴──────────────┴────────────────────────┴───────────────────┴─────────────────────────────────────────────────────┘")
+            click.echo("  └────────┴──────────────┴────────────────────────┴──────────────┴───────────────────┴──────────────────────────────────────────┘")
 
             if len(findings) > 30:
                 click.echo(f"\n  ... showing first 30 of {len(findings)} findings")
@@ -2894,25 +2897,28 @@ def _view_all_findings(findings: list):
     click.echo(f"Total findings: {len(findings)}\n")
     
     # Table header
-    click.echo("  ┌────────┬──────────────┬────────────────────────┬───────────────────┬─────────────────────────────────────────────────────┐")
-    header = f"  │ ID     │ Severity     │ Type                   │ Host              │ Title                                               │"
+    click.echo("  ┌────────┬──────────────┬────────────────────────┬──────────────┬───────────────────┬──────────────────────────────────────────┐")
+    header = f"  │ ID     │ Severity     │ Type                   │ Tool         │ Host              │ Title                                    │"
     click.echo(click.style(header, bold=True))
-    click.echo("  ├────────┼──────────────┼────────────────────────┼───────────────────┼─────────────────────────────────────────────────────┤")
+    click.echo("  ├────────┼──────────────┼────────────────────────┼──────────────┼───────────────────┼──────────────────────────────────────────┤")
     
     for finding in findings:
         fid = finding.get('id', '?')
         sev = finding.get('severity', 'info')
         ftype = (finding.get('finding_type') or 'unknown')
+        tool = (finding.get('tool') or '-')
         host = (finding.get('ip_address') or 'N/A')
         title = (finding.get('title') or 'No title')
         
         # Truncate long strings
         if len(ftype) > 22:
             ftype = ftype[:19] + '...'
+        if len(tool) > 12:
+            tool = tool[:9] + '...'
         if len(host) > 17:
             host = host[:17]
-        if len(title) > 51:
-            title = title[:48] + '...'
+        if len(title) > 40:
+            title = title[:37] + '...'
         
         # Color code severity
         sev_color = {
@@ -2924,10 +2930,10 @@ def _view_all_findings(findings: list):
         }.get(sev, 'white')
         
         sev_display = click.style(f"{sev:<12}", fg=sev_color)
-        row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {host:<17} │ {title:<51} │"
+        row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {tool:<12} │ {host:<17} │ {title:<40} │"
         click.echo(row)
     
-    click.echo("  └────────┴──────────────┴────────────────────────┴───────────────────┴─────────────────────────────────────────────────────┘")
+    click.echo("  └────────┴──────────────┴────────────────────────┴──────────────┴───────────────────┴──────────────────────────────────────────┘")
     
     click.pause("\n\nPress any key to continue...")
 

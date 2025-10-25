@@ -20,7 +20,7 @@ HELP = {
         "Play nice: authenticated scans that list or read files can be noisy and may trigger alerts. Always run with authorization. 🔒\n\n"
         "Quick tips:\n"
         "- Start with anonymous scans to find publicly accessible shares, then move to authenticated scans if you have credentials.\n"
-        "- Use the recursive flag (-R) carefully — it can generate lots of traffic and take time on large shares.\n"
+        "- Use the recursive flag (-r) carefully — it can generate lots of traffic and take time on large shares.\n"
         "- Writable shares are high-risk — flag them as Findings for remediation or exploitation (with permission).\n"
         "- Combine SMBMap output with enum4linux, smbclient, or Bloodhound for a complete SMB assessment.\n"
         "- Capture share names, permissions, and file listings to the job log for reporting and follow-up analysis.\n"
@@ -29,7 +29,7 @@ HELP = {
     "examples": [
         "menuscript jobs enqueue smbmap 10.0.0.82",
         "menuscript jobs enqueue smbmap 10.0.0.82 --args \"-u admin -p password\"",
-        "menuscript jobs enqueue smbmap 10.0.0.82 --args \"-u admin -p password -R\"",
+        "menuscript jobs enqueue smbmap 10.0.0.82 --args \"-u admin -p password -r\"",
         "menuscript jobs enqueue smbmap 10.0.0.82 --args \"--depth 3\"",
     ],
     "preset_categories": {
@@ -41,7 +41,7 @@ HELP = {
             },
             {
                 "name": "List Share Contents",
-                "args": ["-R"],
+                "args": ["-r"],
                 "desc": "Recursively list all accessible files"
             }
         ],
@@ -60,12 +60,12 @@ HELP = {
         "advanced": [
             {
                 "name": "Deep Recursive Scan",
-                "args": ["-R", "--depth", "5"],
+                "args": ["-r", "--depth", "5"],
                 "desc": "Recursively list files (5 levels deep)"
             },
             {
                 "name": "Download Interesting Files",
-                "args": ["-A", "password", "-R"],
+                "args": ["-A", "password", "-r"],
                 "desc": "Auto-download files matching pattern"
             },
             {
@@ -77,11 +77,11 @@ HELP = {
     },
     "presets": [
         {"name": "Anonymous Scan", "args": [], "desc": "Basic share enumeration (no credentials)"},
-        {"name": "List Share Contents", "args": ["-R"], "desc": "Recursively list all accessible files"},
+        {"name": "List Share Contents", "args": ["-r"], "desc": "Recursively list all accessible files"},
         {"name": "With Credentials", "args": ["-u", "<username>", "-p", "<password>"], "desc": "Authenticated scan (replace username/password)"},
         {"name": "Domain Credentials", "args": ["-u", "<username>", "-p", "<password>", "-d", "<domain>"], "desc": "Domain authentication"},
-        {"name": "Deep Recursive Scan", "args": ["-R", "--depth", "5"], "desc": "Recursively list files (5 levels deep)"},
-        {"name": "Download Interesting Files", "args": ["-A", "password", "-R"], "desc": "Auto-download files matching pattern"},
+        {"name": "Deep Recursive Scan", "args": ["-r", "--depth", "5"], "desc": "Recursively list files (5 levels deep)"},
+        {"name": "Download Interesting Files", "args": ["-A", "password", "-r"], "desc": "Auto-download files matching pattern"},
         {"name": "Execute Command", "args": ["-u", "<username>", "-p", "<password>", "-x", "whoami"], "desc": "Execute command on target (requires admin)"}
     ],
     "common_options": {
@@ -89,8 +89,8 @@ HELP = {
         "-u": "Username",
         "-p": "Password",
         "-d": "Domain",
-        "-R": "Recursively list files in shares",
-        "--depth": "Max recursion depth (default: 5)",
+        "-r": "Recursively list files in shares",
+        "--depth": "Max recursion depth (default: 1)",
         "-A": "Auto-download files matching pattern",
         "-x": "Execute command",
         "--download": "Download file path",
