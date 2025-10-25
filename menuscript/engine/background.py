@@ -273,7 +273,11 @@ def _try_run_plugin(tool: str, target: str, args: List[str], label: str, log_pat
         _append_worker_log(f"plugin loading error: {e}")
         return (False, 0)
 
-def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, jid: int = None, timeout: int = JOB_TIMEOUT_SECONDS) -> int:
+def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, jid: int = None, timeout: int = None) -> int:
+    # Use None as default and resolve at runtime to avoid Python's early binding issue
+    if timeout is None:
+        timeout = JOB_TIMEOUT_SECONDS
+    
     # Log the timeout being used for debugging
     _append_worker_log(f"_run_subprocess: timeout={timeout}s for job {jid}")
     
