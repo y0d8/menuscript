@@ -1314,9 +1314,13 @@ def view_hosts(engagement_id: int):
 
     while True:
         click.clear()
-        click.echo("\n" + "=" * 90)
-        click.echo("HOSTS MANAGEMENT")
-        click.echo("=" * 90 + "\n")
+        width = 100
+        
+        click.echo()
+        click.echo("  " + "═" * (width - 4))
+        click.echo(click.style("  HOST MANAGEMENT", bold=True))
+        click.echo("  " + "═" * (width - 4))
+        click.echo()
 
         # Show active filters
         active_filters = []
@@ -1330,7 +1334,7 @@ def view_hosts(engagement_id: int):
             active_filters.append(f"tag: {filters['tags']}")
 
         if active_filters:
-            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+            click.echo("  " + click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
             click.echo()
 
         # Get hosts with filters
@@ -1343,48 +1347,80 @@ def view_hosts(engagement_id: int):
         )
 
         if not hosts:
-            click.echo("No hosts found with current filters.")
+            click.echo("  " + click.style("No hosts found with current filters.", fg='yellow'))
         else:
-            # Table header
-            click.echo("  ┌" + "─" * 4 + "┬" + "─" * 6 + "┬" + "─" * 18 + "┬" + "─" * 25 + "┬" + "─" * 25 + "┬" + "─" * 18 + "┐")
-            header = f"  │ {'[ ]':<2} │ {'ID':<4} │ {'IP Address':<16} │ {'Hostname':<23} │ {'OS':<23} │ {'Tags':<16} │"
+            # Summary stats
+            total = len(hosts)
+            active = len([h for h in hosts if h.get('status') == 'up'])
+            click.echo(f"  {click.style('Total:', bold=True)} {total} hosts  |  {click.style('Active:', bold=True, fg='green')} {active}")
+            click.echo()
+            
+            # Table header with better spacing
+            click.echo("  ┌" + "─" * 3 + "┬" + "─" * 5 + "┬" + "─" * 17 + "┬" + "─" * 26 + "┬" + "─" * 28 + "┬" + "─" * 10 + "┐")
+            header = f"  │ {'[ ]'} │ {'ID':<3} │ {'IP Address':<15} │ {'Hostname':<24} │ {'Operating System':<26} │ {'Services':<8} │"
             click.echo(click.style(header, bold=True))
-            click.echo("  ├" + "─" * 4 + "┼" + "─" * 6 + "┼" + "─" * 18 + "┼" + "─" * 25 + "┼" + "─" * 25 + "┼" + "─" * 18 + "┤")
+            click.echo("  ├" + "─" * 3 + "┼" + "─" * 5 + "┼" + "─" * 17 + "┼" + "─" * 26 + "┼" + "─" * 28 + "┼" + "─" * 10 + "┤")
 
-            for host in hosts[:30]:  # Limit to 30
+            for host in hosts[:25]:  # Limit to 25 for better viewing
                 hid = host.get('id', '?')
                 selected = 'X' if hid in selected_hosts else ' '
-                ip = (host.get('ip_address', 'N/A') or 'N/A')[:16]
-                hostname = (host.get('hostname') or '-')[:23]
-                os_info = (host.get('os_name') or '-')[:23]
-                tags = (host.get('tags') or '')[:16]
+                ip = (host.get('ip_address', 'N/A') or 'N/A')[:15]
+                hostname = (host.get('hostname') or '-')[:24]
+                os_info = (host.get('os_name') or '-')[:26]
+                
+                # Get service count
+                services = hm.get_host_services(hid)
+                svc_count = f"{len(services)}" if services else "0"
+                
+                # Color code by status
+                status = host.get('status', 'unknown')
+                if status == 'up':
+                    status_marker = click.style('●', fg='green')
+                elif status == 'down':
+                    status_marker = click.style('●', fg='red')
+                else:
+                    status_marker = click.style('●', fg='yellow')
 
-                row = f"  │ {selected:^2} │ {hid:<4} │ {ip:<16} │ {hostname:<23} │ {os_info:<23} │ {tags:<16} │"
+                row = f"  │ {selected:^1} │ {hid:<3} │ {status_marker} {ip:<14} │ {hostname:<24} │ {os_info:<26} │ {svc_count:^8} │"
                 click.echo(row)
 
             # Bottom border
-            click.echo("  └" + "─" * 4 + "┴" + "─" * 6 + "┴" + "─" * 18 + "┴" + "─" * 25 + "┴" + "─" * 25 + "┴" + "─" * 18 + "┘")
+            click.echo("  └" + "─" * 3 + "┴" + "─" * 5 + "┴" + "─" * 17 + "┴" + "─" * 26 + "┴" + "─" * 28 + "┴" + "─" * 10 + "┘")
 
-            if len(hosts) > 30:
-                click.echo(f"\n  ... and {len(hosts) - 30} more (use filters to narrow results)")
+            if len(hosts) > 25:
+                click.echo(f"\n  ... and {len(hosts) - 25} more (use filters to narrow results)")
 
-            click.echo(f"\n  Total: {len(hosts)} host(s) | Selected: {len(selected_hosts)}")
+            if selected_hosts:
+                click.echo(f"\n  {click.style(f'Selected: {len(selected_hosts)} host(s)', fg='cyan', bold=True)}")
 
         # Menu options
-        click.echo("\n" + "-" * 90)
-        click.echo("Filters:")
-        click.echo("  [1] Search (IP/Hostname)  [2] Filter by OS  [3] Filter by Status  [4] Filter by Tag")
-        click.echo("\nSelection:")
-        click.echo("  [5] Select Host(s)  [6] Deselect All")
-        click.echo("\nActions:")
-        click.echo("  [7] Tag Selected Hosts  [8] Remove Tag from Selected  [9] View Host Details")
-        click.echo("\nManagement:")
-        click.echo("  [10] Add New Host  [11] Edit Host  [12] Delete Host(s)")
-        click.echo("\n  [0] Back to Main Menu")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo(click.style("  FILTERS & SEARCH", bold=True))
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      " + click.style("[1]", bold=True) + " Search by IP/Hostname")
+        click.echo("      " + click.style("[2]", bold=True) + " Filter by Operating System")
+        click.echo("      " + click.style("[3]", bold=True) + " Filter by Status (up/down)")
+        click.echo("      " + click.style("[4]", bold=True) + " Filter by Tag")
+        click.echo("      " + click.style("[5]", bold=True) + " Clear All Filters")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo(click.style("  ACTIONS", bold=True))
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      " + click.style("[6]", bold=True) + " View Host Details")
+        click.echo("      " + click.style("[7]", bold=True) + " Select/Deselect Hosts")
+        click.echo("      " + click.style("[8]", bold=True) + " Tag Selected Hosts")
+        click.echo("      " + click.style("[9]", bold=True) + " Delete Selected Hosts")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      " + click.style("[0]", bold=True) + " Back to Main Menu")
         click.echo()
 
         try:
-            choice = click.prompt("Select option", type=int, default=0)
+            choice = click.prompt("  Select option", type=int, default=0)
 
             if choice == 0:
                 return
@@ -1397,37 +1433,30 @@ def view_hosts(engagement_id: int):
             elif choice == 4:
                 filters['tags'] = _hosts_filter_by_tag(engagement_id, hm)
             elif choice == 5:
-                _hosts_select(hosts, selected_hosts)
-            elif choice == 6:
-                selected_hosts.clear()
-                click.echo(click.style("✓ All selections cleared", fg='green'))
+                # Clear all filters
+                filters = {k: None if k != 'status' else 'up' for k in filters}
+                click.echo(click.style("  ✓ All filters cleared", fg='green'))
                 click.pause()
+            elif choice == 6:
+                _view_host_details(engagement_id, hm)
             elif choice == 7:
-                if selected_hosts:
-                    _hosts_bulk_tag(selected_hosts, hm)
-                else:
-                    click.echo(click.style("No hosts selected", fg='yellow'))
-                    click.pause()
+                _hosts_select(hosts, selected_hosts)
             elif choice == 8:
                 if selected_hosts:
-                    _hosts_bulk_remove_tag(selected_hosts, hm, engagement_id)
+                    _hosts_tag_selected(engagement_id, hm, selected_hosts)
                 else:
-                    click.echo(click.style("No hosts selected", fg='yellow'))
+                    click.echo(click.style("  ✗ No hosts selected", fg='red'))
                     click.pause()
             elif choice == 9:
-                if hosts:
-                    _hosts_view_details(hosts, hm)
-            elif choice == 10:
-                _add_new_host(engagement_id, hm)
-            elif choice == 11:
-                _edit_host(engagement_id, hm)
-            elif choice == 12:
                 if selected_hosts:
-                    _delete_hosts(selected_hosts, hm)
+                    _hosts_delete_selected(engagement_id, hm, selected_hosts)
                     selected_hosts.clear()
                 else:
-                    click.echo(click.style("No hosts selected for deletion", fg='yellow'))
+                    click.echo(click.style("  ✗ No hosts selected", fg='red'))
                     click.pause()
+            else:
+                click.echo(click.style("  ✗ Invalid selection!", fg='red'))
+                click.pause()
 
         except (KeyboardInterrupt, click.Abort):
             return
@@ -1563,6 +1592,101 @@ def _hosts_bulk_remove_tag(selected_hosts: set, hm: 'HostManager', engagement_id
             click.pause()
     except (KeyboardInterrupt, click.Abort, ValueError):
         pass
+
+
+
+
+def _view_host_details(engagement_id: int, hm: 'HostManager'):
+    """View detailed information about a specific host by ID."""
+    try:
+        host_id = click.prompt("\n  Enter host ID to view details", type=int)
+        host = hm.get_host(host_id)
+        
+        if not host:
+            click.echo(click.style("  ✗ Host not found", fg='red'))
+            click.pause()
+            return
+
+        click.clear()
+        click.echo()
+        click.echo("  " + "═" * 76)
+        click.echo(click.style(f"  HOST DETAILS - {host.get('ip_address', 'N/A')}", bold=True))
+        click.echo("  " + "═" * 76)
+        click.echo()
+
+        click.echo(f"  {click.style('ID:', bold=True):<20} {host.get('id')}")
+        click.echo(f"  {click.style('IP Address:', bold=True):<20} {host.get('ip_address', 'N/A')}")
+        click.echo(f"  {click.style('Hostname:', bold=True):<20} {host.get('hostname') or 'N/A'}")
+        click.echo(f"  {click.style('Operating System:', bold=True):<20} {host.get('os_name') or 'N/A'}")
+        click.echo(f"  {click.style('MAC Address:', bold=True):<20} {host.get('mac_address') or 'N/A'}")
+        
+        status = host.get('status', 'unknown')
+        status_color = 'green' if status == 'up' else 'red' if status == 'down' else 'yellow'
+        click.echo(f"  {click.style('Status:', bold=True):<20} {click.style(status, fg=status_color)}")
+        click.echo(f"  {click.style('Tags:', bold=True):<20} {host.get('tags') or 'None'}")
+
+        # Show services
+        services = hm.get_host_services(host_id)
+        click.echo()
+        click.echo(f"  {click.style(f'Services: {len(services)}', bold=True)}")
+        
+        if services:
+            click.echo()
+            click.echo(f"  {'Port':<8} {'Protocol':<10} {'Service':<20} {'Version':<30}")
+            click.echo("  " + "─" * 76)
+            for svc in services[:15]:  # Show first 15
+                port = svc.get('port', '?')
+                protocol = svc.get('protocol', 'tcp')
+                service = (svc.get('service_name') or 'unknown')[:20]
+                version = (svc.get('version') or '')[:30]
+                click.echo(f"  {port:<8} {protocol:<10} {service:<20} {version:<30}")
+
+            if len(services) > 15:
+                click.echo(f"\n  ... and {len(services) - 15} more services")
+
+        click.echo()
+        click.pause("  Press any key to return...")
+    except (KeyboardInterrupt, click.Abort, ValueError):
+        pass
+
+
+def _hosts_tag_selected(engagement_id: int, hm: 'HostManager', selected_hosts: set):
+    """Add tags to selected hosts."""
+    try:
+        tag = click.prompt("\n  Enter tag to add", type=str).strip()
+        if not tag:
+            return
+        
+        for host_id in selected_hosts:
+            host = hm.get_host(host_id)
+            if host:
+                existing_tags = host.get('tags', '')
+                tags_list = [t.strip() for t in existing_tags.split(',') if t.strip()] if existing_tags else []
+                if tag not in tags_list:
+                    tags_list.append(tag)
+                    hm.update_host(host_id, {'tags': ','.join(tags_list)})
+        
+        click.echo(click.style(f"  ✓ Tagged {len(selected_hosts)} host(s) with '{tag}'", fg='green'))
+        click.pause()
+    except (KeyboardInterrupt, click.Abort):
+        pass
+
+
+def _hosts_delete_selected(engagement_id: int, hm: 'HostManager', selected_hosts: set):
+    """Delete selected hosts."""
+    if not click.confirm(f"\n  ⚠️  Delete {len(selected_hosts)} host(s)? This cannot be undone!", default=False):
+        return
+    
+    deleted = 0
+    for host_id in list(selected_hosts):
+        try:
+            hm.delete_host(host_id)
+            deleted += 1
+        except Exception as e:
+            click.echo(click.style(f"  ✗ Failed to delete host {host_id}: {e}", fg='red'))
+    
+    click.echo(click.style(f"  ✓ Deleted {deleted} host(s)", fg='green'))
+    click.pause()
 
 
 def _hosts_view_details(hosts: list, hm: 'HostManager'):
