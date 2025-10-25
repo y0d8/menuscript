@@ -930,23 +930,24 @@ def view_jobs_menu():
             # Color code status with status marker
             if status == 'done':
                 status_marker = click.style('✓', fg='green')
-                status_display = f"{status_marker} {status:<7}"
+                status_text = f"{status:<7}"
             elif status == 'running':
                 status_marker = click.style('▶', fg='yellow')
-                status_display = f"{status_marker} {status:<7}"
+                status_text = f"{status:<7}"
             elif status in ('failed', 'error'):
                 status_marker = click.style('✗', fg='red')
-                status_display = f"{status_marker} {status:<7}"
+                status_text = f"{status:<7}"
             elif status == 'killed':
                 status_marker = click.style('●', fg='magenta')
-                status_display = f"{status_marker} {status:<7}"
+                status_text = f"{status:<7}"
             elif status == 'queued':
                 status_marker = click.style('◷', fg='cyan')
-                status_display = f"{status_marker} {status:<7}"
+                status_text = f"{status:<7}"
             else:
-                status_display = f"  {status:<7}"
+                status_marker = " "
+                status_text = f"{status:<7}"
 
-            row = f"  │ {jid:>4} │ {status_display} │ {tool:<12} │ {target:<38} │ {label:<18} │ {created:<20} │"
+            row = f"  │ {jid:>4} │ {status_marker} {status_text} │ {tool:<12} │ {target:<38} │ {label:<18} │ {created:<20} │"
             click.echo(row)
 
         # Bottom border
