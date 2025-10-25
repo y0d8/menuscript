@@ -856,25 +856,65 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
 def launch_job(job_params: Dict[str, Any]) -> bool:
     """Launch a job with the given parameters."""
     try:
-        job_id = enqueue_job(
-            tool=job_params['tool'],
-            target=job_params['target'],
-            args=job_params.get('args', []),
-            label=job_params.get('label', '')
-        )
+        tool_name = job_params['tool']
+        target = job_params['target']
+        args = job_params.get('args', [])
+        label = job_params.get('label', '')
+        
+        # Check if this tool supports multiple targets
+        # Tools like nmap support space-separated hosts, but enum4linux doesn't
+        single_target_tools = ['enum4linux', 'smbmap', 'gobuster', 'nikto', 'sqlmap', 'theharvester']
+        
+        # Check if target contains multiple hosts (space-separated IPs)
+        if any(tool_name.lower().startswith(t) for t in single_target_tools) and ' ' in target:
+            # Split targets and create one job per host
+            targets = target.split()
+            click.echo()
+            click.echo(click.style(f"⚠ {tool_name} doesn't support multiple targets", fg='yellow'))
+            click.echo(click.style(f"Creating {len(targets)} separate jobs...", fg='cyan'))
+            click.echo()
+            
+            job_ids = []
+            for t in targets:
+                job_id = enqueue_job(
+                    tool=tool_name,
+                    target=t,
+                    args=args,
+                    label=label
+                )
+                job_ids.append(job_id)
+                click.echo(click.style(f"✓ Job #{job_id} enqueued for {t}", fg='green'))
+            
+            click.echo()
+            click.echo(click.style(f"✓ {len(job_ids)} jobs enqueued successfully!", fg='green', bold=True))
+            click.echo(f"Tool: {tool_name}")
+            if label:
+                click.echo(f"Label: {label}")
+            
+            click.echo("\nTip: Check job status with: menuscript jobs list")
+            
+            return True
+        else:
+            # Single target or tool that supports multiple targets
+            job_id = enqueue_job(
+                tool=tool_name,
+                target=target,
+                args=args,
+                label=label
+            )
 
-        click.echo()
-        click.echo(click.style("✓ Job enqueued successfully!", fg='green', bold=True))
-        click.echo(f"Job ID: {job_id}")
-        click.echo(f"Tool: {job_params['tool']}")
-        click.echo(f"Target: {job_params['target']}")
-        if job_params.get('args'):
-            click.echo(f"Args: {' '.join(job_params['args'])}")
+            click.echo()
+            click.echo(click.style("✓ Job enqueued successfully!", fg='green', bold=True))
+            click.echo(f"Job ID: {job_id}")
+            click.echo(f"Tool: {tool_name}")
+            click.echo(f"Target: {target}")
+            if args:
+                click.echo(f"Args: {' '.join(args)}")
 
-        click.echo("\nTip: Check job status with: menuscript jobs list")
-        click.echo("      View job output with: menuscript jobs show <id>")
+            click.echo("\nTip: Check job status with: menuscript jobs list")
+            click.echo("      View job output with: menuscript jobs show <id>")
 
-        return True
+            return True
 
     except Exception as e:
         click.echo(click.style(f"✗ Error enqueueing job: {e}", fg='red'))
