@@ -274,6 +274,9 @@ def _try_run_plugin(tool: str, target: str, args: List[str], label: str, log_pat
         return (False, 0)
 
 def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, jid: int = None, timeout: int = JOB_TIMEOUT_SECONDS) -> int:
+    # Log the timeout being used for debugging
+    _append_worker_log(f"_run_subprocess: timeout={timeout}s for job {jid}")
+    
     cmd = [tool] + (args or [])
     cmd = [c.replace("<target>", target) for c in cmd]
 
