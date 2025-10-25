@@ -1356,17 +1356,25 @@ def view_hosts(engagement_id: int):
             click.echo()
             
             # Table header with better spacing
-            click.echo("  ┌" + "─" * 3 + "┬" + "─" * 5 + "┬" + "─" * 17 + "┬" + "─" * 26 + "┬" + "─" * 28 + "┬" + "─" * 10 + "┐")
-            header = f"  │ {'[ ]'} │ {'ID':<3} │ {'IP Address':<15} │ {'Hostname':<24} │ {'Operating System':<26} │ {'Services':<8} │"
+            click.echo("  ┌───┬─────┬─────────────────┬──────────────────────────┬──────────────────────────────┬──────────┐")
+            header = f"  │[ ]│ ID  │ IP Address      │ Hostname                 │ Operating System             │ Services │"
             click.echo(click.style(header, bold=True))
-            click.echo("  ├" + "─" * 3 + "┼" + "─" * 5 + "┼" + "─" * 17 + "┼" + "─" * 26 + "┼" + "─" * 28 + "┼" + "─" * 10 + "┤")
+            click.echo("  ├───┼─────┼─────────────────┼──────────────────────────┼──────────────────────────────┼──────────┤")
 
             for host in hosts[:25]:  # Limit to 25 for better viewing
                 hid = host.get('id', '?')
                 selected = 'X' if hid in selected_hosts else ' '
-                ip = (host.get('ip_address', 'N/A') or 'N/A')[:15]
-                hostname = (host.get('hostname') or '-')[:24]
-                os_info = (host.get('os_name') or '-')[:26]
+                ip = (host.get('ip_address', 'N/A') or 'N/A')
+                hostname = (host.get('hostname') or '-')
+                os_info = (host.get('os_name') or '-')
+                
+                # Truncate long strings
+                if len(ip) > 15:
+                    ip = ip[:15]
+                if len(hostname) > 24:
+                    hostname = hostname[:21] + '...'
+                if len(os_info) > 28:
+                    os_info = os_info[:25] + '...'
                 
                 # Get service count
                 services = hm.get_host_services(hid)
@@ -1381,11 +1389,11 @@ def view_hosts(engagement_id: int):
                 else:
                     status_marker = click.style('●', fg='yellow')
 
-                row = f"  │ {selected:^1} │ {hid:<3} │ {status_marker} {ip:<14} │ {hostname:<24} │ {os_info:<26} │ {svc_count:^8} │"
+                row = f"  │ {selected:^1} │ {str(hid):<4}│ {status_marker} {ip:<14}│ {hostname:<24} │ {os_info:<28} │ {svc_count:^8} │"
                 click.echo(row)
 
             # Bottom border
-            click.echo("  └" + "─" * 3 + "┴" + "─" * 5 + "┴" + "─" * 17 + "┴" + "─" * 26 + "┴" + "─" * 28 + "┴" + "─" * 10 + "┘")
+            click.echo("  └───┴─────┴─────────────────┴──────────────────────────┴──────────────────────────────┴──────────┘")
 
             if len(hosts) > 25:
                 click.echo(f"\n  ... and {len(hosts) - 25} more (use filters to narrow results)")
