@@ -505,6 +505,21 @@ def show_tool_menu(tool_name: str) -> Optional[Dict[str, Any]]:
         if custom:
             args = custom.split()
 
+    # Special handling for gobuster DNS subdomain scans - prompt for domain
+    if tool_name == 'gobuster' and args and 'dns' in args and 'example.com' in args:
+        click.echo()
+        click.echo(click.style("📝 Domain Configuration", bold=True, fg='yellow'))
+        click.echo("The preset contains 'example.com' which needs to be replaced with your target domain.")
+        click.echo()
+        
+        domain = click.prompt("Enter target domain (e.g., company.com, example.org)", type=str)
+        if domain:
+            # Replace example.com with the actual domain
+            args = [domain if arg == 'example.com' else arg for arg in args]
+            click.echo(click.style(f"✓ Domain set to: {domain}", fg='green'))
+        else:
+            click.echo(click.style("✗ No domain provided, using example.com", fg='yellow'))
+    
     # Special handling for MSF login modules - prompt for credentials
     if tool_name == 'msf_auxiliary' and args:
         module_path = args[0] if args else ""
