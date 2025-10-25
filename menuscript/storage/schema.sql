@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS web_paths (
     url TEXT NOT NULL,
     status_code INTEGER,
     content_length INTEGER,
+    redirect TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

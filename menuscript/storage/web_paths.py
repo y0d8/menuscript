@@ -17,7 +17,8 @@ class WebPathsManager:
         host_id: int,
         url: str,
         status_code: int = None,
-        content_length: int = None
+        content_length: int = None,
+        redirect: str = None
     ) -> int:
         """
         Add a web path to the database.
@@ -27,6 +28,7 @@ class WebPathsManager:
             url: Full URL or path
             status_code: HTTP status code
             content_length: Response size in bytes
+            redirect: Redirect target URL (for 3xx responses)
 
         Returns:
             Web path ID
@@ -39,12 +41,14 @@ class WebPathsManager:
 
         if existing:
             # Update if status or length changed
-            if status_code is not None or content_length is not None:
+            if status_code is not None or content_length is not None or redirect is not None:
                 update_data = {}
                 if status_code is not None:
                     update_data['status_code'] = status_code
                 if content_length is not None:
                     update_data['content_length'] = content_length
+                if redirect is not None:
+                    update_data['redirect'] = redirect
 
                 if update_data:
                     set_clause = ', '.join([f"{k} = ?" for k in update_data.keys()])
@@ -65,6 +69,8 @@ class WebPathsManager:
             data['status_code'] = status_code
         if content_length is not None:
             data['content_length'] = content_length
+        if redirect is not None:
+            data['redirect'] = redirect
 
         return self.db.insert('web_paths', data)
 
@@ -95,7 +101,8 @@ class WebPathsManager:
                     host_id,
                     path.get('url'),
                     path.get('status_code'),
-                    path.get('size')  # gobuster uses 'size' field
+                    path.get('size'),  # gobuster uses 'size' field
+                    path.get('redirect')  # add redirect support
                 )
                 count += 1
         return count

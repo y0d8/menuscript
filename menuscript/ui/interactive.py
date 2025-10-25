@@ -3894,14 +3894,25 @@ def view_web_paths(engagement_id: int):
                 click.echo("-" * 80)
 
                 # Table header
-                click.echo(f"  {'ID':<6} {'Status':<8} {'URL':<50} {'Size':<10}")
-                click.echo("  " + "-" * 78)
+                click.echo(f"  {'ID':<6} {'Status':<8} {'URL':<45} {'Endpoint':<35}")
+                click.echo("  " + "-" * 98)
 
                 for path in paths[:20]:  # Limit per host
                     path_id = path.get('id', '?')
-                    path_url = path.get('url', '/')[:50]
+                    path_url = path.get('url', '/')[:45]
                     status = path.get('status_code', '?')
-                    size = path.get('content_length', '?')
+                    redirect = path.get('redirect', '')
+                    
+                    # Extract just the path from redirect if it's a full URL
+                    if redirect:
+                        from urllib.parse import urlparse
+                        parsed_redirect = urlparse(redirect)
+                        if parsed_redirect.path:
+                            redirect_display = parsed_redirect.path[:35]
+                        else:
+                            redirect_display = redirect[:35]
+                    else:
+                        redirect_display = ''
 
                     # Color code status
                     if str(status).startswith('2'):
@@ -3915,7 +3926,7 @@ def view_web_paths(engagement_id: int):
                     else:
                         status_colored = f"{status:<8}"
 
-                    click.echo(f"  {path_id:<6} {status_colored} {path_url:<50} {size:<10}")
+                    click.echo(f"  {path_id:<6} {status_colored} {path_url:<45} {redirect_display:<35}")
 
                 if len(paths) > 20:
                     click.echo(f"  ... and {len(paths) - 20} more")
