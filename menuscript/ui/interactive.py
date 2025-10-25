@@ -3146,9 +3146,12 @@ def view_credentials(engagement_id: int):
 
     while True:
         click.clear()
-        click.echo("\n┌" + "─" * 78 + "┐")
-        click.echo("│" + click.style(" CREDENTIALS ".center(78), bold=True, fg='green') + "│")
-        click.echo("└" + "─" * 78 + "┘")
+        width = 100
+        
+        click.echo()
+        click.echo("  " + "═" * (width - 4))
+        click.echo(click.style("  CREDENTIALS", bold=True))
+        click.echo("  " + "═" * (width - 4))
         click.echo()
 
         # Show active filters
@@ -3166,82 +3169,84 @@ def view_credentials(engagement_id: int):
         )
 
         if not credentials:
-            click.echo("  No credentials found with current filters.")
+            click.echo("  " + click.style("No credentials found with current filters.", fg='yellow'))
         else:
             # Show summary
             stats = cm.get_stats(engagement_id)
-            click.echo("  Summary:")
-            click.echo(f"    Total:         {stats['total']}")
-            click.echo(f"    Valid:         " + click.style(str(stats['valid']), fg='green'))
-            click.echo(f"    Username only: {stats['users_only']}")
-            click.echo(f"    Password only: {stats['passwords_only']}")
-            click.echo(f"    Full pairs:    {stats['pairs']}")
+            click.echo(f"  {click.style('Total:', bold=True)} {stats['total']}  |  " +
+                      f"{click.style('Valid:', bold=True, fg='green')} {stats['valid']}  |  " +
+                      f"{click.style('Pairs:', bold=True)} {stats['pairs']}")
             click.echo()
 
-            # Create Rich table
-            from rich.console import Console
-            from rich.table import Table
-            import shutil
-            
-            term_width = shutil.get_terminal_size().columns
-            table_width = min(term_width - 4, 120)
-            
-            console = Console(width=table_width)
-            table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-            
-            table.add_column("ID", width=6, no_wrap=True)
-            table.add_column("Host", width=17, no_wrap=True)
-            table.add_column("Service", width=12, no_wrap=True)
-            table.add_column("Username", width=22)
-            table.add_column("Password", width=22)
-            table.add_column("Status", width=10, no_wrap=True)
+            # Table with borders
+            click.echo("  ┌──────┬───────────────────┬──────────────┬────────────────────────┬────────────────────────┬────────────┐")
+            header = f"  │  ID  │ Host              │ Service      │ Username               │ Password               │ Status     │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├──────┼───────────────────┼──────────────┼────────────────────────┼────────────────────────┼────────────┤")
 
             for cred in credentials[:30]:  # Limit to 30
                 cid = cred.get('id', '?')
-                host = (cred.get('ip_address') or 'N/A')[:17]
-                service = (cred.get('service') or 'N/A')[:12]
-                username = (cred.get('username') or '-')[:22]
-                password = (cred.get('password') or '-')[:22]
+                host = (cred.get('ip_address') or 'N/A')
+                service = (cred.get('service') or 'N/A')
+                username = (cred.get('username') or '-')
+                password = (cred.get('password') or '-')
                 status = cred.get('status', 'unknown')
+                
+                # Truncate long strings
+                if len(host) > 17:
+                    host = host[:14] + '...'
+                if len(service) > 12:
+                    service = service[:9] + '...'
+                if len(username) > 22:
+                    username = username[:19] + '...'
+                if len(password) > 22:
+                    password = password[:19] + '...'
 
                 # Color code status
-                status_display = {
-                    'valid': f"[green]{status}[/green]",
-                    'invalid': f"[red]{status}[/red]",
-                    'untested': f"[yellow]{status}[/yellow]",
-                    'discovered': f"[cyan]{status}[/cyan]"
-                }.get(status, status)
+                if status == 'valid':
+                    status_display = click.style(status.ljust(10), fg='green')
+                elif status == 'invalid':
+                    status_display = click.style(status.ljust(10), fg='red')
+                elif status == 'untested':
+                    status_display = click.style(status.ljust(10), fg='yellow')
+                elif status == 'discovered':
+                    status_display = click.style(status.ljust(10), fg='cyan')
+                else:
+                    status_display = status.ljust(10)
 
-                table.add_row(
-                    str(cid),
-                    host,
-                    service,
-                    username,
-                    password,
-                    status_display
-                )
-            
-            console.print("  ", table)
+                row = f"  │ {str(cid):>4} │ {host:<17} │ {service:<12} │ {username:<22} │ {password:<22} │ {status_display} │"
+                click.echo(row)
+
+            # Bottom border
+            click.echo("  └──────┴───────────────────┴──────────────┴────────────────────────┴────────────────────────┴────────────┘")
 
             if len(credentials) > 30:
                 click.echo(f"\n  ... and {len(credentials) - 30} more (use filters to narrow results)")
 
         # Menu options
-        click.echo("\n" + "-" * 80)
-        click.echo("Filter Options:")
-        click.echo("  [1] Filter by Service")
-        click.echo("  [2] Filter by Status")
-        click.echo("  [3] Filter by Host")
-        click.echo("  [4] Clear All Filters")
         click.echo()
-        click.echo("Management Options:")
-        click.echo("  [5] View Credential Details")
-        click.echo("  [6] Add New Credential")
-        click.echo("  [7] Edit Credential")
-        click.echo("  [8] Delete Credential")
-        click.echo("  [9] Test Credentials")
+        click.echo("  " + "─" * (width - 4))
+        click.echo(click.style("  FILTER OPTIONS", bold=True))
+        click.echo("  " + "─" * (width - 4))
         click.echo()
-        click.echo("  [0] Back to Main Menu")
+        click.echo("      " + click.style("[1]", bold=True) + " Filter by Service")
+        click.echo("      " + click.style("[2]", bold=True) + " Filter by Status")
+        click.echo("      " + click.style("[3]", bold=True) + " Filter by Host")
+        click.echo("      " + click.style("[4]", bold=True) + " Clear All Filters")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo(click.style("  MANAGEMENT OPTIONS", bold=True))
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      " + click.style("[5]", bold=True) + " View Credential Details")
+        click.echo("      " + click.style("[6]", bold=True) + " Add New Credential")
+        click.echo("      " + click.style("[7]", bold=True) + " Edit Credential")
+        click.echo("      " + click.style("[8]", bold=True) + " Delete Credential")
+        click.echo("      " + click.style("[9]", bold=True) + " Test Credentials")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      " + click.style("[0]", bold=True) + " Back to Main Menu")
         click.echo()
 
         try:
