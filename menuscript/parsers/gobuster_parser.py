@@ -138,12 +138,17 @@ def get_paths_stats(parsed: Dict[str, Any]) -> Dict[str, int]:
     """
     stats = {
         'total': len(parsed.get('paths', [])),
+        'redirects': 0,
         'by_status': {}
     }
 
     for path in parsed.get('paths', []):
         status = str(path.get('status_code', 'unknown'))
         stats['by_status'][status] = stats['by_status'].get(status, 0) + 1
+        
+        # Count redirects (301, 302, 303, 307, 308)
+        if path.get('redirect'):
+            stats['redirects'] += 1
 
     return stats
 

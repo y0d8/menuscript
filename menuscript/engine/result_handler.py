@@ -385,6 +385,7 @@ def parse_gobuster_job(engagement_id: int, log_path: str, job: Dict[str, Any]) -
             'paths_added': paths_added,
             'total_paths': stats['total'],
             'paths_found': stats['total'],  # For dashboard display
+            'redirects_found': stats.get('redirects', 0),
             'by_status': stats['by_status'],
             'target_url': parsed.get('target_url')
         }

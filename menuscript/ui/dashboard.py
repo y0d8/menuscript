@@ -545,7 +545,10 @@ def render_live_log(job_id: Optional[int], width: int, height: int):
 
                 elif tool == 'gobuster':
                     paths_found = result.get('paths_found') or result.get('total_paths', 0)
+                    redirects_found = result.get('redirects_found', 0)
                     lines.append(f"  • {paths_found} web path(s) discovered")
+                    if redirects_found > 0:
+                        lines.append(f"  • {redirects_found} redirect(s) found")
 
                 else:
                     # Generic result display
