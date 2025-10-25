@@ -287,6 +287,7 @@ def _run_subprocess(tool: str, target: str, args: List[str], log_path: str, jid:
     with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
         fh.write(f"=== Subprocess Execution ===\n")
         fh.write(f"Command: {' '.join(cmd)}\n")
+        fh.write(f"Timeout: {timeout} seconds\n")
         fh.write(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n")
         fh.flush()
 

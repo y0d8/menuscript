@@ -139,7 +139,7 @@ class NmapPlugin(PluginBase):
                     cmd,
                     stdout=fh,
                     stderr=subprocess.STDOUT,
-                    timeout=300,
+                    timeout=3600,  # 1 hour timeout
                     check=False
                 )
                 
@@ -150,7 +150,7 @@ class NmapPlugin(PluginBase):
                 
         except subprocess.TimeoutExpired:
             with open(log_path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write("\nERROR: Nmap timed out after 300 seconds\n")
+                fh.write("\nERROR: Nmap timed out after 3600 seconds (1 hour)\n")
             return 124
             
         except FileNotFoundError:
@@ -174,7 +174,7 @@ class NmapPlugin(PluginBase):
             target_list = target.split()
             cmd = ["nmap"] + (args or []) + target_list
             try:
-                proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
+                proc = subprocess.run(cmd, capture_output=True, timeout=3600, check=False)
                 return proc.returncode
             except Exception:
                 return 1
