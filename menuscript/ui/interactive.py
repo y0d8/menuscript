@@ -883,9 +883,9 @@ def view_jobs_menu():
     """Show jobs list and allow viewing details."""
     while True:
         click.clear()
-        click.echo("\n" + "=" * 70)
+        click.echo("\n" + "=" * 110)
         click.echo("JOB QUEUE")
-        click.echo("=" * 70 + "\n")
+        click.echo("=" * 110 + "\n")
 
         jobs = list_jobs(limit=20)
 
@@ -895,31 +895,53 @@ def view_jobs_menu():
             click.pause("Press any key to return to main menu...")
             return
 
-        # Display jobs table
-        click.echo(f"{'ID':<5} {'Status':<10} {'Tool':<12} {'Target':<25} {'Created':<20}")
-        click.echo("-" * 70)
+        # Display jobs table with proper formatting
+        from rich.console import Console
+        from rich.table import Table
+        
+        console = Console()
+        table = Table(show_header=True, header_style="bold cyan", box=None, padding=(0, 2))
+        
+        table.add_column("ID", style="dim", width=6, justify="right")
+        table.add_column("Status", width=10)
+        table.add_column("Tool", width=14)
+        table.add_column("Target", width=40, no_wrap=False)
+        table.add_column("Label", width=20, no_wrap=False)
+        table.add_column("Created", width=19)
 
         for job in jobs:
-            jid = job.get('id', '?')
+            jid = str(job.get('id', '?'))
             status = job.get('status', 'unknown')
             tool = job.get('tool', 'unknown')
-            target = job.get('target', '')[:25]
+            target = job.get('target', '')
+            label = job.get('label', '') or '-'
             created = job.get('created_at', '')[:19]
+
+            # Truncate target if too long
+            if len(target) > 40:
+                target = target[:37] + '...'
+            
+            # Truncate label if too long
+            if len(label) > 20:
+                label = label[:17] + '...'
 
             # Color code status
             if status == 'done':
-                status_str = click.style(status, fg='green')
+                status_display = f"[green]{status}[/green]"
             elif status == 'running':
-                status_str = click.style(status, fg='yellow')
+                status_display = f"[yellow]{status}[/yellow]"
             elif status in ('failed', 'error'):
-                status_str = click.style(status, fg='red')
+                status_display = f"[red]{status}[/red]"
             elif status == 'killed':
-                status_str = click.style(status, fg='magenta')
+                status_display = f"[magenta]{status}[/magenta]"
+            elif status == 'queued':
+                status_display = f"[cyan]{status}[/cyan]"
             else:
-                status_str = status
+                status_display = status
 
-            click.echo(f"{jid:<5} {status_str:<10} {tool:<12} {target:<25} {created:<20}")
+            table.add_row(jid, status_display, tool, target, label, created)
 
+        console.print(table)
         click.echo()
         click.echo("Enter job ID to view details, or 0 to return")
 
