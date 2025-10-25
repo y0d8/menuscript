@@ -1126,6 +1126,10 @@ def view_results_menu():
 
 def manage_engagements_menu():
     """Interactive engagement management menu."""
+    from rich.console import Console
+    from rich.table import Table
+    import shutil
+    
     em = EngagementManager()
 
     while True:
@@ -1143,11 +1147,25 @@ def manage_engagements_menu():
 
         click.echo()
         click.echo(click.style("  📂 AVAILABLE ENGAGEMENTS", bold=True, fg='cyan'))
-        click.echo("  ─" * 38)
+        click.echo()
 
         if not engagements:
             click.echo("  No engagements found. Create one to get started!")
         else:
+            # Create Rich table
+            term_width = shutil.get_terminal_size().columns
+            table_width = min(term_width - 4, 120)
+            
+            console = Console(width=table_width)
+            table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+            
+            table.add_column("", width=3, no_wrap=True)
+            table.add_column("ID", width=4, no_wrap=True)
+            table.add_column("Name", width=25)
+            table.add_column("Hosts", width=8, justify="right")
+            table.add_column("Services", width=10, justify="right")
+            table.add_column("Findings", width=10, justify="right")
+            
             for ws in engagements:
                 ws_id = ws['id']
                 ws_name = ws['name']
@@ -1155,14 +1173,22 @@ def manage_engagements_menu():
 
                 # Mark current engagement
                 if ws_id == current_id:
-                    marker = click.style("★", fg='yellow', bold=True)
-                    name_style = click.style(ws_name, fg='green', bold=True)
+                    marker = "★"
+                    name_display = f"[bold green]{ws_name}[/bold green]"
                 else:
-                    marker = " "
-                    name_style = ws_name
+                    marker = ""
+                    name_display = ws_name
 
-                click.echo(f"    {marker} [{ws_id:2}] {name_style:<20} " +
-                          f"({stats['hosts']} hosts, {stats['services']} services, {stats['findings']} findings)")
+                table.add_row(
+                    marker,
+                    str(ws_id),
+                    name_display,
+                    str(stats['hosts']),
+                    str(stats['services']),
+                    str(stats['findings'])
+                )
+            
+            console.print("  ", table)
 
         click.echo()
         click.echo(click.style("  ⚙️  ACTIONS", bold=True, fg='yellow'))
@@ -1972,16 +1998,17 @@ def view_services(engagement_id: int):
     """Display services - choose between grouped by host or all services view."""
     while True:
         click.clear()
-        click.echo("\n" + "=" * 70)
-        click.echo("SERVICES VIEW")
-        click.echo("=" * 70 + "\n")
-        click.echo("  [1] View by Host (hierarchical)")
-        click.echo("  [2] View All Services (with filters)")
-        click.echo("  [0] Back to Results Menu")
+        click.echo("\n┌" + "─" * 68 + "┐")
+        click.echo("│" + click.style(" SERVICES VIEW ".center(68), bold=True, fg='cyan') + "│")
+        click.echo("└" + "─" * 68 + "┘")
+        click.echo()
+        click.echo("  " + click.style("[1]", fg='cyan', bold=True) + " View by Host (hierarchical)")
+        click.echo("  " + click.style("[2]", fg='cyan', bold=True) + " View All Services (with filters)")
+        click.echo("  " + click.style("[0]", fg='red', bold=True) + " Back to Results Menu")
         click.echo()
 
         try:
-            choice = click.prompt("Select view", type=int, default=0)
+            choice = click.prompt("  Select view", type=int, default=0)
 
             if choice == 0:
                 return
@@ -1996,6 +2023,10 @@ def view_services(engagement_id: int):
 
 def view_services_by_host(engagement_id: int):
     """Display services grouped by host."""
+    from rich.console import Console
+    from rich.table import Table
+    import shutil
+    
     hm = HostManager()
     import re
 
@@ -2016,27 +2047,43 @@ def view_services_by_host(engagement_id: int):
         hosts_with_services.sort(key=lambda x: x['service_count'], reverse=True)
 
         click.clear()
-        click.echo("\n" + "=" * 70)
-        click.echo("SERVICES BY HOST")
-        click.echo("=" * 70 + "\n")
+        click.echo("\n┌" + "─" * 68 + "┐")
+        click.echo("│" + click.style(" SERVICES BY HOST ".center(68), bold=True, fg='cyan') + "│")
+        click.echo("└" + "─" * 68 + "┘")
+        click.echo()
 
         if not hosts_with_services:
-            click.echo("No services found.")
+            click.echo("  No services found.")
             click.echo()
-            click.pause("Press any key to return...")
+            click.pause("  Press any key to return...")
             return
 
-        # Show host selection menu
-        click.echo(f"{'#':<3} {'Host IP':<18} {'Hostname':<25} {'Services':<10}")
-        click.echo("-" * 70)
+        # Create Rich table
+        term_width = shutil.get_terminal_size().columns
+        table_width = min(term_width - 4, 100)
+        
+        console = Console(width=table_width)
+        table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+        
+        table.add_column("#", width=4, no_wrap=True)
+        table.add_column("Host IP", width=18, no_wrap=True)
+        table.add_column("Hostname", width=30)
+        table.add_column("Services", width=10, justify="right")
 
         for idx, item in enumerate(hosts_with_services, 1):
             host = item['host']
             ip = host.get('ip_address', 'N/A')
-            hostname = (host.get('hostname') or '')[:25] or '-'
+            hostname = (host.get('hostname') or '-')[:30]
             svc_count = item['service_count']
 
-            click.echo(f"{idx:<3} {ip:<18} {hostname:<25} {svc_count} service(s)")
+            table.add_row(
+                str(idx),
+                f"● {ip}",
+                hostname,
+                f"{svc_count} service(s)"
+            )
+        
+        console.print("  ", table)
 
         click.echo("\n  0. Back to Services View")
 
@@ -2518,14 +2565,15 @@ def view_findings(engagement_id: int):
 
     while True:
         click.clear()
-        click.echo("\n" + "=" * 80)
-        click.echo("FINDINGS")
-        click.echo("=" * 80 + "\n")
+        click.echo("\n┌" + "─" * 78 + "┐")
+        click.echo("│" + click.style(" FINDINGS ".center(78), bold=True, fg='yellow') + "│")
+        click.echo("└" + "─" * 78 + "┘")
+        click.echo()
 
         # Show active filters
         active_filters = [f"{k}: {v}" for k, v in filters.items() if v]
         if active_filters:
-            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+            click.echo("  " + click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
             click.echo()
 
         # Get findings with filters
@@ -2539,7 +2587,7 @@ def view_findings(engagement_id: int):
         )
 
         if not findings:
-            click.echo("No findings found with current filters.")
+            click.echo("  No findings found with current filters.")
         else:
             # Show summary
             by_severity = {}
@@ -2547,7 +2595,7 @@ def view_findings(engagement_id: int):
                 sev = f.get('severity', 'info')
                 by_severity[sev] = by_severity.get(sev, 0) + 1
 
-            click.echo("Summary by severity:")
+            click.echo("  Summary by severity:")
             for sev in ['critical', 'high', 'medium', 'low', 'info']:
                 if sev in by_severity:
                     count = by_severity[sev]
@@ -2559,39 +2607,52 @@ def view_findings(engagement_id: int):
                         'info': 'white'
                     }.get(sev, 'white')
 
-                    click.echo(f"  {sev.capitalize():<10}: {click.style(str(count), fg=color)}")
+                    click.echo(f"    {sev.capitalize():<10}: {click.style(str(count), fg=color)}")
 
             click.echo()
 
-            # Table header
-            click.echo("  ┌" + "─" * 6 + "┬" + "─" * 12 + "┬" + "─" * 22 + "┬" + "─" * 17 + "┬" + "─" * 40 + "┐")
-            header = f"  │ {'ID':<4} │ {'Severity':<10} │ {'Type':<20} │ {'Host':<15} │ {'Title':<38} │"
-            click.echo(click.style(header, bold=True))
-            click.echo("  ├" + "─" * 6 + "┼" + "─" * 12 + "┼" + "─" * 22 + "┼" + "─" * 17 + "┼" + "─" * 40 + "┤")
+            # Create Rich table
+            from rich.console import Console
+            from rich.table import Table
+            import shutil
+            
+            term_width = shutil.get_terminal_size().columns
+            table_width = min(term_width - 4, 120)
+            
+            console = Console(width=table_width)
+            table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+            
+            table.add_column("ID", width=6, no_wrap=True)
+            table.add_column("Severity", width=12, no_wrap=True)
+            table.add_column("Type", width=22)
+            table.add_column("Host", width=17, no_wrap=True)
+            table.add_column("Title", width=max(40, table_width - 70))
 
             for finding in findings[:30]:  # Limit to 30
                 fid = finding.get('id', '?')
                 sev = finding.get('severity', 'info')
-                ftype = (finding.get('finding_type') or 'unknown')[:20]
-                host = (finding.get('ip_address') or 'N/A')[:15]
-                title = (finding.get('title') or 'No title')[:38]
+                ftype = (finding.get('finding_type') or 'unknown')[:22]
+                host = (finding.get('ip_address') or 'N/A')[:17]
+                title = (finding.get('title') or 'No title')[:50]
 
                 # Color code severity
-                color = {
-                    'critical': 'red',
-                    'high': 'red',
-                    'medium': 'yellow',
-                    'low': 'blue',
-                    'info': 'white'
-                }.get(sev, 'white')
+                sev_display = {
+                    'critical': f"[bold red]{sev}[/bold red]",
+                    'high': f"[red]{sev}[/red]",
+                    'medium': f"[yellow]{sev}[/yellow]",
+                    'low': f"[blue]{sev}[/blue]",
+                    'info': sev
+                }.get(sev, sev)
 
-                sev_colored = click.style(f"{sev:<10}", fg=color)
-
-                row = f"  │ {fid:<4} │ {sev_colored} │ {ftype:<20} │ {host:<15} │ {title:<38} │"
-                click.echo(row)
-
-            # Bottom border
-            click.echo("  └" + "─" * 6 + "┴" + "─" * 12 + "┴" + "─" * 22 + "┴" + "─" * 17 + "┴" + "─" * 40 + "┘")
+                table.add_row(
+                    str(fid),
+                    sev_display,
+                    ftype,
+                    host,
+                    title
+                )
+            
+            console.print("  ", table)
 
             if len(findings) > 30:
                 click.echo(f"\n  ... and {len(findings) - 30} more (use filters to narrow results)")
@@ -3026,14 +3087,15 @@ def view_credentials(engagement_id: int):
 
     while True:
         click.clear()
-        click.echo("\n" + "=" * 80)
-        click.echo("CREDENTIALS")
-        click.echo("=" * 80 + "\n")
+        click.echo("\n┌" + "─" * 78 + "┐")
+        click.echo("│" + click.style(" CREDENTIALS ".center(78), bold=True, fg='green') + "│")
+        click.echo("└" + "─" * 78 + "┘")
+        click.echo()
 
         # Show active filters
         active_filters = [f"{k}: {v}" for k, v in filters.items() if v]
         if active_filters:
-            click.echo(click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
+            click.echo("  " + click.style("Active Filters: ", bold=True) + ", ".join(active_filters))
             click.echo()
 
         # Get credentials with filters
@@ -3045,47 +3107,62 @@ def view_credentials(engagement_id: int):
         )
 
         if not credentials:
-            click.echo("No credentials found with current filters.")
+            click.echo("  No credentials found with current filters.")
         else:
             # Show summary
             stats = cm.get_stats(engagement_id)
-            click.echo("Summary:")
-            click.echo(f"  Total:         {stats['total']}")
-            click.echo(f"  Valid:         " + click.style(str(stats['valid']), fg='green'))
-            click.echo(f"  Username only: {stats['users_only']}")
-            click.echo(f"  Password only: {stats['passwords_only']}")
-            click.echo(f"  Full pairs:    {stats['pairs']}")
+            click.echo("  Summary:")
+            click.echo(f"    Total:         {stats['total']}")
+            click.echo(f"    Valid:         " + click.style(str(stats['valid']), fg='green'))
+            click.echo(f"    Username only: {stats['users_only']}")
+            click.echo(f"    Password only: {stats['passwords_only']}")
+            click.echo(f"    Full pairs:    {stats['pairs']}")
             click.echo()
 
-            # Table header
-            click.echo("  ┌" + "─" * 6 + "┬" + "─" * 17 + "┬" + "─" * 12 + "┬" + "─" * 22 + "┬" + "─" * 22 + "┬" + "─" * 10 + "┐")
-            header = f"  │ {'ID':<4} │ {'Host':<15} │ {'Service':<10} │ {'Username':<20} │ {'Password':<20} │ {'Status':<8} │"
-            click.echo(click.style(header, bold=True))
-            click.echo("  ├" + "─" * 6 + "┼" + "─" * 17 + "┼" + "─" * 12 + "┼" + "─" * 22 + "┼" + "─" * 22 + "┼" + "─" * 10 + "┤")
+            # Create Rich table
+            from rich.console import Console
+            from rich.table import Table
+            import shutil
+            
+            term_width = shutil.get_terminal_size().columns
+            table_width = min(term_width - 4, 120)
+            
+            console = Console(width=table_width)
+            table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+            
+            table.add_column("ID", width=6, no_wrap=True)
+            table.add_column("Host", width=17, no_wrap=True)
+            table.add_column("Service", width=12, no_wrap=True)
+            table.add_column("Username", width=22)
+            table.add_column("Password", width=22)
+            table.add_column("Status", width=10, no_wrap=True)
 
             for cred in credentials[:30]:  # Limit to 30
                 cid = cred.get('id', '?')
-                host = (cred.get('ip_address') or 'N/A')[:15]
-                service = (cred.get('service') or 'N/A')[:10]
-                username = (cred.get('username') or '-')[:20]
-                password = (cred.get('password') or '-')[:20]
-                status = cred.get('status', 'unknown')[:8]
+                host = (cred.get('ip_address') or 'N/A')[:17]
+                service = (cred.get('service') or 'N/A')[:12]
+                username = (cred.get('username') or '-')[:22]
+                password = (cred.get('password') or '-')[:22]
+                status = cred.get('status', 'unknown')
 
                 # Color code status
-                status_color = {
-                    'valid': 'green',
-                    'invalid': 'red',
-                    'untested': 'yellow',
-                    'discovered': 'cyan'
-                }.get(status, 'white')
+                status_display = {
+                    'valid': f"[green]{status}[/green]",
+                    'invalid': f"[red]{status}[/red]",
+                    'untested': f"[yellow]{status}[/yellow]",
+                    'discovered': f"[cyan]{status}[/cyan]"
+                }.get(status, status)
 
-                status_colored = click.style(f"{status:<8}", fg=status_color)
-
-                row = f"  │ {cid:<4} │ {host:<15} │ {service:<10} │ {username:<20} │ {password:<20} │ {status_colored} │"
-                click.echo(row)
-
-            # Bottom border
-            click.echo("  └" + "─" * 6 + "┴" + "─" * 17 + "┴" + "─" * 12 + "┴" + "─" * 22 + "┴" + "─" * 22 + "┴" + "─" * 10 + "┘")
+                table.add_row(
+                    str(cid),
+                    host,
+                    service,
+                    username,
+                    password,
+                    status_display
+                )
+            
+            console.print("  ", table)
 
             if len(credentials) > 30:
                 click.echo(f"\n  ... and {len(credentials) - 30} more (use filters to narrow results)")
