@@ -148,6 +148,13 @@ class HostManager:
             (engagement_id,)
         )
     
+    def get_host(self, host_id: int) -> Optional[Dict[str, Any]]:
+        """Get a single host by ID."""
+        return self.db.execute_one(
+            "SELECT * FROM hosts WHERE id = ?",
+            (host_id,)
+        )
+    
     def get_host_services(self, host_id: int) -> List[Dict[str, Any]]:
         """Get all services for a host."""
         return self.db.execute(
