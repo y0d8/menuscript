@@ -2565,9 +2565,12 @@ def view_findings(engagement_id: int):
 
     while True:
         click.clear()
-        click.echo("\n┌" + "─" * 78 + "┐")
-        click.echo("│" + click.style(" FINDINGS ".center(78), bold=True, fg='yellow') + "│")
-        click.echo("└" + "─" * 78 + "┘")
+        width = 115
+        
+        click.echo()
+        click.echo("  " + "═" * (width - 4))
+        click.echo(click.style("  FINDINGS MANAGEMENT", bold=True))
+        click.echo("  " + "═" * (width - 4))
         click.echo()
 
         # Show active filters
@@ -2587,7 +2590,7 @@ def view_findings(engagement_id: int):
         )
 
         if not findings:
-            click.echo("  No findings found with current filters.")
+            click.echo("  " + click.style("No findings found with current filters.", fg='yellow'))
         else:
             # Show summary
             by_severity = {}
@@ -2611,69 +2614,70 @@ def view_findings(engagement_id: int):
 
             click.echo()
 
-            # Create Rich table
-            from rich.console import Console
-            from rich.table import Table
-            import shutil
-            
-            term_width = shutil.get_terminal_size().columns
-            table_width = min(term_width - 4, 120)
-            
-            console = Console(width=table_width)
-            table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-            
-            table.add_column("ID", width=6, no_wrap=True)
-            table.add_column("Severity", width=12, no_wrap=True)
-            table.add_column("Type", width=22)
-            table.add_column("Host", width=17, no_wrap=True)
-            table.add_column("Title", width=max(40, table_width - 70))
+            # Table header
+            click.echo("  ┌────────┬──────────────┬────────────────────────┬───────────────────┬─────────────────────────────────────────────────────┐")
+            header = f"  │ ID     │ Severity     │ Type                   │ Host              │ Title                                               │"
+            click.echo(click.style(header, bold=True))
+            click.echo("  ├────────┼──────────────┼────────────────────────┼───────────────────┼─────────────────────────────────────────────────────┤")
 
             for finding in findings[:30]:  # Limit to 30
                 fid = finding.get('id', '?')
                 sev = finding.get('severity', 'info')
-                ftype = (finding.get('finding_type') or 'unknown')[:22]
-                host = (finding.get('ip_address') or 'N/A')[:17]
-                title = (finding.get('title') or 'No title')[:50]
+                ftype = (finding.get('finding_type') or 'unknown')
+                host = (finding.get('ip_address') or 'N/A')
+                title = (finding.get('title') or 'No title')
+
+                # Truncate long strings
+                if len(ftype) > 22:
+                    ftype = ftype[:19] + '...'
+                if len(host) > 17:
+                    host = host[:17]
+                if len(title) > 51:
+                    title = title[:48] + '...'
 
                 # Color code severity
-                sev_display = {
-                    'critical': f"[bold red]{sev}[/bold red]",
-                    'high': f"[red]{sev}[/red]",
-                    'medium': f"[yellow]{sev}[/yellow]",
-                    'low': f"[blue]{sev}[/blue]",
-                    'info': sev
-                }.get(sev, sev)
+                sev_color = {
+                    'critical': 'red',
+                    'high': 'red',
+                    'medium': 'yellow',
+                    'low': 'blue',
+                    'info': 'white'
+                }.get(sev, 'white')
 
-                table.add_row(
-                    str(fid),
-                    sev_display,
-                    ftype,
-                    host,
-                    title
-                )
-            
-            console.print("  ", table)
+                sev_display = click.style(f"{sev:<12}", fg=sev_color)
+                row = f"  │ {str(fid):<6} │ {sev_display} │ {ftype:<22} │ {host:<17} │ {title:<51} │"
+                click.echo(row)
+
+            click.echo("  └────────┴──────────────┴────────────────────────┴───────────────────┴─────────────────────────────────────────────────────┘")
 
             if len(findings) > 30:
-                click.echo(f"\n  ... and {len(findings) - 30} more (use filters to narrow results)")
+                click.echo(f"\n  ... showing first 30 of {len(findings)} findings (use filters to narrow results)")
 
         # Menu options
-        click.echo("\n" + "-" * 80)
-        click.echo("Filter Options:")
-        click.echo("  [1] Filter by Severity")
-        click.echo("  [2] Filter by Type")
-        click.echo("  [3] Filter by Tool")
-        click.echo("  [4] Search (title/description)")
-        click.echo("  [5] Filter by IP Address")
-        click.echo("  [6] Clear All Filters")
         click.echo()
-        click.echo("Management Options:")
-        click.echo("  [7] View Finding Details")
-        click.echo("  [8] Add New Finding")
-        click.echo("  [9] Edit Finding")
-        click.echo("  [10] Delete Finding")
+        click.echo("  " + "─" * (width - 4))
+        click.echo("  " + click.style("FILTER OPTIONS", bold=True))
+        click.echo("  " + "─" * (width - 4))
         click.echo()
-        click.echo("  [0] Back to Main Menu")
+        click.echo("      [1] Filter by Severity")
+        click.echo("      [2] Filter by Type")
+        click.echo("      [3] Filter by Tool")
+        click.echo("      [4] Search (title/description)")
+        click.echo("      [5] Filter by IP Address")
+        click.echo("      [6] Clear All Filters")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo("  " + click.style("MANAGEMENT OPTIONS", bold=True))
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      [7] View Finding Details")
+        click.echo("      [8] Add New Finding")
+        click.echo("      [9] Edit Finding")
+        click.echo("      [10] Delete Finding")
+        click.echo()
+        click.echo("  " + "─" * (width - 4))
+        click.echo()
+        click.echo("      [0] Back to Main Menu")
         click.echo()
 
         try:
