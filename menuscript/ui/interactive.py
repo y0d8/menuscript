@@ -3856,6 +3856,7 @@ def view_web_paths(engagement_id: int):
 
     # Active filter
     filter_host_id = None
+    view_all = False
 
     while True:
         click.clear()
@@ -3898,6 +3899,9 @@ def view_web_paths(engagement_id: int):
                         paths_by_host[host_id] = []
                     paths_by_host[host_id].append(path)
 
+            # Determine display limit
+            display_limit = None if view_all else 20
+
             # Display redirects first
             if redirects_by_host:
                 console.print("[bold yellow]🔀 REDIRECTS[/bold yellow]\n")
@@ -3913,7 +3917,8 @@ def view_web_paths(engagement_id: int):
                     table.add_column("Source URL", width=50)
                     table.add_column("→ Redirect Target", width=40)
 
-                    for path in paths[:20]:
+                    display_paths = paths if display_limit is None else paths[:display_limit]
+                    for path in display_paths:
                         path_id = str(path.get('id', '?'))
                         path_url = path.get('url', '/')[:50]
                         status = str(path.get('status_code', '?'))
@@ -3928,8 +3933,8 @@ def view_web_paths(engagement_id: int):
                         table.add_row(path_id, status_display, path_url, redirect)
 
                     console.print(table)
-                    if len(paths) > 20:
-                        console.print(f"  [dim]... and {len(paths) - 20} more[/dim]\n")
+                    if display_limit and len(paths) > display_limit:
+                        console.print(f"  [dim]... and {len(paths) - display_limit} more[/dim]")
                     console.print()
 
             # Display regular paths
@@ -3947,7 +3952,8 @@ def view_web_paths(engagement_id: int):
                     table.add_column("URL", width=60)
                     table.add_column("Size", width=10, justify="right")
 
-                    for path in paths[:20]:
+                    display_paths = paths if display_limit is None else paths[:display_limit]
+                    for path in display_paths:
                         path_id = str(path.get('id', '?'))
                         path_url = path.get('url', '/')[:60]
                         status = str(path.get('status_code', '?'))
@@ -3967,18 +3973,18 @@ def view_web_paths(engagement_id: int):
                         table.add_row(path_id, status_display, path_url, size_display)
 
                     console.print(table)
-                    if len(paths) > 20:
-                        console.print(f"  [dim]... and {len(paths) - 20} more[/dim]\n")
-                    console.print()
+                    if display_limit and len(paths) > display_limit:
+                        console.print(f"  [dim]... and {len(paths) - display_limit} more[/dim]")
 
         # Menu options
         console.print("\n[bold cyan]─" * 70)
         console.print("[bold]OPTIONS")
         console.print("[bold cyan]─" * 70 + "\n")
-        click.echo("  [1] Filter by Host")
-        click.echo("  [2] Clear Filter")
-        click.echo("  [3] Add New Web Path")
-        click.echo("  [4] Delete Web Path")
+        click.echo("  [1] View All Results")
+        click.echo("  [2] Filter by Host")
+        click.echo("  [3] Clear Filter")
+        click.echo("  [4] Add New Web Path")
+        click.echo("  [5] Delete Web Path")
         click.echo("\n  [0] Back to Main Menu\n")
 
         try:
@@ -3987,14 +3993,19 @@ def view_web_paths(engagement_id: int):
             if choice == 0:
                 return
             elif choice == 1:
-                filter_host_id = _filter_webpath_by_host(engagement_id, hm)
+                # View all results - set flag and loop back
+                view_all = True
             elif choice == 2:
+                filter_host_id = _filter_webpath_by_host(engagement_id, hm)
+                view_all = False
+            elif choice == 3:
                 filter_host_id = None
+                view_all = False
                 click.echo(click.style("✓ Filter cleared", fg='green'))
                 click.pause()
-            elif choice == 3:
-                _add_new_web_path(engagement_id, hm, wpm)
             elif choice == 4:
+                _add_new_web_path(engagement_id, hm, wpm)
+            elif choice == 5:
                 _delete_web_path(engagement_id, wpm)
             else:
                 click.echo(click.style("Invalid selection!", fg='red'))
